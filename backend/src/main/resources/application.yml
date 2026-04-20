@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: bi-dashboard-engine
+  datasource:
+    url: ${BI_DB_URL:jdbc:mysql://127.0.0.1:3306/bi_dashboard?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false&createDatabaseIfNotExist=true}
+    username: ${BI_DB_USERNAME:root}
+    password: ${BI_DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jackson:
+    default-property-inclusion: non_null
+  sql:
+    init:
+      mode: never
+      encoding: UTF-8
+      schema-locations: classpath:sql/schema.sql
+      data-locations: classpath:sql/sample-data-v2.sql,classpath:sql/volatility-tracking-data.sql,classpath:sql/sales-report-model.sql,classpath:sql/sales-report-data.sql
