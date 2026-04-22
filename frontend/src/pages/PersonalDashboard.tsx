@@ -1,386 +1,488 @@
-import { ArrowDownOutlined, ArrowLeftOutlined, ArrowUpOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, SaveOutlined, TagsOutlined } from '@ant-design/icons';
-import { Button, Empty, Input, InputNumber, Modal, Space, Tag, message } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import DashboardCanvas from '../components/DashboardCanvas';
+import { DeleteOutlined, ExpandOutlined, HolderOutlined } from '@ant-design/icons';
+import { Button, Empty, Input, Modal, Popconfirm, Select, Space, message } from 'antd';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { api } from '../api/client';
-import type { ChartPreview, DashboardComponent, FavoriteChart, PersonalBoard } from '../types/dashboard';
+import ChartContainer from '../components/ChartContainer';
+import ChartRendererCore from '../components/ChartRendererCore';
+import type { ChartPreview, DashboardCategoryKey, DashboardComponent } from '../types/dashboard';
+import { normalizeDisplayText } from '../utils/dashboard';
+import { DASHBOARD_CATEGORIES } from '../utils/dashboardCatalog';
 import {
-  createPersonalBoard,
   deletePersonalBoard,
-  getPersonalBoard,
-  listPersonalBoards,
-  removeComponentFromBoard,
-  saveFavoriteLayouts,
-  updatePersonalBoard
+  listPersonalCharts,
+  reorderPersonalCharts,
+  type PersonalChartEntry
 } from '../utils/favorites';
 
-function toComponent(item: FavoriteChart): DashboardComponent {
+type SortMode = 'manual' | 'time_asc' | 'time_desc';
+
+function reorderItemsPreview<T>(items: T[], fromIndex: number, toIndex: number) {
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+    return items;
+  }
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+function parseSortTime(value?: string) {
+  if (!value) return Number.NEGATIVE_INFINITY;
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const timestamp = new Date(normalized).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+function normalizeSearchKeyword(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchChartKeyword(entry: PersonalChartEntry, keyword: string) {
+  if (!keyword) return true;
+  const normalizedKeyword = normalizeSearchKeyword(keyword);
+  const targets = [
+    normalizeDisplayText(entry.chart.componentTitle, entry.chart.componentCode),
+    entry.chart.componentCode
+  ];
+  return targets.some(value => value.toLowerCase().includes(normalizedKeyword));
+}
+
+function toComponent(entry: PersonalChartEntry): DashboardComponent {
   return {
-    componentCode: item.componentCode,
+    componentCode: entry.chart.componentCode,
     componentType: 'chart',
-    templateCode: item.templateCode,
-    modelCode: item.modelCode,
-    title: item.componentTitle,
-    dslConfig: item.dslConfig
+    templateCode: entry.chart.templateCode,
+    modelCode: entry.chart.modelCode,
+    title: entry.chart.componentTitle,
+    dslConfig: entry.chart.dslConfig
   };
-}
-
-function buildBoardComponents(board: PersonalBoard) {
-  return board.components.map(toComponent);
-}
-
-function createBoardPreviewMap(boards: PersonalBoard[]) {
-  return Object.fromEntries(boards.map(board => [board.boardId, {} as Record<string, ChartPreview>]));
 }
 
 export default function PersonalDashboard() {
-  const navigate = useNavigate();
-  const { boardId } = useParams();
-  const [boards, setBoards] = useState(listPersonalBoards());
-  const [activePrimaryFilter, setActivePrimaryFilter] = useState('全部');
-  const [boardPreviews, setBoardPreviews] = useState<Record<string, Record<string, ChartPreview>>>(() => createBoardPreviewMap(boards));
-  const [components, setComponents] = useState<DashboardComponent[]>([]);
-  const [selectedComponentCode, setSelectedComponentCode] = useState<string>();
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [editingBoardId, setEditingBoardId] = useState<string>();
-  const [primaryLabelInput, setPrimaryLabelInput] = useState('');
-  const [secondaryLabelInput, setSecondaryLabelInput] = useState('');
-  const [boardOrderInput, setBoardOrderInput] = useState(1);
+  const [charts, setCharts] = useState<PersonalChartEntry[]>(listPersonalCharts());
+  const [previews, setPreviews] = useState<Record<string, ChartPreview>>({});
+  const [activeCategory, setActiveCategory] = useState<'all' | DashboardCategoryKey>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('manual');
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [draggingChartId, setDraggingChartId] = useState<string>();
+  const [dragOverChartId, setDragOverChartId] = useState<string>();
+  const [expandedChart, setExpandedChart] = useState<PersonalChartEntry>();
+  const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
+  const tocScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const currentBoard = useMemo(
-    () => (boardId ? getPersonalBoard(boardId) : undefined),
-    [boardId, boards]
-  );
+  const filteredCharts = useMemo(() => {
+    const base = activeCategory === 'all'
+      ? charts
+      : charts.filter(item => item.primaryLabel === DASHBOARD_CATEGORIES.find(option => option.key === activeCategory)?.label);
 
-  const groupedBoards = useMemo(() => {
-    const map = new Map<string, PersonalBoard[]>();
-    boards.forEach(board => {
-      const key = board.primaryLabel || '未分组';
-      map.set(key, [...(map.get(key) ?? []), board]);
-    });
-    return [...map.entries()];
-  }, [boards]);
+    const next = base.filter(item => matchChartKeyword(item, searchKeyword));
+    if (sortMode === 'time_asc') {
+      next.sort((a, b) => parseSortTime(a.updatedAt ?? a.createdAt) - parseSortTime(b.updatedAt ?? b.createdAt));
+    } else if (sortMode === 'time_desc') {
+      next.sort((a, b) => parseSortTime(b.updatedAt ?? b.createdAt) - parseSortTime(a.updatedAt ?? a.createdAt));
+    } else {
+      next.sort((a, b) => a.order - b.order);
+    }
+    return next;
+  }, [activeCategory, charts, searchKeyword, sortMode]);
 
-  const primaryFilterOptions = useMemo(
-    () => ['全部', ...groupedBoards.map(([primaryLabel]) => primaryLabel)],
-    [groupedBoards]
-  );
+  const renderedCharts = useMemo(() => {
+    if (!draggingChartId || !dragOverChartId || sortMode !== 'manual') {
+      return filteredCharts;
+    }
+    const fromIndex = filteredCharts.findIndex(item => item.boardId === draggingChartId);
+    const toIndex = filteredCharts.findIndex(item => item.boardId === dragOverChartId);
+    return reorderItemsPreview(filteredCharts, fromIndex, toIndex);
+  }, [dragOverChartId, draggingChartId, filteredCharts, sortMode]);
 
-  const filteredGroupedBoards = useMemo(
-    () => activePrimaryFilter === '全部'
-      ? groupedBoards
-      : groupedBoards.filter(([primaryLabel]) => primaryLabel === activePrimaryFilter),
-    [activePrimaryFilter, groupedBoards]
-  );
+  const navGroups = useMemo(() => {
+    if (activeCategory === 'all') {
+      return DASHBOARD_CATEGORIES
+        .map(item => ({
+          key: item.key,
+          label: item.label,
+          charts: renderedCharts.filter(chart => chart.primaryLabel === item.label)
+        }))
+        .filter(group => group.charts.length > 0);
+    }
+
+    return [{
+      key: activeCategory,
+      label: DASHBOARD_CATEGORIES.find(item => item.key === activeCategory)?.label ?? '当前分类',
+      charts: renderedCharts
+    }];
+  }, [activeCategory, renderedCharts]);
 
   useEffect(() => {
-    const syncBoards = () => {
-      const nextBoards = listPersonalBoards();
-      setBoards(nextBoards);
-      setBoardPreviews(current => {
-        const next = createBoardPreviewMap(nextBoards);
-        nextBoards.forEach(board => {
-          next[board.boardId] = current[board.boardId] ?? {};
-        });
-        return next;
-      });
-
-      if (!boardId) {
-        setComponents([]);
-        setSelectedComponentCode(undefined);
-        setDirty(false);
-      } else {
-        const nextBoard = getPersonalBoard(boardId);
-        if (!nextBoard) {
-          navigate('/favorites', { replace: true });
-          return;
-        }
-        const nextComponents = buildBoardComponents(nextBoard);
-        setComponents(nextComponents);
-        setSelectedComponentCode(current => current && nextComponents.some(item => item.componentCode === current)
-          ? current
-          : nextComponents[0]?.componentCode);
-        setDirty(false);
-      }
+    const syncCharts = () => {
+      const nextCharts = listPersonalCharts();
+      setCharts(nextCharts);
 
       Promise.all(
-        nextBoards.map(async board => {
-          if (board.components.length === 0) {
-            return [board.boardId, {}] as const;
-          }
-          const entries = await Promise.all(
-            board.components.map(async item => [item.componentCode, await api.previewComponent({ modelCode: item.modelCode, dslConfig: item.dslConfig })] as const)
-          );
-          return [board.boardId, Object.fromEntries(entries)] as const;
-        })
+        nextCharts.map(async item => [
+          item.chart.componentCode,
+          await api.previewComponent({
+            modelCode: item.chart.modelCode,
+            dslConfig: item.chart.dslConfig
+          })
+        ] as const)
       )
-        .then(entries => setBoardPreviews(Object.fromEntries(entries)))
+        .then(entries => setPreviews(Object.fromEntries(entries)))
         .catch(error => {
           console.error(error);
-          message.error(error instanceof Error ? error.message : '个人指标库加载失败');
+          message.error(error instanceof Error ? error.message : '我的指标加载失败');
         });
     };
 
-    syncBoards();
-    window.addEventListener('storage', syncBoards);
-    window.addEventListener('bi-dashboard-favorites-changed', syncBoards as EventListener);
+    syncCharts();
+    window.addEventListener('storage', syncCharts);
+    window.addEventListener('bi-dashboard-favorites-changed', syncCharts as EventListener);
     return () => {
-      window.removeEventListener('storage', syncBoards);
-      window.removeEventListener('bi-dashboard-favorites-changed', syncBoards as EventListener);
+      window.removeEventListener('storage', syncCharts);
+      window.removeEventListener('bi-dashboard-favorites-changed', syncCharts as EventListener);
     };
-  }, [boardId, navigate]);
+  }, []);
 
   useEffect(() => {
-    if (activePrimaryFilter === '全部') return;
-    if (!primaryFilterOptions.includes(activePrimaryFilter)) {
-      setActivePrimaryFilter('全部');
+    setActiveChartCodes(renderedCharts.slice(0, 3).map(item => item.chart.componentCode));
+  }, [renderedCharts]);
+
+  useEffect(() => {
+    if (renderedCharts.length === 0) {
+      setActiveChartCodes([]);
+      return;
     }
-  }, [activePrimaryFilter, primaryFilterOptions]);
 
-  const openCreateBoard = () => {
-    setEditingBoardId('create');
-    setPrimaryLabelInput('');
-    setSecondaryLabelInput('');
-    setBoardOrderInput(boards.length + 1);
-  };
+    const updateActiveCharts = () => {
+      const cards = renderedCharts
+        .map(item => {
+          const element = document.getElementById(`personal-chart-card-${item.chart.componentCode}`);
+          if (!element) return undefined;
+          const rect = element.getBoundingClientRect();
+          return { chartCode: item.chart.componentCode, top: rect.top, bottom: rect.bottom };
+        })
+        .filter((item): item is { chartCode: string; top: number; bottom: number } => Boolean(item));
 
-  const openRenameBoard = () => {
-    if (!currentBoard) return;
-    setEditingBoardId(currentBoard.boardId);
-    setPrimaryLabelInput(currentBoard.primaryLabel || '');
-    setSecondaryLabelInput(currentBoard.secondaryLabel || currentBoard.boardName);
-    setBoardOrderInput(currentBoard.order);
-  };
+      if (cards.length === 0) {
+        return;
+      }
 
-  const deleteBoard = (targetBoard: PersonalBoard) => {
-    deletePersonalBoard(targetBoard.boardId);
-    const nextBoards = listPersonalBoards();
-    setBoards(nextBoards);
-    setBoardPreviews(current => {
+      const visibleCards = cards.filter(item => item.bottom > 120);
+      const sortedCards = (visibleCards.length > 0 ? visibleCards : cards)
+        .sort((a, b) => Math.abs(a.top - 140) - Math.abs(b.top - 140));
+      const rowTop = sortedCards[0]?.top;
+      if (rowTop == null) {
+        return;
+      }
+
+      const nextActiveCodes = sortedCards
+        .filter(item => Math.abs(item.top - rowTop) < 24)
+        .slice(0, 3)
+        .map(item => item.chartCode);
+
+      setActiveChartCodes(current => (
+        current.length === nextActiveCodes.length && current.every((code, index) => code === nextActiveCodes[index])
+          ? current
+          : nextActiveCodes
+      ));
+    };
+
+    updateActiveCharts();
+    window.addEventListener('scroll', updateActiveCharts, { passive: true });
+    window.addEventListener('resize', updateActiveCharts);
+    return () => {
+      window.removeEventListener('scroll', updateActiveCharts);
+      window.removeEventListener('resize', updateActiveCharts);
+    };
+  }, [renderedCharts]);
+
+  useEffect(() => {
+    if (activeChartCodes.length === 0 || !tocScrollRef.current) {
+      return;
+    }
+    const container = tocScrollRef.current;
+    const activeItem = container.querySelector<HTMLButtonElement>(`[data-chart-code="${activeChartCodes[0]}"]`);
+    if (!activeItem) {
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+    const nextTop = container.scrollTop + (itemRect.top - containerRect.top) - ((container.clientHeight - itemRect.height) / 2);
+    container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+  }, [activeChartCodes]);
+
+  const removeChart = (target: PersonalChartEntry) => {
+    deletePersonalBoard(target.boardId);
+    setCharts(listPersonalCharts());
+    setPreviews(current => {
       const next = { ...current };
-      delete next[targetBoard.boardId];
+      delete next[target.chart.componentCode];
       return next;
     });
-    if (boardId === targetBoard.boardId) {
-      navigate('/favorites');
-    }
-    message.success('个人指标看板已删除');
+    message.success('图表已从我的指标移除');
   };
 
-  const boardCards = (
-    <div className="favorites-group-list">
-      {filteredGroupedBoards.map(([primaryLabel, items]) => (
-        <section key={primaryLabel} className="favorites-group-section">
-          <div className="favorites-group-head">
-            <Space>
-              <TagsOutlined />
-              <h3 className="favorites-group-title">{primaryLabel}</h3>
-              <Tag>{items.length} 个看板</Tag>
-            </Space>
-          </div>
-          <div className="favorites-board-grid">
-            {items.map(board => {
-              const previewComponents = buildBoardComponents(board);
-              const previews = boardPreviews[board.boardId] ?? {};
-              return (
-                <article key={board.boardId} className="panel-card favorites-board-card">
-                  <div className="favorites-board-card-head">
-                    <div>
-                      <div className="favorites-board-tags">
-                        <Tag color="cyan">{board.primaryLabel || '未分组'}</Tag>
-                        <Tag>{board.secondaryLabel || board.boardName}</Tag>
-                      </div>
-                      <h3 className="favorites-board-title">{board.secondaryLabel || board.boardName}</h3>
-                      <div className="favorites-board-meta">
-                        <span>排序 {board.order}</span>
-                        <span>{board.components.length} 个图表</span>
-                      </div>
-                    </div>
-                    <Space wrap>
-                      <Button icon={<EyeOutlined />} onClick={() => navigate(`/favorites/${board.boardId}`)}>查看</Button>
-                      <Button icon={<DeleteOutlined />} danger onClick={() => deleteBoard(board)}>删除</Button>
-                    </Space>
-                  </div>
-                  <div className="favorites-board-thumb">
-                    <DashboardCanvas
-                      components={previewComponents}
-                      previews={previews}
-                      editable={false}
-                      selectedComponentCode={undefined}
-                      onSelect={() => undefined}
-                      onLayoutChange={() => undefined}
-                      mode="thumbnail"
-                      emptyContent={<Empty description="当前看板还没有图表" />}
-                    />
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
+  const moveChart = (sourceId: string, targetId: string) => {
+    if (sortMode !== 'manual' || sourceId === targetId) {
+      return;
+    }
 
-  const currentPreviews = currentBoard ? (boardPreviews[currentBoard.boardId] ?? {}) : {};
+    const visibleIds = filteredCharts.map(item => item.boardId);
+    const sourceIndex = visibleIds.findIndex(id => id === sourceId);
+    const targetIndex = visibleIds.findIndex(id => id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) {
+      return;
+    }
+
+    const nextVisibleIds = [...visibleIds];
+    const [movedId] = nextVisibleIds.splice(sourceIndex, 1);
+    nextVisibleIds.splice(targetIndex, 0, movedId);
+
+    const visibleSet = new Set(nextVisibleIds);
+    const reorderedVisible = nextVisibleIds
+      .map(id => charts.find(item => item.boardId === id))
+      .filter((item): item is PersonalChartEntry => Boolean(item));
+    const hiddenCharts = charts.filter(item => !visibleSet.has(item.boardId));
+    const reordered = [...reorderedVisible, ...hiddenCharts].map((item, index) => ({ ...item, order: index + 1 }));
+
+    setCharts(reordered);
+    reorderPersonalCharts(reordered.map(item => item.boardId));
+  };
+
+  const handlePersonalDragStart = (event: DragEvent<HTMLElement>, sourceId: string) => {
+    if (sortMode !== 'manual') {
+      event.preventDefault();
+      return;
+    }
+    setDraggingChartId(sourceId);
+    setDragOverChartId(undefined);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', sourceId);
+  };
+
+  const handlePersonalDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
+    event.preventDefault();
+    const sourceId = draggingChartId || event.dataTransfer.getData('text/plain');
+    if (sourceId) {
+      moveChart(sourceId, targetId);
+    }
+    setDraggingChartId(undefined);
+    setDragOverChartId(undefined);
+  };
+
+  const scrollToChartCard = (chartCode: string) => {
+    const targetIndex = renderedCharts.findIndex(item => item.chart.componentCode === chartCode);
+    const nextActive = targetIndex >= 0
+      ? renderedCharts.slice(targetIndex, targetIndex + 3).map(item => item.chart.componentCode)
+      : [chartCode];
+    setActiveChartCodes(nextActive);
+    document.getElementById(`personal-chart-card-${chartCode}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <>
       <div className="page-header">
-        <Space wrap>
-          {!boardId ? null : (
-            <Button icon={<ArrowLeftOutlined />}>
-              <Link to="/favorites">返回看板列表</Link>
-            </Button>
-          )}
-          <Button icon={<PlusOutlined />} onClick={openCreateBoard}>新建看板</Button>
-          {boardId ? (
-            <>
-              <Button icon={<EditOutlined />} onClick={openRenameBoard} disabled={!currentBoard}>修改标签</Button>
-              <Button
-                icon={<ArrowUpOutlined />}
-                disabled={!currentBoard}
-                onClick={() => {
-                  if (!currentBoard) return;
-                  updatePersonalBoard(currentBoard.boardId, { order: Math.max(1, currentBoard.order - 1) });
-                  setBoards(listPersonalBoards());
-                }}
-              >
-                排序前移
-              </Button>
-              <Button
-                icon={<ArrowDownOutlined />}
-                disabled={!currentBoard}
-                onClick={() => {
-                  if (!currentBoard) return;
-                  updatePersonalBoard(currentBoard.boardId, { order: currentBoard.order + 1 });
-                  setBoards(listPersonalBoards());
-                }}
-              >
-                排序后移
-              </Button>
-              <Button danger icon={<DeleteOutlined />} disabled={!currentBoard} onClick={() => currentBoard && deleteBoard(currentBoard)}>
-                删除看板
-              </Button>
-              <Button
-                type="primary"
-                icon={<SaveOutlined />}
-                disabled={!dirty || components.length === 0 || !currentBoard}
-                loading={saving}
-                onClick={async () => {
-                  if (!currentBoard) return;
-                  setSaving(true);
-                  try {
-                    saveFavoriteLayouts(currentBoard.boardId, components);
-                    setDirty(false);
-                    message.success('个人指标看板布局已保存');
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-              >
-                保存布局
-              </Button>
-            </>
-          ) : null}
-        </Space>
         <div>
-          <h2 className="page-title">{boardId ? (currentBoard?.secondaryLabel || currentBoard?.boardName || '个人指标库') : '个人指标库'}</h2>
-          {boardId ? <div className="page-subtitle">{`${currentBoard?.primaryLabel || '未分组'} / ${currentBoard?.secondaryLabel || currentBoard?.boardName || ''}`}</div> : null}
+          <h2 className="page-title">我的指标</h2>
         </div>
+        <Space wrap size={12} />
       </div>
 
-      {!boardId && boards.length > 0 ? (
-        <div className="favorites-filter-nav">
-          {primaryFilterOptions.map(option => (
-            <Button
-              key={option}
-              type={activePrimaryFilter === option ? 'primary' : 'default'}
-              onClick={() => setActivePrimaryFilter(option)}
-            >
-              {option}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-
-      {!boardId ? (
-        boards.length > 0 ? boardCards : <div className="panel-card canvas-card canvas-empty"><Empty description="当前个人指标库还没有看板" /></div>
-      ) : currentBoard ? (
-        <DashboardCanvas
-          components={components}
-          previews={currentPreviews}
-          editable
-          selectedComponentCode={selectedComponentCode}
-          onSelect={setSelectedComponentCode}
-          onLayoutChange={nextComponents => {
-            setComponents(nextComponents);
-            setDirty(true);
-          }}
-          emptyContent={<Empty description="当前个人指标看板还没有图表" />}
-          renderActions={component => (
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => {
-                if (!currentBoard) return;
-                removeComponentFromBoard(currentBoard.boardId, component.componentCode);
-                setComponents(current => current.filter(item => item.componentCode !== component.componentCode));
-                setBoardPreviews(current => ({
-                  ...current,
-                  [currentBoard.boardId]: Object.fromEntries(
-                    Object.entries(current[currentBoard.boardId] ?? {}).filter(([code]) => code !== component.componentCode)
-                  )
-                }));
-                setSelectedComponentCode(current => current === component.componentCode
-                  ? components.find(item => item.componentCode !== component.componentCode)?.componentCode
-                  : current);
-                message.success('图表已从当前看板移除');
-              }}
-            >
-              删除图表
-            </Button>
-          )}
+      <div className="favorites-filter-nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <Button
+          type={activeCategory === 'all' ? 'primary' : 'default'}
+          onClick={() => setActiveCategory('all')}
+        >
+          全部
+        </Button>
+        {DASHBOARD_CATEGORIES.map(option => (
+          <Button
+            key={option.key}
+            type={activeCategory === option.key ? 'primary' : 'default'}
+            onClick={() => setActiveCategory(option.key)}
+          >
+            {option.label}
+          </Button>
+        ))}
+        <Input.Search
+          allowClear
+          placeholder="搜索图表名称"
+          style={{ width: 220, marginLeft: 'auto' }}
+          value={searchKeyword}
+          onChange={event => setSearchKeyword(event.target.value)}
         />
-      ) : (
-        <div className="panel-card canvas-card canvas-empty"><Empty description="未找到对应的个人看板" /></div>
-      )}
+        <Select
+          style={{ width: 160 }}
+          value={sortMode}
+          options={[
+            { label: '自定义排序', value: 'manual' },
+            { label: '时间升序', value: 'time_asc' },
+            { label: '时间降序', value: 'time_desc' }
+          ]}
+          onChange={value => setSortMode(value)}
+        />
+      </div>
+
+      <div className="page-shell runtime-library-shell">
+        <div>
+          {filteredCharts.length > 0 ? (
+            <div className="favorites-board-grid personal-chart-grid">
+              {renderedCharts.map(item => (
+                <article
+                  key={item.boardId}
+                  id={`personal-chart-card-${item.chart.componentCode}`}
+                  className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card${draggingChartId === item.boardId ? ' personal-chart-card-dragging' : ''}${dragOverChartId === item.boardId && draggingChartId !== item.boardId ? ' drag-preview-target' : ''}`}
+                  draggable={sortMode === 'manual'}
+                  onDragStart={event => handlePersonalDragStart(event, item.boardId)}
+                  onDragEnd={() => {
+                    setDraggingChartId(undefined);
+                    setDragOverChartId(undefined);
+                  }}
+                  onDragOver={event => {
+                    event.preventDefault();
+                  }}
+                  onDragEnter={() => {
+                    if (draggingChartId && draggingChartId !== item.boardId && dragOverChartId !== item.boardId) {
+                      setDragOverChartId(item.boardId);
+                    }
+                  }}
+                  onDrop={event => handlePersonalDrop(event, item.boardId)}
+                >
+                  <div className="favorites-board-card-head">
+                    <div>
+                      <h3 className="favorites-board-title">
+                        {normalizeDisplayText(item.chart.componentTitle, item.chart.componentCode)}
+                      </h3>
+                      <div className="favorites-board-meta">
+                        <span>{item.primaryLabel}</span>
+                        <span>{item.secondaryLabel}</span>
+                        <span>排序 {item.order}</span>
+                      </div>
+                    </div>
+                    <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">
+                      <Button icon={<ExpandOutlined />} onClick={() => setExpandedChart(item)}>
+                        放大查看
+                      </Button>
+                      <span
+                        className={`drag-handle-chip${sortMode !== 'manual' ? ' disabled' : ''}`}
+                        draggable={sortMode === 'manual'}
+                        onDragStart={event => handlePersonalDragStart(event, item.boardId)}
+                        onDragEnd={() => {
+                          setDraggingChartId(undefined);
+                          setDragOverChartId(undefined);
+                        }}
+                      >
+                        <HolderOutlined />
+                        <span>拖拽排序</span>
+                      </span>
+                      <Popconfirm title="确认删除当前图表吗？" okText="确认" cancelText="取消" onConfirm={() => removeChart(item)}>
+                        <Button icon={<DeleteOutlined />} danger>
+                          删除
+                        </Button>
+                      </Popconfirm>
+                    </div>
+                  </div>
+                  <div className="favorites-board-thumb">
+                    <div className="library-chart-preview">
+                      <div className="library-chart-preview-head">
+                        {normalizeDisplayText(item.chart.dslConfig.visualDsl.indicatorTag) ? (
+                          <span className="chart-card-tag">
+                            {normalizeDisplayText(item.chart.dslConfig.visualDsl.indicatorTag)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="library-chart-preview-body">
+                        {previews[item.chart.componentCode] ? (
+                          <ChartRendererCore
+                            component={toComponent(item)}
+                            preview={previews[item.chart.componentCode]}
+                            templateCode={item.chart.templateCode}
+                            viewMode="chart"
+                            editable={false}
+                            selected={false}
+                            thumbnail
+                            compact={false}
+                            dense
+                          />
+                        ) : (
+                          <Empty description="当前图表暂无预览" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="panel-card canvas-card canvas-empty">
+              <Empty description="当前分类下还没有图表" />
+            </div>
+          )}
+        </div>
+
+        <aside className="panel-card runtime-toc-card">
+          <div className="runtime-toc-title">目录导航</div>
+          <div className="runtime-toc-scroll" ref={tocScrollRef}>
+            {navGroups.map(group => (
+              <div key={group.key} className="runtime-toc-group">
+                <button
+                  type="button"
+                  className={`runtime-toc-group-button${activeCategory === 'all' || activeCategory === group.key ? ' active' : ''}`}
+                  onClick={() => setActiveCategory(group.key)}
+                >
+                  {group.label}
+                </button>
+                <div className="runtime-toc-items">
+                  {group.charts.map(item => (
+                    <button
+                      key={`${group.key}:${item.chart.componentCode}`}
+                      type="button"
+                      data-chart-code={item.chart.componentCode}
+                      className={`runtime-toc-item${activeChartCodes.includes(item.chart.componentCode) ? ' active' : ''}`}
+                      onClick={() => {
+                        if (activeCategory === 'all' || activeCategory === group.key) {
+                          scrollToChartCard(item.chart.componentCode);
+                          return;
+                        }
+                        setActiveCategory(group.key);
+                      }}
+                    >
+                      {normalizeDisplayText(item.chart.componentTitle, item.chart.componentCode)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
 
       <Modal
-        title={editingBoardId === 'create' ? '新建个人指标看板' : '修改个人指标看板标签'}
-        open={Boolean(editingBoardId)}
-        okText="确认"
-        cancelText="取消"
-        onCancel={() => setEditingBoardId(undefined)}
-        onOk={() => {
-          const primaryLabel = primaryLabelInput.trim();
-          const secondaryLabel = secondaryLabelInput.trim();
-          if (!primaryLabel || !secondaryLabel) {
-            message.warning('请填写一级标签和二级标签');
-            return;
-          }
-          if (editingBoardId === 'create') {
-            const nextBoard = createPersonalBoard(secondaryLabel, { primaryLabel, secondaryLabel });
-            updatePersonalBoard(nextBoard.boardId, { order: boardOrderInput });
-            setBoards(listPersonalBoards());
-            navigate(`/favorites/${nextBoard.boardId}`);
-            message.success('个人指标看板已创建');
-          } else if (editingBoardId) {
-            updatePersonalBoard(editingBoardId, { primaryLabel, secondaryLabel, order: boardOrderInput });
-            setBoards(listPersonalBoards());
-            message.success('个人指标看板已更新');
-          }
-          setEditingBoardId(undefined);
-        }}
+        title={expandedChart ? normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode) : '图表详情'}
+        open={Boolean(expandedChart)}
+        footer={null}
+        onCancel={() => setExpandedChart(undefined)}
+        width="90vw"
+        styles={{ body: { height: '78vh', padding: 16 } }}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          <Input value={primaryLabelInput} onChange={event => setPrimaryLabelInput(event.target.value)} placeholder="一级标签" />
-          <Input value={secondaryLabelInput} onChange={event => setSecondaryLabelInput(event.target.value)} placeholder="二级标签 / 看板名称" />
-          <InputNumber style={{ width: '100%' }} min={1} value={boardOrderInput} onChange={value => setBoardOrderInput(Number(value ?? 1))} addonBefore="排序" />
-        </Space>
+        {expandedChart ? (
+          <div className="runtime-chart-modal">
+            <ChartContainer
+              title={normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode)}
+              tag={normalizeDisplayText(expandedChart.chart.dslConfig.visualDsl.indicatorTag)}
+            >
+              <ChartRendererCore
+                component={toComponent(expandedChart)}
+                preview={previews[expandedChart.chart.componentCode]}
+                templateCode={expandedChart.chart.templateCode}
+                viewMode="chart"
+                editable={false}
+                selected={false}
+              />
+            </ChartContainer>
+          </div>
+        ) : null}
       </Modal>
     </>
   );

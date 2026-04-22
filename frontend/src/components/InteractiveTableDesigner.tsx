@@ -9,7 +9,13 @@ import {
 } from '@ant-design/icons';
 import { Button, Empty, Input, Space } from 'antd';
 import { useMemo, useState } from 'react';
-import type { DashboardComponent, DataPool, TableBodyCellDsl, TableMergeDsl, TableStyleRule } from '../types/dashboard';
+import type {
+  DashboardComponent,
+  DataPool,
+  TableBodyCellDsl,
+  TableMergeDsl,
+  TableStyleRule
+} from '../types/dashboard';
 import { resolveModel } from '../utils/dashboard';
 
 type TableRegion = 'body';
@@ -48,7 +54,9 @@ function normalizeSelection(selection: SelectionRange): SelectionRange {
 }
 
 function isSelected(selection: SelectionRange | null, cell: GridCell) {
-  if (!selection || selection.region !== cell.region) return false;
+  if (!selection || selection.region !== cell.region) {
+    return false;
+  }
   return cell.rowIndex >= selection.startRow
     && cell.rowIndex <= selection.endRow
     && cell.colIndex >= selection.startCol
@@ -69,7 +77,11 @@ function shouldHideCell(merges: TableMergeDsl[], cell: GridCell) {
 }
 
 function getCellSpan(merges: TableMergeDsl[], cell: GridCell) {
-  const merge = merges.find(item => item.region === cell.region && item.rowIndex === cell.rowIndex && item.colIndex === cell.colIndex);
+  const merge = merges.find(item => (
+    item.region === cell.region
+    && item.rowIndex === cell.rowIndex
+    && item.colIndex === cell.colIndex
+  ));
   return {
     rowSpan: merge?.rowSpan ?? 1,
     colSpan: merge?.colSpan ?? 1
@@ -156,7 +168,9 @@ export default function InteractiveTableDesigner(props: {
   };
 
   const fillSelectedCells = () => {
-    if (!selection) return;
+    if (!selection) {
+      return;
+    }
     const normalized = normalizeSelection(selection);
     applyComponent(component => {
       const currentStyles = component.dslConfig.tableDsl?.styles ?? {};
@@ -184,7 +198,9 @@ export default function InteractiveTableDesigner(props: {
   };
 
   const saveEditing = () => {
-    if (!editingCell) return;
+    if (!editingCell) {
+      return;
+    }
     applyComponent(component => ({
       ...component,
       dslConfig: {
@@ -203,9 +219,13 @@ export default function InteractiveTableDesigner(props: {
   };
 
   const mergeSelection = () => {
-    if (!selection) return;
+    if (!selection) {
+      return;
+    }
     const normalized = normalizeSelection(selection);
-    if (normalized.startRow === normalized.endRow && normalized.startCol === normalized.endCol) return;
+    if (normalized.startRow === normalized.endRow && normalized.startCol === normalized.endCol) {
+      return;
+    }
     applyComponent(component => ({
       ...component,
       dslConfig: {
@@ -235,7 +255,9 @@ export default function InteractiveTableDesigner(props: {
   };
 
   const splitSelection = () => {
-    if (!selection) return;
+    if (!selection) {
+      return;
+    }
     const normalized = normalizeSelection(selection);
     applyComponent(component => ({
       ...component,
@@ -283,7 +305,9 @@ export default function InteractiveTableDesigner(props: {
   const deleteRow = () => {
     const normalized = selection ? normalizeSelection(selection) : null;
     const targetRow = normalized?.startRow;
-    if (targetRow == null) return;
+    if (targetRow == null) {
+      return;
+    }
     applyComponent(component => ({
       ...component,
       dslConfig: {
@@ -341,7 +365,9 @@ export default function InteractiveTableDesigner(props: {
   const deleteColumn = () => {
     const normalized = selection ? normalizeSelection(selection) : null;
     const targetCol = normalized?.startCol;
-    if (targetCol == null) return;
+    if (targetCol == null) {
+      return;
+    }
     applyComponent(component => ({
       ...component,
       dslConfig: {
@@ -363,10 +389,16 @@ export default function InteractiveTableDesigner(props: {
     const styleMap = props.component.dslConfig.tableDsl?.styles ?? {};
     const style = (styleMap[cellStyleKey('body', cell.rowIndex, cell.colIndex)] as TableStyleRule | undefined) ?? {};
     const matched = cell.rowIndex === 0 ? undefined : (props.component.dslConfig.tableDsl?.conditionalFormats ?? []).find(rule => {
-      if (rule.target && rule.target !== 'body' && rule.target !== 'all') return false;
-      if (rule.fieldCode && rule.fieldCode !== cell.fieldCode) return false;
+      if (rule.target && rule.target !== 'body' && rule.target !== 'all') {
+        return false;
+      }
+      if (rule.fieldCode && rule.fieldCode !== cell.fieldCode) {
+        return false;
+      }
       const numeric = Number(cell.value ?? cell.text);
-      if (!Number.isFinite(numeric)) return false;
+      if (!Number.isFinite(numeric)) {
+        return false;
+      }
       return compareRule(rule.operator, numeric, rule.value);
     });
     return matched ? { ...style, ...matched.style } : style;
@@ -393,7 +425,7 @@ export default function InteractiveTableDesigner(props: {
   };
 
   if (!model) {
-    return <Empty description="请先选择数据源" />;
+    return <Empty description="请先选择数据模型" />;
   }
 
   if (!tableDsl) {
@@ -403,7 +435,10 @@ export default function InteractiveTableDesigner(props: {
   const merges = props.component.dslConfig.tableDsl?.merges ?? [];
 
   return (
-    <div className={`table-designer-shell ${props.selected ? 'selected' : ''}`} onMouseUp={() => setDragging(false)}>
+    <div
+      className={`table-designer-shell ${props.selected ? 'selected' : ''}`}
+      onMouseUp={() => setDragging(false)}
+    >
       <div className="table-designer-toolbar">
         <Space wrap>
           <Button icon={<InsertRowAboveOutlined />} onClick={() => insertRow('above')}>上方插入行</Button>
@@ -416,7 +451,12 @@ export default function InteractiveTableDesigner(props: {
           <Button icon={<UngroupOutlined />} onClick={splitSelection} disabled={!selection}>拆分选中单元格</Button>
           <Space size={4}>
             <span className="table-designer-label">单元格颜色</span>
-            <input className="simple-color-input" type="color" value={paintColor} onChange={event => setPaintColor(event.target.value)} />
+            <input
+              className="simple-color-input"
+              type="color"
+              value={paintColor}
+              onChange={event => setPaintColor(event.target.value)}
+            />
             <Button onClick={fillSelectedCells} disabled={!selection}>填充颜色</Button>
           </Space>
         </Space>
@@ -467,7 +507,9 @@ export default function InteractiveTableDesigner(props: {
                           });
                         }}
                         onMouseEnter={() => {
-                          if (!dragging || !selection) return;
+                          if (!dragging || !selection) {
+                            return;
+                          }
                           setSelection(normalizeSelection({
                             ...selection,
                             endRow: rowIndex,
@@ -490,7 +532,9 @@ export default function InteractiveTableDesigner(props: {
                             onBlur={saveEditing}
                           />
                         ) : (
-                          <div className="designer-cell-content">{cell.text || <span className="designer-cell-placeholder"> </span>}</div>
+                          <div className="designer-cell-content">
+                            {cell.text || <span className="designer-cell-placeholder"> </span>}
+                          </div>
                         )}
                       </td>
                     );
@@ -504,8 +548,12 @@ export default function InteractiveTableDesigner(props: {
 
       <div className="table-designer-toolbar" style={{ justifyContent: 'space-between' }}>
         <Space wrap>
-          <Button onClick={() => selection && selectWholeRow(selection.startRow)} disabled={!selection}>选中当前整行</Button>
-          <Button onClick={() => selection && selectWholeColumn(selection.startCol)} disabled={!selection}>选中当前整列</Button>
+          <Button onClick={() => selection && selectWholeRow(selection.startRow)} disabled={!selection}>
+            选中当前整行
+          </Button>
+          <Button onClick={() => selection && selectWholeColumn(selection.startCol)} disabled={!selection}>
+            选中当前整列
+          </Button>
         </Space>
       </div>
     </div>

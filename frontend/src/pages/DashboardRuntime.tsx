@@ -1,378 +1,435 @@
-import { EyeOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
-import { Alert, Button, Empty, Input, Modal, Select, Space, Spin, Tag, message } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
+import { ExpandOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
+import { Alert, Button, Empty, Input, Modal, Popconfirm, Space, message } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import DashboardCanvas from '../components/DashboardCanvas';
-import type { ChartPreview, DashboardDraft, DashboardSummary } from '../types/dashboard';
+import ChartContainer from '../components/ChartContainer';
+import ChartRendererCore from '../components/ChartRendererCore';
+import type { ChartCatalogItem, ChartDefinition, ChartPreview, DashboardComponent } from '../types/dashboard';
 import { normalizeDashboard, normalizeDisplayText } from '../utils/dashboard';
+import { createFavoriteFromComponent, isFavorite, removeComponentFromAllBoards } from '../utils/favorites';
 import {
-  addComponentToBoard,
-  createBoardFromDashboard,
-  createPersonalBoard,
-  isDashboardFavorited,
-  isFavorite,
-  listPersonalBoards,
-  removeComponentFromAllBoards
-} from '../utils/favorites';
-import { DASHBOARD_CATEGORIES, filterDashboardsByCategory, getCategoryLabel, normalizeCategoryKey } from '../utils/dashboardCatalog';
+  DASHBOARD_CATEGORIES,
+  filterChartsByCategory,
+  getCategoryLabel,
+  normalizeCategoryKey
+} from '../utils/dashboardCatalog';
+
+interface RuntimeChartCard {
+  chartCode: string;
+  chartName: string;
+  component: DashboardComponent;
+  preview?: ChartPreview;
+}
+
+function normalizeSearchKeyword(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchChartKeyword(chart: ChartCatalogItem, keyword: string) {
+  if (!keyword) return true;
+  const normalizedKeyword = normalizeSearchKeyword(keyword);
+  const targets = [
+    normalizeDisplayText(chart.chartName, chart.chartCode),
+    chart.chartCode
+  ];
+  return targets.some(value => value.toLowerCase().includes(normalizedKeyword));
+}
+
+function toChartDefinition(raw: ChartDefinition) {
+  const normalized = normalizeDashboard({
+    dashboardCode: raw.chartCode,
+    name: raw.chartName,
+    status: raw.status,
+    publishedVersion: raw.publishedVersion,
+    components: raw.components
+  });
+  return {
+    chartCode: normalized.dashboardCode,
+    chartName: normalized.name,
+    status: normalized.status,
+    publishedVersion: normalized.publishedVersion,
+    components: normalized.components
+  } satisfies ChartDefinition;
+}
 
 export default function DashboardRuntime() {
   const navigate = useNavigate();
   const params = useParams();
   const category = normalizeCategoryKey(params.categoryKey);
-  const dashboardCode = params.dashboardCode;
-  const [dashboards, setDashboards] = useState<DashboardSummary[]>([]);
-  const [dashboard, setDashboard] = useState<DashboardDraft>();
-  const [previews, setPreviews] = useState<Record<string, ChartPreview>>({});
-  const [runtimeBoards, setRuntimeBoards] = useState<Record<string, DashboardDraft>>({});
-  const [runtimeBoardPreviews, setRuntimeBoardPreviews] = useState<Record<string, Record<string, ChartPreview>>>({});
-  const [favoriteCodes, setFavoriteCodes] = useState<string[]>([]);
-  const [favoritedDashboardCodes, setFavoritedDashboardCodes] = useState<string[]>([]);
+  const [charts, setCharts] = useState<ChartCatalogItem[]>([]);
+  const [runtimeCharts, setRuntimeCharts] = useState<RuntimeChartCard[]>([]);
+  const [expandedChart, setExpandedChart] = useState<RuntimeChartCard>();
   const [error, setError] = useState<string>();
-  const [collectingComponentCode, setCollectingComponentCode] = useState<string>();
-  const [selectedBoardIds, setSelectedBoardIds] = useState<string[]>([]);
-  const [showCreateBoard, setShowCreateBoard] = useState(false);
-  const [newPrimaryLabel, setNewPrimaryLabel] = useState('');
-  const [newSecondaryLabel, setNewSecondaryLabel] = useState('');
+  const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [, setFavoriteVersion] = useState(0);
+  const tocScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const boards = useMemo(() => listPersonalBoards(), [favoriteCodes, favoritedDashboardCodes, collectingComponentCode]);
-  const categoryDashboards = useMemo(() => filterDashboardsByCategory(dashboards, category, true), [dashboards, category]);
-  const collectingComponent = dashboard?.components.find(item => item.componentCode === collectingComponentCode);
+  const categoryCharts = useMemo(
+    () => filterChartsByCategory(charts, category, true).filter(chart => matchChartKeyword(chart, searchKeyword)),
+    [category, charts, searchKeyword]
+  );
+
+  const categoryNavGroups = useMemo(
+    () => DASHBOARD_CATEGORIES.map(item => ({
+      category: item,
+      charts: filterChartsByCategory(charts, item.key, true).filter(chart => matchChartKeyword(chart, searchKeyword))
+    })).filter(group => group.charts.length > 0),
+    [charts, searchKeyword]
+  );
 
   useEffect(() => {
-    api.listDashboards()
-      .then(setDashboards)
+    api.listCharts()
+      .then(setCharts)
       .catch(loadError => {
         console.error(loadError);
-        setError(loadError instanceof Error ? loadError.message : '公共指标库加载失败');
+        setError(loadError instanceof Error ? loadError.message : '指标中心加载失败');
       });
   }, []);
 
   useEffect(() => {
-    if (!dashboardCode) {
-      setDashboard(undefined);
-      setPreviews({});
-      return;
-    }
-
-    setError(undefined);
-    api.loadRuntime(dashboardCode)
-      .then(async runtime => {
-        const normalized = normalizeDashboard(runtime.dashboard);
-        setDashboard(normalized);
-        const previewPairs = await Promise.all(
-          normalized.components.map(async component => [component.componentCode, await api.previewComponent(component)] as const)
-        );
-        setPreviews(Object.fromEntries(previewPairs));
-      })
-      .catch(loadError => {
-        console.error(loadError);
-        setError(loadError instanceof Error ? loadError.message : '公共指标库加载失败');
-      });
-  }, [dashboardCode]);
-
-  useEffect(() => {
-    if (dashboardCode || categoryDashboards.length === 0) {
+    if (categoryCharts.length === 0) {
+      setRuntimeCharts([]);
+      setActiveChartCodes([]);
       return;
     }
 
     let cancelled = false;
     Promise.all(
-      categoryDashboards.map(async item => {
-        const runtime = await api.loadRuntime(item.dashboardCode);
-        const normalized = normalizeDashboard(runtime.dashboard);
-        const firstComponent = normalized.components[0];
-        const firstPreview = firstComponent ? await api.previewComponent(firstComponent) : undefined;
-        return {
-          dashboardCode: item.dashboardCode,
-          dashboard: normalized,
-          previews: firstComponent && firstPreview ? { [firstComponent.componentCode]: firstPreview } : {}
-        };
+      categoryCharts.map(async item => {
+        const runtime = await api.loadRuntimeChart(item.chartCode);
+        const normalized = toChartDefinition(runtime.chart);
+        const previewPairs = await Promise.all(
+          normalized.components.map(async component => [
+            component.componentCode,
+            await api.previewComponent(component)
+          ] as const)
+        );
+        return normalized.components.map(component => ({
+          chartCode: normalized.chartCode,
+          chartName: normalized.chartName,
+          component,
+          preview: Object.fromEntries(previewPairs)[component.componentCode]
+        }));
       })
     )
       .then(entries => {
-        if (cancelled) return;
-        setRuntimeBoards(Object.fromEntries(entries.map(entry => [entry.dashboardCode, entry.dashboard])));
-        setRuntimeBoardPreviews(Object.fromEntries(entries.map(entry => [entry.dashboardCode, entry.previews])));
+        if (!cancelled) {
+          const nextCharts = entries.flat();
+          setRuntimeCharts(nextCharts);
+          setActiveChartCodes(nextCharts.slice(0, 3).map(item => item.chartCode));
+        }
       })
       .catch(loadError => {
         console.error(loadError);
-        if (cancelled) return;
-        setError(loadError instanceof Error ? loadError.message : '公共指标库加载失败');
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : '指标中心加载失败');
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [categoryDashboards, dashboardCode]);
+  }, [categoryCharts]);
 
   useEffect(() => {
-    const syncFavorites = () => {
-      const nextBoards = listPersonalBoards();
-      setFavoritedDashboardCodes(
-        [...new Set(
-          nextBoards
-            .filter(board => board.components.length > 0 && board.components.every(item => item.dashboardCode === board.components[0].dashboardCode))
-            .map(board => board.components[0].dashboardCode)
-        )]
-      );
+    if (runtimeCharts.length === 0) {
+      setActiveChartCodes([]);
+      return;
+    }
 
-      if (!dashboard) {
-        setFavoriteCodes([]);
+    const updateActiveChart = () => {
+      const cards = runtimeCharts
+        .map(item => {
+          const element = document.getElementById(`runtime-chart-card-${item.chartCode}`);
+          if (!element) return undefined;
+          const rect = element.getBoundingClientRect();
+          return { chartCode: item.chartCode, top: rect.top, bottom: rect.bottom };
+        })
+        .filter((item): item is { chartCode: string; top: number; bottom: number } => Boolean(item));
+
+      if (cards.length === 0) {
         return;
       }
 
-      setFavoriteCodes(
-        dashboard.components
-          .filter(component => isFavorite(component.componentCode))
-          .map(component => component.componentCode)
-      );
+      const visibleCards = cards.filter(item => item.bottom > 120);
+      const sortedCards = (visibleCards.length > 0 ? visibleCards : cards)
+        .sort((a, b) => Math.abs(a.top - 140) - Math.abs(b.top - 140))[0];
+      const rowTop = sortedCards?.top;
+      if (rowTop == null) {
+        return;
+      }
+
+      const nextActiveCodes = (visibleCards.length > 0 ? visibleCards : cards)
+        .filter(item => Math.abs(item.top - rowTop) < 24)
+        .slice(0, 3)
+        .map(item => item.chartCode);
+
+      setActiveChartCodes(current => (
+        current.length === nextActiveCodes.length && current.every((code, index) => code === nextActiveCodes[index])
+          ? current
+          : nextActiveCodes
+      ));
     };
 
-    syncFavorites();
+    updateActiveChart();
+    window.addEventListener('scroll', updateActiveChart, { passive: true });
+    window.addEventListener('resize', updateActiveChart);
+    return () => {
+      window.removeEventListener('scroll', updateActiveChart);
+      window.removeEventListener('resize', updateActiveChart);
+    };
+  }, [runtimeCharts]);
+
+  useEffect(() => {
+    if (activeChartCodes.length === 0 || !tocScrollRef.current) {
+      return;
+    }
+    const container = tocScrollRef.current;
+    const activeItem = container.querySelector<HTMLButtonElement>(`[data-chart-code="${activeChartCodes[0]}"]`);
+    if (!activeItem) {
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+    const nextTop = container.scrollTop + (itemRect.top - containerRect.top) - ((container.clientHeight - itemRect.height) / 2);
+    container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+  }, [activeChartCodes]);
+
+  useEffect(() => {
+    const syncFavorites = () => setFavoriteVersion(value => value + 1);
     window.addEventListener('storage', syncFavorites);
     window.addEventListener('bi-dashboard-favorites-changed', syncFavorites as EventListener);
     return () => {
       window.removeEventListener('storage', syncFavorites);
       window.removeEventListener('bi-dashboard-favorites-changed', syncFavorites as EventListener);
     };
-  }, [dashboard]);
+  }, []);
 
-  const resetCollectModal = () => {
-    setCollectingComponentCode(undefined);
-    setSelectedBoardIds([]);
-    setShowCreateBoard(false);
-    setNewPrimaryLabel('');
-    setNewSecondaryLabel('');
+  const favoriteChart = (component: DashboardComponent, sourceChart: ChartDefinition) => {
+    const existed = isFavorite(component.componentCode);
+    createFavoriteFromComponent(sourceChart.chartCode, sourceChart.chartName, component, {
+      primaryLabel: getCategoryLabel(category),
+      secondaryLabel: normalizeDisplayText(component.dslConfig.visualDsl.title || component.title, component.componentCode)
+    });
+    message.success(existed ? '该图表已在我的指标中' : '图表已加入我的指标');
   };
 
-  const collectWholeBoard = (targetDashboard: DashboardDraft) => {
-    const existed = isDashboardFavorited(targetDashboard);
-    createBoardFromDashboard(targetDashboard, category);
-    if (!existed) {
-      setFavoritedDashboardCodes(state => [...new Set([...state, targetDashboard.dashboardCode])]);
-    }
-    message.success(existed ? '该看板已在个人指标库中' : '整个看板已加入个人指标库');
+  const unfavoriteChart = (component: DashboardComponent) => {
+    removeComponentFromAllBoards(component.componentCode);
+    setFavoriteVersion(value => value + 1);
+    message.success('图表已取消收藏');
   };
 
-  const runtimeCards = (
-    <div className="favorites-board-grid">
-      {categoryDashboards.map(item => {
-        const full = runtimeBoards[item.dashboardCode];
-        const previewComponent = full?.components[0];
-        const previewMap = runtimeBoardPreviews[item.dashboardCode] ?? {};
-        const boardFavorited = full ? favoritedDashboardCodes.includes(full.dashboardCode) : false;
-        return (
-          <article key={item.dashboardCode} className="panel-card favorites-board-card public-board-card">
-            <div className="favorites-board-card-head">
-              <div>
-                <div className="favorites-board-tags">
-                  <Tag color="cyan">{getCategoryLabel(category)}</Tag>
-                  <Tag>{normalizeDisplayText(item.name, item.dashboardCode)}</Tag>
-                </div>
-                <h3 className="favorites-board-title">{normalizeDisplayText(item.name, item.dashboardCode)}</h3>
-                <div className="favorites-board-meta">
-                  <span>{full?.components.length ?? 0} 个图表</span>
-                  <span>{item.dashboardCode}</span>
-                </div>
-              </div>
-              <Space wrap>
-                <Button icon={<EyeOutlined />} onClick={() => navigate(`/runtime/${category}/${item.dashboardCode}`)}>进入看板</Button>
-                <Button
-                  icon={boardFavorited ? <StarFilled /> : <StarOutlined />}
-                  type={boardFavorited ? 'primary' : 'default'}
-                  onClick={() => full && collectWholeBoard(full)}
-                  disabled={!full}
-                >
-                  {boardFavorited ? '已收藏整个看板' : '收藏整个看板'}
-                </Button>
-              </Space>
-            </div>
-            <div className="favorites-board-thumb">
-              {full && previewComponent ? (
-                <DashboardCanvas
-                  components={[previewComponent]}
-                  previews={previewMap}
-                  editable={false}
-                  selectedComponentCode={undefined}
-                  onSelect={() => undefined}
-                  onLayoutChange={() => undefined}
-                  mode="thumbnail"
-                />
-              ) : (
-                <div className="panel-card canvas-card canvas-empty"><Spin /></div>
-              )}
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
+  const scrollToChartCard = (chartCode: string) => {
+    const targetIndex = runtimeCharts.findIndex(item => item.chartCode === chartCode);
+    const nextActive = targetIndex >= 0 ? runtimeCharts.slice(targetIndex, targetIndex + 3).map(item => item.chartCode) : [chartCode];
+    setActiveChartCodes(nextActive);
+    document.getElementById(`runtime-chart-card-${chartCode}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   if (error) {
-    return <Alert type="error" showIcon message="公共指标库加载失败" description={error} />;
+    return <Alert type="error" showIcon message="指标中心加载失败" description={error} />;
   }
 
-  if (!dashboardCode) {
-    return (
-      <div>
-        <div className="page-header compact">
-          <div className="favorites-filter-nav">
-            {DASHBOARD_CATEGORIES.map(item => (
-              <Button
-                key={item.key}
-                type={category === item.key ? 'primary' : 'default'}
-                onClick={() => navigate(`/runtime/${item.key}`)}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
+  return (
+    <div>
+      <div className="page-header compact">
+        <div className="favorites-filter-nav">
+          {DASHBOARD_CATEGORIES.map(item => (
+            <Button
+              key={item.key}
+              type={category === item.key ? 'primary' : 'default'}
+              onClick={() => navigate(`/runtime/${item.key}`)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+        <Space wrap size={12}>
+          <Input.Search
+            allowClear
+            placeholder="搜索图表名称"
+            style={{ width: 220 }}
+            value={searchKeyword}
+            onChange={event => setSearchKeyword(event.target.value)}
+          />
           <div>
             <h2 className="page-title">{getCategoryLabel(category)}</h2>
           </div>
-        </div>
-        {categoryDashboards.length > 0
-          ? runtimeCards
-          : <div className="panel-card canvas-card canvas-empty"><Empty description="当前分类下暂无已发布看板" /></div>}
+        </Space>
       </div>
-    );
-  }
 
-  if (!dashboard) {
-    return <Spin />;
-  }
-
-  const currentDashboardFavorited = favoritedDashboardCodes.includes(dashboard.dashboardCode);
-
-  return (
-    <div className="page-shell runtime">
-      <div>
-        <div className="page-header compact">
-          <Space wrap>
-            <div className="favorites-filter-nav">
-              {DASHBOARD_CATEGORIES.map(item => (
-                <Button
-                  key={item.key}
-                  type={category === item.key ? 'primary' : 'default'}
-                  onClick={() => navigate(`/runtime/${item.key}`)}
-                >
-                  {item.label}
-                </Button>
-              ))}
+      <div className="page-shell runtime-library-shell">
+        <div>
+          {runtimeCharts.length > 0 ? (
+            <div className="favorites-board-grid public-chart-grid">
+              {runtimeCharts.map(item => {
+                const favored = isFavorite(item.component.componentCode);
+                return (
+                  <article
+                    key={`${item.chartCode}:${item.component.componentCode}`}
+                    id={`runtime-chart-card-${item.chartCode}`}
+                    className="panel-card favorites-board-card public-board-card"
+                  >
+                    <div className="favorites-board-card-head">
+                      <div>
+                        <h3 className="favorites-board-title">
+                          {normalizeDisplayText(
+                            item.component.dslConfig.visualDsl.title || item.component.title,
+                            item.component.componentCode
+                          )}
+                        </h3>
+                        <div className="favorites-board-meta" />
+                      </div>
+                      <div className="favorites-card-actions public-chart-card-actions">
+                        <Button icon={<ExpandOutlined />} onClick={() => setExpandedChart(item)}>
+                          放大查看
+                        </Button>
+                        {favored ? (
+                          <Popconfirm
+                            title="确认取消收藏当前图表吗？"
+                            okText="确认"
+                            cancelText="取消"
+                            onConfirm={() => unfavoriteChart(item.component)}
+                          >
+                            <Button
+                              icon={<StarFilled />}
+                              type="primary"
+                              className="favorite-action-button is-favorited"
+                            >
+                              已收藏
+                            </Button>
+                          </Popconfirm>
+                        ) : (
+                          <Button
+                            icon={<StarOutlined />}
+                            type="default"
+                            className="favorite-action-button"
+                            onClick={() => {
+                              favoriteChart(item.component, {
+                                chartCode: item.chartCode,
+                                chartName: item.chartName,
+                                status: 'PUBLISHED',
+                                components: [item.component]
+                              });
+                              setFavoriteVersion(value => value + 1);
+                            }}
+                          >
+                            收藏图表
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="favorites-board-thumb">
+                      <div className="library-chart-preview">
+                        <div className="library-chart-preview-head">
+                          {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag) ? (
+                            <span className="chart-card-tag">
+                              {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag)}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="library-chart-preview-body">
+                          {item.preview ? (
+                            <ChartRendererCore
+                              component={item.component}
+                              preview={item.preview}
+                              templateCode={item.component.templateCode}
+                              viewMode="chart"
+                              editable={false}
+                              selected={false}
+                              thumbnail
+                              compact={false}
+                              dense
+                            />
+                          ) : (
+                            <Empty description="当前图表暂无预览" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
-            <Select
-              style={{ minWidth: 260 }}
-              value={dashboard.dashboardCode}
-              options={categoryDashboards.map(item => ({
-                label: normalizeDisplayText(item.name, item.dashboardCode),
-                value: item.dashboardCode
-              }))}
-              onChange={value => navigate(`/runtime/${category}/${value}`)}
-            />
-            <Button onClick={() => navigate(`/runtime/${category}`)}>返回看板预览</Button>
-            <Button
-              type={currentDashboardFavorited ? 'primary' : 'default'}
-              icon={currentDashboardFavorited ? <StarFilled /> : <StarOutlined />}
-              onClick={() => collectWholeBoard(dashboard)}
-            >
-              {currentDashboardFavorited ? '已收藏整个看板' : '收藏整个看板'}
-            </Button>
-          </Space>
-          <div>
-            <h2 className="page-title">{normalizeDisplayText(dashboard.name, dashboard.dashboardCode)}</h2>
-          </div>
+          ) : (
+            <div className="panel-card canvas-card canvas-empty">
+              <Empty description="当前分类下暂无已发布图表" />
+            </div>
+          )}
         </div>
 
-        <DashboardCanvas
-          components={dashboard.components}
-          previews={previews}
-          editable={false}
-          onSelect={() => undefined}
-          onLayoutChange={() => undefined}
-          renderActions={component => {
-            const favored = favoriteCodes.includes(component.componentCode);
-            return (
-              <Button
-                size="small"
-                type={favored ? 'primary' : 'default'}
-                icon={favored ? <StarFilled /> : <StarOutlined />}
-                onClick={() => {
-                  if (favored) {
-                    removeComponentFromAllBoards(component.componentCode);
-                    setFavoriteCodes(state => state.filter(code => code !== component.componentCode));
-                    message.success('已从个人指标库移除');
-                    return;
-                  }
-                  setCollectingComponentCode(component.componentCode);
-                  setSelectedBoardIds([]);
-                  setShowCreateBoard(false);
-                  setNewPrimaryLabel(getCategoryLabel(category));
-                  setNewSecondaryLabel(normalizeDisplayText(dashboard.name, dashboard.dashboardCode));
-                }}
-              >
-                {favored ? '已收藏' : '收藏图表'}
-              </Button>
-            );
-          }}
-        />
+        <aside className="panel-card runtime-toc-card">
+          <div className="runtime-toc-title">目录导航</div>
+          <div className="runtime-toc-scroll" ref={tocScrollRef}>
+            {categoryNavGroups.map(group => (
+              <div key={group.category.key} className="runtime-toc-group">
+                <button
+                  type="button"
+                  className={`runtime-toc-group-button${category === group.category.key ? ' active' : ''}`}
+                  onClick={() => navigate(`/runtime/${group.category.key}`)}
+                >
+                  {group.category.label}
+                </button>
+                <div className="runtime-toc-items">
+                  {group.charts.map(chart => (
+                    <button
+                      key={`${group.category.key}:${chart.chartCode}`}
+                      type="button"
+                      data-chart-code={chart.chartCode}
+                      className={`runtime-toc-item${category === group.category.key && activeChartCodes.includes(chart.chartCode) ? ' active' : ''}`}
+                      onClick={() => {
+                        if (category !== group.category.key) {
+                          navigate(`/runtime/${group.category.key}`);
+                          return;
+                        }
+                        scrollToChartCard(chart.chartCode);
+                      }}
+                    >
+                      {normalizeDisplayText(chart.chartName, chart.chartCode)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
       </div>
 
       <Modal
-        title="加入个人指标库"
-        open={Boolean(collectingComponent)}
-        okText="确认"
-        cancelText="取消"
-        onCancel={resetCollectModal}
-        onOk={() => {
-          if (!collectingComponent || !dashboard) return;
-          const nextBoardIds = [...selectedBoardIds];
-          if (showCreateBoard) {
-            if (!newPrimaryLabel.trim() || !newSecondaryLabel.trim()) {
-              message.warning('请先填写新看板的一级标签和二级标签');
-              return;
-            }
-            const createdBoard = createPersonalBoard(newSecondaryLabel.trim(), {
-              primaryLabel: newPrimaryLabel.trim(),
-              secondaryLabel: newSecondaryLabel.trim()
-            });
-            nextBoardIds.push(createdBoard.boardId);
-          }
-          if (nextBoardIds.length === 0) {
-            message.warning('请至少选择一个已有看板，或先新建看板');
-            return;
-          }
-          [...new Set(nextBoardIds)].forEach(boardId => {
-            addComponentToBoard(boardId, dashboard.dashboardCode, dashboard.name, collectingComponent);
-          });
-          setFavoriteCodes(state => [...new Set([...state, collectingComponent.componentCode])]);
-          resetCollectModal();
-          message.success('图表已加入个人指标库');
-        }}
+        title={expandedChart ? normalizeDisplayText(
+          expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title,
+          expandedChart.component.componentCode
+        ) : '图表详情'}
+        open={Boolean(expandedChart)}
+        footer={null}
+        onCancel={() => setExpandedChart(undefined)}
+        width="90vw"
+        styles={{ body: { height: '78vh', padding: 16 } }}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          <Select
-            mode="multiple"
-            style={{ width: '100%' }}
-            placeholder="选择一个或多个个人指标看板"
-            value={selectedBoardIds}
-            options={boards.map(board => ({
-              label: `${board.primaryLabel || '未分组'} / ${board.secondaryLabel || board.boardName}`,
-              value: board.boardId
-            }))}
-            onChange={value => setSelectedBoardIds(value)}
-          />
-          <Button block onClick={() => setShowCreateBoard(state => !state)}>
-            {showCreateBoard ? '取消新建看板' : '新建看板'}
-          </Button>
-          {showCreateBoard ? (
-            <Space direction="vertical" style={{ width: '100%' }} size={12}>
-              <Input style={{ width: '100%' }} placeholder="一级标签" value={newPrimaryLabel} onChange={event => setNewPrimaryLabel(event.target.value)} />
-              <Input style={{ width: '100%' }} placeholder="二级标签 / 看板名称" value={newSecondaryLabel} onChange={event => setNewSecondaryLabel(event.target.value)} />
-            </Space>
-          ) : null}
-        </Space>
+        {expandedChart ? (
+          <div className="runtime-chart-modal">
+            <ChartContainer
+              title={normalizeDisplayText(
+                expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title,
+                expandedChart.component.componentCode
+              )}
+              tag={normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.indicatorTag)}
+            >
+              <ChartRendererCore
+                component={expandedChart.component}
+                preview={expandedChart.preview}
+                templateCode={expandedChart.component.templateCode}
+                viewMode="chart"
+                editable={false}
+                selected={false}
+              />
+            </ChartContainer>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );

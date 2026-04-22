@@ -2,7 +2,14 @@ import { Empty } from 'antd';
 import * as echarts from 'echarts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getChartTemplate } from '../charting/templateRegistry';
-import type { ChartPreview, DashboardComponent, DataPool, TableBodyCellDsl, TableMergeDsl, TableStyleRule } from '../types/dashboard';
+import type {
+  ChartPreview,
+  DashboardComponent,
+  DataPool,
+  TableBodyCellDsl,
+  TableMergeDsl,
+  TableStyleRule
+} from '../types/dashboard';
 import InteractiveTableDesigner from './InteractiveTableDesigner';
 
 function readZoomRange(chart: echarts.EChartsType) {
@@ -54,7 +61,11 @@ function shouldHideCell(merges: TableMergeDsl[], cell: GridCell) {
 }
 
 function getCellSpan(merges: TableMergeDsl[], cell: GridCell) {
-  const merge = merges.find(item => item.region === cell.region && item.rowIndex === cell.rowIndex && item.colIndex === cell.colIndex);
+  const merge = merges.find(item => (
+    item.region === cell.region
+    && item.rowIndex === cell.rowIndex
+    && item.colIndex === cell.colIndex
+  ));
   return {
     rowSpan: merge?.rowSpan ?? 1,
     colSpan: merge?.colSpan ?? 1
@@ -77,7 +88,7 @@ function renderStaticTable(preview: ChartPreview, thumbnail = false) {
     fieldCode: cell.fieldCode
   }));
   const fullRowCount = Math.max(1, ...bodyCells.map(cell => cell.rowIndex + 1), 1);
-  const rowCount = thumbnail ? Math.min(fullRowCount, 5) : fullRowCount;
+  const rowCount = thumbnail ? Math.min(fullRowCount, 8) : fullRowCount;
   const colCount = Math.max(1, ...bodyCells.map(cell => cell.colIndex + 1), 1);
   const merges = tableDsl.merges ?? [];
   const styleMap = tableDsl.styles ?? {};
@@ -85,17 +96,23 @@ function renderStaticTable(preview: ChartPreview, thumbnail = false) {
   const resolveStyle = (cell: GridCell) => {
     const style = (styleMap[cellStyleKey(cell.region, cell.rowIndex, cell.colIndex)] as TableStyleRule | undefined) ?? {};
     const matched = cell.rowIndex === 0 ? undefined : (tableDsl.conditionalFormats ?? []).find(rule => {
-      if (rule.target && rule.target !== 'body' && rule.target !== 'all') return false;
-      if (rule.fieldCode && rule.fieldCode !== cell.fieldCode) return false;
+      if (rule.target && rule.target !== 'body' && rule.target !== 'all') {
+        return false;
+      }
+      if (rule.fieldCode && rule.fieldCode !== cell.fieldCode) {
+        return false;
+      }
       const numeric = Number(cell.value ?? cell.text);
-      if (!Number.isFinite(numeric)) return false;
+      if (!Number.isFinite(numeric)) {
+        return false;
+      }
       return compareRule(rule.operator, numeric, rule.value);
     });
     return matched ? { ...style, ...matched.style } : style;
   };
 
   return (
-    <div className="chart-renderer-shell chart-renderer-table">
+    <div className={`chart-renderer-shell chart-renderer-table${thumbnail ? ' chart-renderer-thumbnail' : ''}`}>
       <div className="table-designer-preview">
         <table className="designer-grid-table">
           <tbody>
@@ -153,23 +170,37 @@ export default function ChartRendererCore(props: {
   onComponentChange?: (component: DashboardComponent) => void;
   onComponentPreview?: (component: DashboardComponent) => void;
   thumbnail?: boolean;
+  compact?: boolean;
+  dense?: boolean;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.EChartsType | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const [zoomRange, setZoomRange] = useState<{ start: number; end: number }>({ start: 0, end: 100 });
+  const compactMode = props.compact ?? props.thumbnail;
   const template = useMemo(() => getChartTemplate(props.templateCode), [props.templateCode]);
   const option = useMemo(
-    () => props.preview && template.buildOption ? template.buildOption(props.preview, { zoomRange, activeLayerId: props.activeLayerId, compact: props.thumbnail }) : undefined,
-    [props.activeLayerId, props.preview, props.thumbnail, template, zoomRange]
+    () => props.preview && template.buildOption
+      ? template.buildOption(props.preview, {
+        zoomRange,
+        activeLayerId: props.activeLayerId,
+        compact: compactMode,
+        dense: props.dense
+      })
+      : undefined,
+    [compactMode, props.activeLayerId, props.dense, props.preview, template, zoomRange]
   );
+
   const resizeChart = useCallback(() => {
     window.requestAnimationFrame(() => {
       const host = hostRef.current;
-      if (!host || host.clientWidth === 0 || host.clientHeight === 0) return;
+      if (!host || host.clientWidth === 0 || host.clientHeight === 0) {
+        return;
+      }
       chartRef.current?.resize({ width: host.clientWidth, height: host.clientHeight });
     });
   }, []);
+
   const shouldRenderChart = props.viewMode !== 'table' && template.renderer !== 'table' && Boolean(option);
 
   useEffect(() => {
@@ -186,6 +217,7 @@ export default function ChartRendererCore(props: {
       chartRef.current = null;
       return;
     }
+
     const chart = chartRef.current ?? echarts.init(hostRef.current);
     chartRef.current = chart;
     const syncZoom = () => {
@@ -196,6 +228,7 @@ export default function ChartRendererCore(props: {
           : next
       ));
     };
+
     chart.on('datazoom', syncZoom);
     const observer = new ResizeObserver(resizeChart);
     observer.observe(hostRef.current);
@@ -204,6 +237,7 @@ export default function ChartRendererCore(props: {
     }
     observerRef.current = observer;
     window.addEventListener('resize', resizeChart);
+
     return () => {
       chart.off('datazoom', syncZoom);
       observer.disconnect();
@@ -213,7 +247,9 @@ export default function ChartRendererCore(props: {
   }, [shouldRenderChart, resizeChart]);
 
   useEffect(() => {
-    if (!shouldRenderChart || !option || !chartRef.current) return;
+    if (!shouldRenderChart || !option || !chartRef.current) {
+      return;
+    }
     chartRef.current.setOption(option, true);
     resizeChart();
   }, [option, resizeChart, shouldRenderChart]);
@@ -249,7 +285,7 @@ export default function ChartRendererCore(props: {
   }
 
   if (template.renderer === 'table' || props.viewMode === 'table') {
-    return renderStaticTable(props.preview, props.thumbnail);
+    return renderStaticTable(props.preview, compactMode);
   }
 
   if (props.preview.rows.length === 0) {
@@ -258,7 +294,11 @@ export default function ChartRendererCore(props: {
 
   return (
     <div className={`chart-renderer-shell${props.thumbnail ? ' chart-renderer-thumbnail' : ''}`}>
-      <div ref={hostRef} className="chart-renderer-host" />
+      <div
+        ref={hostRef}
+        className="chart-renderer-host"
+        style={{ minHeight: props.thumbnail ? 220 : 360 }}
+      />
     </div>
   );
 }

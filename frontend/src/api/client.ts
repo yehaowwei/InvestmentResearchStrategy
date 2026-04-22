@@ -1,5 +1,21 @@
 import axios from 'axios';
-import type { ChartPreview, ComponentDslConfig, CreateCalculatedMetricPayload, CreateDataPoolPayload, DashboardDraft, DashboardSummary, DataPool, DatasetModel, FieldMeta, RuntimeDashboardResponse, SourceTable, TemplateDefinition } from '../types/dashboard';
+import type {
+  ChartCatalogItem,
+  ChartDefinition,
+  ChartPreview,
+  ComponentDslConfig,
+  CreateCalculatedMetricPayload,
+  CreateDataPoolPayload,
+  DashboardDraft,
+  DashboardSummary,
+  DataPool,
+  DatasetModel,
+  FieldMeta,
+  RuntimeChartResponse,
+  RuntimeDashboardResponse,
+  SourceTable,
+  TemplateDefinition
+} from '../types/dashboard';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -8,7 +24,7 @@ interface ApiResponse<T> {
 }
 
 const client = axios.create({
-  baseURL: 'http://localhost:8080/api'
+  baseURL: '/api'
 });
 
 client.interceptors.response.use(
@@ -24,8 +40,40 @@ async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>) {
   return response.data.data;
 }
 
+function toChartCatalogItem(item: DashboardSummary): ChartCatalogItem {
+  return {
+    chartCode: item.dashboardCode,
+    chartName: item.name,
+    status: item.status,
+    publishedVersion: item.publishedVersion,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt
+  };
+}
+
+function toChartDefinition(draft: DashboardDraft): ChartDefinition {
+  return {
+    chartCode: draft.dashboardCode,
+    chartName: draft.name,
+    status: draft.status,
+    publishedVersion: draft.publishedVersion,
+    createdAt: draft.createdAt,
+    updatedAt: draft.updatedAt,
+    components: draft.components
+  };
+}
+
+function toRuntimeChartResponse(runtime: RuntimeDashboardResponse): RuntimeChartResponse {
+  return {
+    chartCode: runtime.dashboardCode,
+    versionNo: runtime.versionNo,
+    chart: toChartDefinition(runtime.dashboard)
+  };
+}
+
 export const api = {
   listDashboards: () => unwrap<DashboardSummary[]>(client.get('/dashboard')),
+  listCharts: async () => (await unwrap<DashboardSummary[]>(client.get('/dashboard'))).map(toChartCatalogItem),
   listDataPools: () => unwrap<DataPool[]>(client.get('/data-pool')),
   listModels: () => unwrap<DatasetModel[]>(client.get('/data-pool')),
   listSourceTables: () => unwrap<SourceTable[]>(client.get('/data-pool/source-tables')),
@@ -37,10 +85,40 @@ export const api = {
     unwrap<DataPool>(client.post(`/data-pool/${dataPoolCode}/calculated-metrics`, payload)),
   listTemplates: () => unwrap<TemplateDefinition[]>(client.get('/template')),
   loadDraft: (dashboardCode: string) => unwrap<DashboardDraft>(client.get(`/design/dashboard/${dashboardCode}`)),
+  loadChartDraft: async (chartCode: string) => toChartDefinition(await unwrap<DashboardDraft>(client.get(`/design/dashboard/${chartCode}`))),
   saveDraft: (draft: DashboardDraft) => unwrap<DashboardDraft>(client.post('/design/dashboard/save', { dashboardCode: draft.dashboardCode, draft })),
+  saveChartDraft: async (chart: ChartDefinition) => toChartDefinition(await unwrap<DashboardDraft>(client.post('/design/dashboard/save', {
+    dashboardCode: chart.chartCode || undefined,
+    draft: {
+      dashboardCode: chart.chartCode || undefined,
+      name: chart.chartName,
+      status: chart.status,
+      publishedVersion: chart.publishedVersion,
+      components: chart.components
+    }
+  }))),
   deleteDashboard: (dashboardCode: string) => unwrap<boolean>(client.delete(`/design/dashboard/${dashboardCode}`)),
+  deleteChartDraft: (chartCode: string) => unwrap<boolean>(client.delete(`/design/dashboard/${chartCode}`)),
   publish: (dashboardCode: string) => unwrap<{ dashboardCode: string; versionNo: number }>(client.post('/design/dashboard/publish', { dashboardCode })),
+  publishChart: async (chartCode: string) => {
+    const result = await unwrap<{ dashboardCode: string; versionNo: number }>(client.post('/design/dashboard/publish', { dashboardCode: chartCode }));
+    return { chartCode: result.dashboardCode, versionNo: result.versionNo };
+  },
   loadRuntime: (dashboardCode: string) => unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode } })),
+  loadRuntimeChart: async (chartCode: string) => toRuntimeChartResponse(await unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode: chartCode } }))),
   previewComponent: (component: { modelCode: string; dslConfig: ComponentDslConfig }) =>
-    unwrap<ChartPreview>(client.post('/chart/preview', { modelCode: component.modelCode, dslConfig: component.dslConfig }))
+    unwrap<ChartPreview>(client.post('/chart/preview', {
+      modelCode: component.modelCode,
+      queryDsl: {
+        ...component.dslConfig.queryDsl,
+        modelCode: component.dslConfig.queryDsl.modelCode || component.modelCode
+      },
+      dslConfig: {
+        ...component.dslConfig,
+        queryDsl: {
+          ...component.dslConfig.queryDsl,
+          modelCode: component.dslConfig.queryDsl.modelCode || component.modelCode
+        }
+      }
+    }))
 };

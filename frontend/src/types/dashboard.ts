@@ -86,6 +86,7 @@ export interface QueryDsl {
 export interface VisualDsl {
   title: string;
   subtitle: string;
+  indicatorTag: string;
   xAxisName: string;
   leftAxisName: string;
   rightAxisName: string;
@@ -312,6 +313,8 @@ export interface DashboardDraft {
   name: string;
   status: string;
   publishedVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
   components: DashboardComponent[];
 }
 
@@ -320,6 +323,27 @@ export interface DashboardSummary {
   name: string;
   status: string;
   publishedVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChartDefinition {
+  chartCode: string;
+  chartName: string;
+  status: string;
+  publishedVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  components: DashboardComponent[];
+}
+
+export interface ChartCatalogItem {
+  chartCode: string;
+  chartName: string;
+  status: string;
+  publishedVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PanelFieldSchema {
@@ -379,6 +403,12 @@ export interface RuntimeDashboardResponse {
   dashboardCode: string;
   versionNo: number;
   dashboard: DashboardDraft;
+}
+
+export interface RuntimeChartResponse {
+  chartCode: string;
+  versionNo: number;
+  chart: ChartDefinition;
 }
 
 export interface FavoriteChart {

@@ -10,12 +10,16 @@ import com.bi.dto.ViewDsl;
 import com.bi.service.DashboardService;
 import com.bi.vo.PublishResultVo;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.PreparedStatement;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class DashboardServiceImpl implements DashboardService {
@@ -30,13 +34,15 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<DashboardDraftDto> listDashboards() {
         return jdbcTemplate.query(
-                "SELECT dashboard_code, name, status, published_version FROM bi_dashboard ORDER BY id",
+                "SELECT dashboard_code, name, status, published_version, created_at, updated_at FROM bi_dashboard ORDER BY id",
                 (rs, rowNum) -> {
                     DashboardDraftDto draft = new DashboardDraftDto();
                     draft.setDashboardCode(rs.getString("dashboard_code"));
                     draft.setName(rs.getString("name"));
                     draft.setStatus(rs.getString("status"));
                     draft.setPublishedVersion(rs.getInt("published_version"));
+                    draft.setCreatedAt(rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime().toString());
+                    draft.setUpdatedAt(rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime().toString());
                     return draft;
                 }
         );
@@ -45,13 +51,15 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public DashboardDraftDto getDraft(String dashboardCode) {
         List<DashboardDraftDto> dashboards = jdbcTemplate.query(
-                "SELECT dashboard_code, name, status, published_version FROM bi_dashboard WHERE dashboard_code = ?",
+                "SELECT dashboard_code, name, status, published_version, created_at, updated_at FROM bi_dashboard WHERE dashboard_code = ?",
                 (rs, rowNum) -> {
                     DashboardDraftDto draft = new DashboardDraftDto();
                     draft.setDashboardCode(rs.getString("dashboard_code"));
                     draft.setName(rs.getString("name"));
                     draft.setStatus(rs.getString("status"));
                     draft.setPublishedVersion(rs.getInt("published_version"));
+                    draft.setCreatedAt(rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime().toString());
+                    draft.setUpdatedAt(rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime().toString());
                     return draft;
                 },
                 dashboardCode
@@ -71,32 +79,44 @@ public class DashboardServiceImpl implements DashboardService {
         if (draft.getComponents() == null || draft.getComponents().isEmpty()) {
             throw new IllegalArgumentException("Dashboard must contain at least one component");
         }
-        Integer existing = jdbcTemplate.queryForObject(
+        String requestedCode = request.getDashboardCode();
+        String effectiveDashboardCode = requestedCode == null || requestedCode.isBlank()
+                ? draft.getDashboardCode()
+                : requestedCode;
+        boolean creatingNewDashboard = effectiveDashboardCode == null || effectiveDashboardCode.isBlank();
+
+        Integer existing = creatingNewDashboard
+                ? 0
+                : jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM bi_dashboard WHERE dashboard_code = ?",
                 Integer.class,
-                request.getDashboardCode()
+                effectiveDashboardCode
         );
         if (existing == null || existing == 0) {
-            jdbcTemplate.update(
-                    "INSERT INTO bi_dashboard(dashboard_code, name, status, published_version) VALUES (?, ?, 'DRAFT', 0)",
-                    request.getDashboardCode(),
-                    draft.getName()
-            );
+            if (creatingNewDashboard) {
+                effectiveDashboardCode = insertDashboardAndGenerateCode(draft.getName());
+            } else {
+                jdbcTemplate.update(
+                        "INSERT INTO bi_dashboard(dashboard_code, name, status, published_version) VALUES (?, ?, 'DRAFT', 0)",
+                        effectiveDashboardCode,
+                        draft.getName()
+                );
+            }
         } else {
             jdbcTemplate.update(
                     "UPDATE bi_dashboard SET name = ?, status = 'DRAFT' WHERE dashboard_code = ?",
                     draft.getName(),
-                    request.getDashboardCode()
+                    effectiveDashboardCode
             );
         }
-        jdbcTemplate.update("DELETE FROM bi_component WHERE dashboard_code = ?", request.getDashboardCode());
+        jdbcTemplate.update("DELETE FROM bi_component WHERE dashboard_code = ?", effectiveDashboardCode);
 
         int sortNo = 1;
         for (ChartComponentDto component : draft.getComponents()) {
             Map<String, Object> dslConfig = normalizeDslConfig(component);
             jdbcTemplate.update(
                     "INSERT INTO bi_component(dashboard_code, component_code, component_type, title, template_code, model_code, dsl_config_json, sort_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    request.getDashboardCode(),
+                    effectiveDashboardCode,
                     component.getComponentCode(),
                     component.getComponentType() == null || component.getComponentType().isBlank() ? "chart" : component.getComponentType(),
                     component.getTitle(),
@@ -107,7 +127,34 @@ public class DashboardServiceImpl implements DashboardService {
             );
         }
 
-        return getDraft(request.getDashboardCode());
+        return getDraft(effectiveDashboardCode);
+    }
+
+    private String insertDashboardAndGenerateCode(String dashboardName) {
+        String placeholderCode = "pending_" + UUID.randomUUID().toString().replace("-", "");
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO bi_dashboard(dashboard_code, name, status, published_version) VALUES (?, ?, 'DRAFT', 0)",
+                    new String[]{"id"}
+            );
+            statement.setString(1, placeholderCode);
+            statement.setString(2, dashboardName);
+            return statement;
+        }, keyHolder);
+
+        Number generatedId = keyHolder.getKey();
+        if (generatedId == null) {
+            throw new IllegalStateException("Failed to generate dashboard id");
+        }
+
+        String dashboardCode = "chart_" + generatedId.longValue();
+        jdbcTemplate.update(
+                "UPDATE bi_dashboard SET dashboard_code = ? WHERE id = ?",
+                dashboardCode,
+                generatedId.longValue()
+        );
+        return dashboardCode;
     }
 
     @Override

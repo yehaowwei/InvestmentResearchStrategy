@@ -17,6 +17,19 @@
   TemplateDefinition
 } from '../types/dashboard';
 
+export function isSelectableTableField(dataType: string, fieldRole: string) {
+  return fieldRole === 'dimension'
+    || fieldRole === 'attribute'
+    || ['date', 'datetime', 'string', 'number'].includes(dataType);
+}
+
+export function getDefaultTableColumnFields(model?: DatasetModel, limit = 6) {
+  return (model?.fields ?? [])
+    .filter(field => isSelectableTableField(field.dataType, field.fieldRole))
+    .slice(0, limit)
+    .map(field => field.fieldCode);
+}
+
 export function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -717,6 +730,7 @@ export function normalizeDslConfig(
     visualDsl: {
       title: normalizeDisplayText(dslConfig.visualDsl.title),
       subtitle: normalizeDisplayText(dslConfig.visualDsl.subtitle),
+      indicatorTag: normalizeDisplayText(dslConfig.visualDsl.indicatorTag),
       xAxisName: normalizeDisplayText(dslConfig.visualDsl.xAxisName),
       leftAxisName: normalizeDisplayText(dslConfig.visualDsl.leftAxisName),
       rightAxisName: normalizeDisplayText(dslConfig.visualDsl.rightAxisName)
@@ -768,11 +782,35 @@ export function syncTableComponentWithModel(
   previewRows: Record<string, unknown>[] = []
 ) {
   const normalized = normalizeDslConfig(component.dslConfig, model);
+  const currentColumnFields = normalized.tableDsl?.template?.columnFields ?? [];
+  const nextColumnFields = currentColumnFields.length > 0
+    ? currentColumnFields
+    : getDefaultTableColumnFields(model);
+  normalized.queryDsl = {
+    ...normalized.queryDsl,
+    dimensionField: nextColumnFields[0] ?? '',
+    dimensionFields: nextColumnFields,
+    dimensions: nextColumnFields,
+    metrics: []
+  };
+  const seededTableDsl: TableDsl = {
+    ...(normalized.tableDsl ?? createDefaultTableDsl()),
+    template: {
+      ...createDefaultTableTemplateDsl(),
+      ...normalized.tableDsl?.template,
+      rowFields: [],
+      columnFields: nextColumnFields,
+      valueFields: [],
+      threshold: normalized.tableDsl?.template?.threshold ?? 0,
+      gtColor: normalized.tableDsl?.template?.gtColor ?? '#fecaca',
+      lteColor: normalized.tableDsl?.template?.lteColor ?? '#dcfce7'
+    }
+  };
   const nextTableDsl = buildInitialTableDsl({
     ...component,
     dslConfig: {
       ...normalized,
-      tableDsl: normalized.tableDsl
+      tableDsl: seededTableDsl
     }
   }, model, previewRows);
   normalized.tableDsl = nextTableDsl;

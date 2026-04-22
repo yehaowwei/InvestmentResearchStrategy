@@ -13,7 +13,15 @@ import type {
   StatisticalItemDsl,
   TemplateDefinition
 } from '../types/dashboard';
-import { createChartLayer, createStatisticItem, normalizeDslConfig, normalizeStatisticItemName, resolveModel } from '../utils/dashboard';
+import {
+  createChartLayer,
+  createStatisticItem,
+  getDefaultTableColumnFields,
+  normalizeDslConfig,
+  normalizeStatisticItemName,
+  resolveModel,
+  syncTableComponentWithModel
+} from '../utils/dashboard';
 import TableDesignerPanel from './TableDesignerPanel';
 
 type ConfigModuleKey = 'base' | 'layers' | 'dim_metric' | 'mean' | 'std' | 'percentile';
@@ -259,7 +267,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
   }, [component?.componentCode]);
 
   if (!component) {
-    return <div className="config-panel-shell"><div className="panel-card property-panel property-panel-empty"><div className="panel-section"><Empty description="请选择一个图表组件" /></div></div></div>;
+    return <div className="config-panel-shell"><div className="panel-card property-panel property-panel-empty"><div className="panel-section"><Empty description="请选择一个图表" /></div></div></div>;
   }
 
   const activeTemplate = props.templates.find(template => template.templateCode === component.templateCode);
@@ -344,7 +352,40 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
               <h3 className="panel-title">基础配置</h3>
               <Space direction="vertical" size={12} style={{ width: '100%' }}>
                 <div><FieldLabel>图表标题</FieldLabel><Input value={component.dslConfig.visualDsl.title} onChange={event => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, visualDsl: { ...current.dslConfig.visualDsl, title: event.target.value } } }))} /></div>
-                <div><FieldLabel>图表模板</FieldLabel><Select style={{ width: '100%' }} value={component.templateCode} options={templateOptions} onChange={value => applyComponent(current => ({ ...current, templateCode: value }))} /></div>
+                <div><FieldLabel>指标标签</FieldLabel><Input value={component.dslConfig.visualDsl.indicatorTag} onChange={event => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, visualDsl: { ...current.dslConfig.visualDsl, indicatorTag: event.target.value } } }))} /></div>
+                <div><FieldLabel>图表模板</FieldLabel><Select style={{ width: '100%' }} value={component.templateCode} options={templateOptions} onChange={value => applyComponent(current => {
+                  if (value !== 'table') {
+                    return {
+                      ...current,
+                      templateCode: value
+                    };
+                  }
+
+                  const nextModel = resolveModel(props.dataPools, current.modelCode);
+                  const defaultColumnFields = getDefaultTableColumnFields(nextModel);
+
+                  return syncTableComponentWithModel(
+                    {
+                      ...current,
+                      templateCode: 'table',
+                      componentType: 'table',
+                      dslConfig: {
+                        ...current.dslConfig,
+                        queryDsl: {
+                          ...current.dslConfig.queryDsl,
+                          modelCode: current.modelCode,
+                          datasetCode: current.modelCode,
+                          dimensionField: defaultColumnFields[0] ?? '',
+                          dimensionFields: defaultColumnFields,
+                          dimensions: defaultColumnFields,
+                          metrics: []
+                        }
+                      }
+                    },
+                    nextModel,
+                    props.preview?.rows ?? []
+                  );
+                })} /></div>
                 <div><FieldLabel>数据模型</FieldLabel><Select style={{ width: '100%' }} value={component.modelCode} options={modelOptions} onChange={value => applyComponent(current => ({ ...current, modelCode: value }))} /></div>
               </Space>
             </div>

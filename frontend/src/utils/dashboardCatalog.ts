@@ -1,4 +1,4 @@
-import type { DashboardCategoryKey, DashboardMeta, DashboardSummary } from '../types/dashboard';
+import type { ChartCatalogItem, DashboardCategoryKey, DashboardMeta, DashboardSummary } from '../types/dashboard';
 
 const STORAGE_KEY = 'bi-dashboard-category-meta';
 
@@ -56,7 +56,7 @@ export function getCategoryLabel(category: DashboardCategoryKey) {
   return DASHBOARD_CATEGORIES.find(item => item.key === category)?.label ?? '估值指标';
 }
 
-export function getDashboardMeta(dashboardCode: string): DashboardMeta {
+export function getDashboardMeta(dashboardCode: string) {
   return readMetaMap().get(dashboardCode) ?? defaultMeta(dashboardCode);
 }
 
@@ -91,5 +91,19 @@ export function filterDashboardsByCategory(dashboards: DashboardSummary[], categ
         return metaA.order - metaB.order;
       }
       return a.dashboardCode.localeCompare(b.dashboardCode);
+    });
+}
+
+export function filterChartsByCategory(charts: ChartCatalogItem[], category: DashboardCategoryKey, publishedOnly = false) {
+  return charts
+    .filter(item => !publishedOnly || item.status === 'PUBLISHED')
+    .filter(item => getDashboardMeta(item.chartCode).category === category)
+    .sort((a, b) => {
+      const metaA = getDashboardMeta(a.chartCode);
+      const metaB = getDashboardMeta(b.chartCode);
+      if (metaA.order !== metaB.order) {
+        return metaA.order - metaB.order;
+      }
+      return a.chartCode.localeCompare(b.chartCode);
     });
 }

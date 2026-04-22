@@ -23,7 +23,7 @@ $runtimeRoot = Join-Path $backendRoot 'runtime'
 $packagedJar = Join-Path $backendRoot 'target\bi-dashboard-engine-1.0.0.jar'
 $runtimeJar = Join-Path $runtimeRoot 'bi-dashboard-engine-1.0.0.jar'
 
-Stop-PortProcess -Port 8080
+Stop-PortProcess -Port 28637
 
 Push-Location $frontendRoot
 npm run build
@@ -50,5 +50,5 @@ Copy-Item -LiteralPath $packagedJar -Destination $runtimeJar -Force
 Start-Process java -ArgumentList '-jar', $runtimeJar -WorkingDirectory $backendRoot -WindowStyle Hidden | Out-Null
 Pop-Location
 
-Write-Host 'Backend:  http://localhost:8080'
-Write-Host 'Frontend: http://localhost:8080/#/designer'
+Write-Host 'Backend:  http://localhost:28637'
+Write-Host 'Frontend: http://localhost:28637/#/designer'

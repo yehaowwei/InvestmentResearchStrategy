@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Select } from 'antd';
-import GridLayout, { WidthProvider } from 'react-grid-layout';
+import GridLayout from 'react-grid-layout';
 import type { ChartPreview, DashboardComponent, DataPool } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
 import ChartContainer from './ChartContainer';
@@ -9,12 +9,19 @@ import ChartRendererCore from './ChartRendererCore';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-const ResponsiveGridLayout = WidthProvider(GridLayout);
+const BOARD_COLS = 12;
+const BOARD_WIDTH = 1200;
+const BOARD_HEIGHT = 720;
+const BOARD_ROWS = 12;
+const BOARD_MARGIN = 16;
+const BOARD_ROW_HEIGHT = (BOARD_HEIGHT - (BOARD_MARGIN * (BOARD_ROWS + 1))) / BOARD_ROWS;
+const BOARD_COL_WIDTH = (BOARD_WIDTH - (BOARD_MARGIN * (BOARD_COLS + 1))) / BOARD_COLS;
 
 interface DashboardCanvasProps {
   components: DashboardComponent[];
   previews: Record<string, ChartPreview>;
   editable: boolean;
+  resizable?: boolean;
   dataPools?: DataPool[];
   selectedComponentCode?: string;
   onSelect: (componentCode: string) => void;
@@ -42,6 +49,7 @@ function renderComponentCard(
 ) {
   return (
     <ChartContainer
+      tag={normalizeDisplayText(component.dslConfig.visualDsl.indicatorTag)}
       title={normalizeDisplayText(component.dslConfig.visualDsl.title || component.title, component.componentCode)}
       selected={component.componentCode === selectedComponentCode}
       onClick={() => onSelect(component.componentCode)}
@@ -66,6 +74,29 @@ function renderComponentCard(
   );
 }
 
+function renderThumbnailCard(
+  component: DashboardComponent,
+  preview: ChartPreview | undefined,
+  activeLayerId: string | undefined,
+  resizeTick: number
+) {
+  return (
+    <div className="thumbnail-render-card">
+      <ChartRendererCore
+        component={component}
+        preview={preview}
+        templateCode={component.templateCode}
+        activeLayerId={activeLayerId}
+        viewMode="chart"
+        resizeTick={resizeTick}
+        editable={false}
+        selected={false}
+        thumbnail
+      />
+    </div>
+  );
+}
+
 function showLayerSelector(component: DashboardComponent) {
   return component.templateCode !== 'table' && component.componentType !== 'table';
 }
@@ -74,6 +105,7 @@ export default function DashboardCanvas({
   components,
   previews,
   editable,
+  resizable = true,
   dataPools,
   selectedComponentCode,
   onSelect,
@@ -86,6 +118,37 @@ export default function DashboardCanvas({
 }: DashboardCanvasProps) {
   const [resizeTick, setResizeTick] = useState(0);
   const [activeLayers, setActiveLayers] = useState<Record<string, string>>({});
+  const boardShellRef = useRef<HTMLDivElement | null>(null);
+  const [boardScale, setBoardScale] = useState(1);
+
+  useEffect(() => {
+    if (mode !== 'grid') {
+      setBoardScale(1);
+      return;
+    }
+
+    const host = boardShellRef.current;
+    if (!host) {
+      return;
+    }
+
+    const updateScale = (width: number) => {
+      if (!Number.isFinite(width) || width <= 0) {
+        return;
+      }
+      setBoardScale(Math.min(width / BOARD_WIDTH, 1));
+    };
+
+    updateScale(host.clientWidth);
+
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      updateScale(entry?.contentRect.width ?? host.clientWidth);
+    });
+
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [mode]);
 
   if (components.length === 0) {
     return <div className="panel-card canvas-card canvas-empty">{emptyContent ?? '暂无内容'}</div>;
@@ -102,21 +165,15 @@ export default function DashboardCanvas({
     return (
       <div className="dashboard-thumbnail-shell">
         <div className="dashboard-thumbnail-viewport">
-          <div className="dashboard-thumbnail-item dashboard-thumbnail-item-full">
-            {renderComponentCard(
-              component,
-              previews[component.componentCode],
-              false,
-              dataPools,
-              undefined,
-              activeLayerId,
-              resizeTick,
-              null,
-              onSelect,
-              undefined,
-              undefined,
-              { thumbnail: true }
-            )}
+          <div className="dashboard-thumbnail-board">
+            <div className="dashboard-thumbnail-item dashboard-thumbnail-item-full">
+              {renderThumbnailCard(
+                component,
+                previews[component.componentCode],
+                activeLayerId,
+                resizeTick,
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -178,73 +235,83 @@ export default function DashboardCanvas({
   }
 
   return (
-    <div className="panel-card canvas-card">
-      <ResponsiveGridLayout
-        className="layout"
-        cols={12}
-        rowHeight={44}
-        isDraggable={editable}
-        isResizable={editable}
-        resizeHandles={['nw', 'ne', 'sw', 'se']}
-        draggableHandle=".component-card"
-        draggableCancel="button,input,textarea,select,option,.ant-input,.ant-input-number,.ant-select,.ant-table,.chart-toggle,.chart-card-actions,.chart-host,.chart-renderer-shell,.chart-renderer-host,canvas,svg,.table-designer-shell,.table-designer-preview,.designer-grid-table,.designer-cell"
-        margin={[16, 16]}
-        layout={components.map(component => ({ i: component.componentCode, ...component.dslConfig.layout }))}
-        onLayoutChange={layout => {
-          onLayoutChange(components.map(component => {
-            const next = layout.find(item => item.i === component.componentCode);
-            return next
-              ? { ...component, dslConfig: { ...component.dslConfig, layout: { x: next.x, y: next.y, w: next.w, h: next.h } } }
-              : component;
-          }));
-          setResizeTick(value => value + 1);
-        }}
-      >
-        {components.map(component => {
-          const chartLayers = showLayerSelector(component)
-            ? component.dslConfig.chartLayersDsl.filter(layer => layer.enabled)
-            : [];
-          const selectedLayerId = activeLayers[component.componentCode];
-          const activeLayerId = chartLayers.find(layer => layer.id === selectedLayerId)?.id ?? chartLayers[0]?.id;
+    <div className="panel-card canvas-card chart-board-stage">
+      <div className="dashboard-fixed-board-shell" ref={boardShellRef}>
+        <div className="dashboard-fixed-board-stage" style={{ height: BOARD_HEIGHT * boardScale }}>
+          <div className="dashboard-fixed-board" style={{ transform: `scale(${boardScale})` }}>
+          <GridLayout
+            className="layout dashboard-fixed-grid"
+            width={BOARD_WIDTH}
+            cols={BOARD_COLS}
+            maxRows={BOARD_ROWS}
+            rowHeight={BOARD_ROW_HEIGHT}
+            containerPadding={[0, 0]}
+            isBounded={editable}
+            isDraggable={editable}
+            isResizable={editable && resizable}
+            resizeHandles={resizable ? ['nw', 'ne', 'sw', 'se'] : []}
+            draggableHandle=".component-card"
+            draggableCancel="button,input,textarea,select,option,.ant-input,.ant-input-number,.ant-select,.ant-table,.chart-toggle,.chart-card-actions,.chart-host,.chart-renderer-shell,.chart-renderer-host,canvas,svg,.table-designer-shell,.table-designer-preview,.designer-grid-table,.designer-cell"
+            margin={[BOARD_MARGIN, BOARD_MARGIN]}
+            layout={components.map(component => ({ i: component.componentCode, ...component.dslConfig.layout }))}
+            onLayoutChange={layout => {
+              onLayoutChange(components.map(component => {
+                const next = layout.find(item => item.i === component.componentCode);
+                return next
+                  ? { ...component, dslConfig: { ...component.dslConfig, layout: { x: next.x, y: next.y, w: next.w, h: next.h } } }
+                  : component;
+              }));
+              setResizeTick(value => value + 1);
+            }}
+          >
+            {components.map(component => {
+              const chartLayers = showLayerSelector(component)
+                ? component.dslConfig.chartLayersDsl.filter(layer => layer.enabled)
+                : [];
+              const selectedLayerId = activeLayers[component.componentCode];
+              const activeLayerId = chartLayers.find(layer => layer.id === selectedLayerId)?.id ?? chartLayers[0]?.id;
 
-          const defaultActions = (
-            <div className="chart-card-actions">
-              {chartLayers.length > 0 ? (
-                <Select
-                  size="small"
-                  style={{ minWidth: 150 }}
-                  value={activeLayerId}
-                  options={chartLayers.map(layer => ({ label: normalizeDisplayText(layer.layerName, layer.id), value: layer.id }))}
-                  onChange={value => setActiveLayers(state => ({ ...state, [component.componentCode]: value }))}
-                />
-              ) : null}
-              {renderActions?.(component, activeLayerId)}
-            </div>
-          );
-          return (
-            <div
-              key={component.componentCode}
-              className="component-grid-item"
-              onMouseDownCapture={() => onSelect(component.componentCode)}
-              onClickCapture={() => onSelect(component.componentCode)}
-            >
-              {renderComponentCard(
-                component,
-                previews[component.componentCode],
-                editable,
-                dataPools,
-                selectedComponentCode,
-                activeLayerId,
-                resizeTick,
-                defaultActions,
-                onSelect,
-                onComponentChange,
-                onComponentPreview
-              )}
-            </div>
-          );
-        })}
-      </ResponsiveGridLayout>
+              const defaultActions = (
+                <div className="chart-card-actions">
+                  {chartLayers.length > 0 ? (
+                    <Select
+                      size="small"
+                      style={{ minWidth: 150 }}
+                      value={activeLayerId}
+                      options={chartLayers.map(layer => ({ label: normalizeDisplayText(layer.layerName, layer.id), value: layer.id }))}
+                      onChange={value => setActiveLayers(state => ({ ...state, [component.componentCode]: value }))}
+                    />
+                  ) : null}
+                  {renderActions?.(component, activeLayerId)}
+                </div>
+              );
+              return (
+                <div
+                  key={component.componentCode}
+                  className="component-grid-item"
+                  onMouseDownCapture={() => onSelect(component.componentCode)}
+                  onClickCapture={() => onSelect(component.componentCode)}
+                >
+                  {renderComponentCard(
+                    component,
+                    previews[component.componentCode],
+                    editable,
+                    dataPools,
+                    selectedComponentCode,
+                    activeLayerId,
+                    resizeTick,
+                    defaultActions,
+                    onSelect,
+                    onComponentChange,
+                    onComponentPreview
+                  )}
+                </div>
+              );
+            })}
+          </GridLayout>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

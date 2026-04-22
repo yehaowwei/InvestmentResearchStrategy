@@ -1,9 +1,16 @@
 import { Button, Empty, Input, InputNumber, Select, Space } from 'antd';
 import type { DashboardComponent, DataPool, TemplateDefinition } from '../types/dashboard';
-import { buildInitialTableDsl, normalizeDslConfig, resolveModel, syncTableComponentWithModel } from '../utils/dashboard';
+import {
+  buildInitialTableDsl,
+  normalizeDslConfig,
+  resolveModel,
+  syncTableComponentWithModel
+} from '../utils/dashboard';
 
 function isSelectableField(dataType: string, fieldRole: string) {
-  return fieldRole === 'dimension' || fieldRole === 'attribute' || ['date', 'datetime', 'string', 'number'].includes(dataType);
+  return fieldRole === 'dimension'
+    || fieldRole === 'attribute'
+    || ['date', 'datetime', 'string', 'number'].includes(dataType);
 }
 
 export default function TableDesignerPanel(props: {
@@ -22,25 +29,35 @@ export default function TableDesignerPanel(props: {
       <div className="config-panel-shell">
         <div className="panel-card property-panel property-panel-empty">
           <div className="panel-section">
-            <Empty description="请先为表格选择数据源" />
+            <Empty description="请先为表格选择数据模型" />
           </div>
         </div>
       </div>
     );
   }
 
-  const cartesianTemplateCode = props.templates.find(template => (template.capability?.renderer ?? template.rendererCode) === 'cartesian_combo')?.templateCode ?? 'cartesian_combo';
+  const cartesianTemplateCode =
+    props.templates.find(template => (template.capability?.renderer ?? template.rendererCode) === 'cartesian_combo')
+      ?.templateCode
+    ?? 'cartesian_combo';
+
   const templateOptions = [
     { label: '笛卡尔坐标图', value: cartesianTemplateCode },
     { label: '表格', value: 'table' }
   ];
+
   const modelOptions = props.dataPools.map(dataPool => ({
     label: dataPool.dataPoolName,
     value: dataPool.dataPoolCode
   }));
+
   const fieldOptions = fields
     .filter(field => isSelectableField(field.dataType, field.fieldRole))
-    .map(field => ({ label: field.fieldNameCn || field.fieldName || field.fieldCode, value: field.fieldCode }));
+    .map(field => ({
+      label: field.fieldNameCn || field.fieldName || field.fieldCode,
+      value: field.fieldCode
+    }));
+
   const tableTemplate = props.component.dslConfig.tableDsl?.template;
 
   const applyComponent = (updater: (component: DashboardComponent) => DashboardComponent, regenerate = false) => {
@@ -50,7 +67,11 @@ export default function TableDesignerPanel(props: {
       dslConfig: normalizeDslConfig(nextRaw.dslConfig, resolveModel(props.dataPools, nextRaw.modelCode))
     };
     const next = regenerate
-      ? syncTableComponentWithModel(normalized, resolveModel(props.dataPools, normalized.modelCode), props.previewRows ?? [])
+      ? syncTableComponentWithModel(
+        normalized,
+        resolveModel(props.dataPools, normalized.modelCode),
+        props.previewRows ?? []
+      )
       : normalized;
     props.onChange(next);
   };
@@ -104,7 +125,7 @@ export default function TableDesignerPanel(props: {
             <h3 className="panel-title">基础配置</h3>
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <div>
-                <div className="metric-field-label">组件标题</div>
+                <div className="metric-field-label">图表标题</div>
                 <Input
                   value={props.component.dslConfig.visualDsl.title}
                   onChange={event => applyComponent(component => ({
@@ -120,7 +141,7 @@ export default function TableDesignerPanel(props: {
                 />
               </div>
               <div>
-                <div className="metric-field-label">模板</div>
+                <div className="metric-field-label">图表类型</div>
                 <Select
                   style={{ width: '100%' }}
                   value={props.component.templateCode}
@@ -133,7 +154,7 @@ export default function TableDesignerPanel(props: {
                 />
               </div>
               <div>
-                <div className="metric-field-label">数据源</div>
+                <div className="metric-field-label">数据模型</div>
                 <Select
                   style={{ width: '100%' }}
                   value={props.component.modelCode}
@@ -159,7 +180,7 @@ export default function TableDesignerPanel(props: {
             <h3 className="panel-title">列配置</h3>
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <div>
-                <div className="metric-field-label">插入数据字段</div>
+                <div className="metric-field-label">展示字段</div>
                 <Select
                   mode="multiple"
                   style={{ width: '100%' }}
@@ -202,7 +223,6 @@ export default function TableDesignerPanel(props: {
               </div>
             </Space>
           </div>
-
         </div>
 
         <div className="panel-section property-panel-footer">

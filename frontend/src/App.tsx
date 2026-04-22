@@ -1,9 +1,16 @@
-import { BarChartOutlined, FolderOpenOutlined, FundProjectionScreenOutlined, MenuFoldOutlined, StarOutlined } from '@ant-design/icons';
+import {
+  BarChartOutlined,
+  FolderOpenOutlined,
+  FundProjectionScreenOutlined,
+  MenuFoldOutlined,
+  StarOutlined
+} from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import DashboardDesigner from './pages/DashboardDesigner';
 import PersonalDashboard from './pages/PersonalDashboard';
 import DashboardRuntime from './pages/DashboardRuntime';
+import StrategyPlaceholder from './pages/StrategyPlaceholder';
 import { DASHBOARD_CATEGORIES } from './utils/dashboardCatalog';
 
 const items = [
@@ -15,26 +22,64 @@ const items = [
   {
     key: 'runtime-group',
     icon: <FolderOpenOutlined />,
-    label: '公共指标库',
+    label: '指标中心',
     children: DASHBOARD_CATEGORIES.map(item => ({
       key: `/runtime/${item.key}`,
       label: <Link to={`/runtime/${item.key}`}>{item.label}</Link>
     }))
   },
   {
+    key: 'strategy-group',
+    icon: <BarChartOutlined />,
+    label: '策略中心',
+    children: [
+      {
+        key: '/strategy/config',
+        label: <Link to="/strategy/config">配置策略</Link>
+      },
+      {
+        key: '/strategy/timing',
+        label: <Link to="/strategy/timing">择时策略</Link>
+      },
+      {
+        key: '/strategy/multi-asset',
+        label: <Link to="/strategy/multi-asset">多元细分品种策略</Link>
+      }
+    ]
+  },
+  {
     key: '/favorites',
     icon: <StarOutlined />,
-    label: <Link to="/favorites">个人指标库</Link>
+    label: <Link to="/favorites">我的指标</Link>
+  },
+  {
+    key: '/my-strategy',
+    icon: <StarOutlined />,
+    label: <Link to="/my-strategy">我的策略</Link>
   }
 ];
 
 function resolveSelectedKey(pathname: string) {
   if (pathname.startsWith('/runtime/')) {
     const [, , categoryKey] = pathname.split('/');
-    return DASHBOARD_CATEGORIES.some(item => item.key === categoryKey) ? `/runtime/${categoryKey}` : '/runtime/valuation';
+    return DASHBOARD_CATEGORIES.some(item => item.key === categoryKey)
+      ? `/runtime/${categoryKey}`
+      : '/runtime/valuation';
   }
   if (pathname.startsWith('/favorites')) {
     return '/favorites';
+  }
+  if (pathname.startsWith('/strategy/config')) {
+    return '/strategy/config';
+  }
+  if (pathname.startsWith('/strategy/timing')) {
+    return '/strategy/timing';
+  }
+  if (pathname.startsWith('/strategy/multi-asset')) {
+    return '/strategy/multi-asset';
+  }
+  if (pathname.startsWith('/my-strategy')) {
+    return '/my-strategy';
   }
   return '/designer';
 }
@@ -58,7 +103,7 @@ export default function App() {
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
-          defaultOpenKeys={['runtime-group']}
+          defaultOpenKeys={['runtime-group', 'strategy-group']}
           items={items}
           className="app-sidebar-menu"
         />
@@ -68,12 +113,16 @@ export default function App() {
           <Route path="/" element={<DashboardDesigner />} />
           <Route path="/designer" element={<DashboardDesigner />} />
           <Route path="/designer/:categoryKey" element={<DashboardDesigner />} />
-          <Route path="/designer/:categoryKey/:dashboardCode" element={<DashboardDesigner />} />
+          <Route path="/designer/:categoryKey/:chartCode" element={<DashboardDesigner />} />
           <Route path="/runtime" element={<DashboardRuntime />} />
           <Route path="/runtime/:categoryKey" element={<DashboardRuntime />} />
-          <Route path="/runtime/:categoryKey/:dashboardCode" element={<DashboardRuntime />} />
+          <Route path="/runtime/:categoryKey/:chartCode" element={<DashboardRuntime />} />
           <Route path="/favorites" element={<PersonalDashboard />} />
-          <Route path="/favorites/:boardId" element={<PersonalDashboard />} />
+          <Route path="/favorites/:chartId" element={<PersonalDashboard />} />
+          <Route path="/strategy/config" element={<StrategyPlaceholder />} />
+          <Route path="/strategy/timing" element={<StrategyPlaceholder />} />
+          <Route path="/strategy/multi-asset" element={<StrategyPlaceholder />} />
+          <Route path="/my-strategy" element={<StrategyPlaceholder />} />
         </Routes>
       </Layout.Content>
     </Layout>

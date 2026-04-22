@@ -13,6 +13,8 @@ public class DashboardDraftDto {
     private String name;
     private String status;
     private Integer publishedVersion;
+    private String createdAt;
+    private String updatedAt;
     private List<ChartComponentDto> components = new ArrayList<>();
     private List<FilterCondition> pageFilters = new ArrayList<>();
     private Map<String, Object> meta = new LinkedHashMap<>();
