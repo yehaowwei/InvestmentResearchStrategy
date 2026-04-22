@@ -14,6 +14,7 @@ frontend/dist/
 # Backend build / runtime
 backend/target/
 backend/runtime/
+.m2/
 
 # Local databases
 backend/data/*.mv.db

@@ -7,6 +7,7 @@ import com.bi.service.DatasetService;
 import com.bi.vo.DatasetVo;
 import com.bi.vo.FieldMetaVo;
 import com.bi.vo.SourceTableVo;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -565,7 +566,7 @@ public class DatasetServiceImpl implements DatasetService {
     }
 
     private String currentSchemaName() {
-        return jdbcTemplate.execute(connection -> {
+        return jdbcTemplate.execute((ConnectionCallback<String>) connection -> {
             String schema = connection.getSchema();
             if (schema != null && !schema.isBlank()) {
                 return schema;
