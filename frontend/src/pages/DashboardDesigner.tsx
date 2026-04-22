@@ -574,7 +574,7 @@ export default function DashboardDesigner() {
       <>
         <div className="page-header designer-library-header">
           <div>
-            <h2 className="page-title">指标配置</h2>
+            <h2 className="page-title">指标配置（面向IT人员使用）</h2>
             <div className="page-subtitle">这里以图库方式展示当前分类下的图表，可直接预览、修改、删除、拖拽排序，也可以新建图表。</div>
           </div>
         </div>

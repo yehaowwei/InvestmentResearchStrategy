@@ -19,7 +19,9 @@ backend/runtime/
 backend/data/*.mv.db
 backend/data/*.trace.db
 backend/data/*.lock.db
+data/*.mv.db
+data/*.trace.db
+data/*.lock.db
 
 # Temp payloads
 tmp-*.json
-

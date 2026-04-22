@@ -618,9 +618,9 @@ function buildCartesianComboOption(
   const enableStack = preview.dslConfig.dimensionConfigDsl.stackBySecondDimension && dimensions.length >= 2;
   const compact = Boolean(context?.compact);
   const dense = !compact && Boolean(context?.dense);
-  const sliderBottom = compact ? 2 : dense ? 4 : 6;
+  const sliderBottom = 0;
   const gridBottom = interactionDsl.slider
-    ? (compact ? 66 : dense ? 62 : 82)
+    ? (compact ? 40 : dense ? 34 : 46)
     : (compact ? 38 : dense ? 28 : 40);
 
   return {
@@ -664,6 +664,8 @@ function buildCartesianComboOption(
               end: zoom.end,
               height: 16,
               bottom: sliderBottom,
+              showDetail: false,
+              brushSelect: false,
               textStyle: { color: '#475569', fontSize: 10 },
               labelFormatter: (value: string | number) => formatTimeLabel(value, xValues)
             }]
@@ -679,6 +681,8 @@ function buildCartesianComboOption(
           end: zoom.end,
           height: dense ? 14 : 18,
           bottom: sliderBottom,
+          showDetail: false,
+          brushSelect: false,
           textStyle: { color: '#475569', fontSize: dense ? 9 : 11 },
           labelFormatter: (value: string | number) => formatTimeLabel(value, xValues)
         }] : []),
@@ -693,17 +697,17 @@ function buildCartesianComboOption(
       axisLabel: compact
         ? {
           fontSize: 10,
-          margin: 16,
+          margin: 6,
           hideOverlap: true,
-          rotate: xValues.length > 6 ? 30 : 0,
+          rotate: xValues.length > 8 ? 20 : 0,
           formatter: (value: string) => formatTimeLabel(value, xValues)
         }
         : {
           fontSize: dense ? 10 : undefined,
           color: '#475569',
-          margin: dense ? 16 : 18,
+          margin: dense ? 6 : 8,
           hideOverlap: true,
-          rotate: xValues.length > 12 ? 32 : 0,
+          rotate: xValues.length > 12 ? (dense ? 20 : 24) : 0,
           formatter: (value: string) => formatTimeLabel(value, xValues)
         },
       axisTick: compact ? { show: true, alignWithLabel: true } : { show: true, alignWithLabel: true },

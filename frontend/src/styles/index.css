@@ -420,8 +420,11 @@ body {
 }
 
 .table-designer-preview {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 10px;
@@ -439,7 +442,9 @@ body {
 }
 
 .designer-grid-table {
+  flex: 1 1 auto;
   width: 100%;
+  height: 100%;
   border-collapse: collapse;
   table-layout: fixed;
   background: #fff;
@@ -706,11 +711,19 @@ body {
 
 .favorites-board-card-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   min-height: 78px;
+}
+
+.favorites-board-card-head > div:first-child {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .favorites-card-actions {
@@ -756,8 +769,11 @@ body {
 
 .favorites-board-title {
   margin: 0;
+  display: flex;
+  align-items: center;
   font-size: 17px;
   line-height: 1.35;
+  color: #182433;
 }
 
 .favorites-board-meta {
@@ -767,6 +783,11 @@ body {
   margin-top: 6px;
   color: var(--subtle);
   font-size: 11px;
+}
+
+.favorites-board-meta:empty {
+  display: none;
+  margin-top: 0;
 }
 
 .favorites-board-thumb {
@@ -828,6 +849,18 @@ body {
   min-height: 240px !important;
 }
 
+.library-chart-preview .chart-renderer-table {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.library-chart-preview .table-designer-preview {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .library-chart-preview .designer-grid-table th,
 .library-chart-preview .designer-grid-table td {
   padding: 4px 6px;
@@ -846,14 +879,16 @@ body {
 }
 
 .public-board-card .favorites-board-card-head {
+  align-items: center;
   gap: 6px;
-  margin-bottom: 6px;
-  min-height: 42px;
+  margin-bottom: 4px;
+  min-height: 34px;
 }
 
 .public-board-card .favorites-board-title {
   font-size: 13px;
   line-height: 1.2;
+  color: #162030;
 }
 
 .public-board-card .favorites-board-meta {
@@ -889,6 +924,10 @@ body {
 
 .public-board-card .library-chart-preview .chart-renderer-host {
   min-height: 332px !important;
+}
+
+.public-board-card .library-chart-preview .table-designer-preview {
+  min-height: 332px;
 }
 
 .personal-board-card .favorites-board-meta {

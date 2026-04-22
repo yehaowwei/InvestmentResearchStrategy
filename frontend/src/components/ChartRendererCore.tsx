@@ -177,7 +177,8 @@ export default function ChartRendererCore(props: {
   const chartRef = useRef<echarts.EChartsType | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const [zoomRange, setZoomRange] = useState<{ start: number; end: number }>({ start: 0, end: 100 });
-  const compactMode = props.compact ?? props.thumbnail;
+  const thumbnailMode = Boolean(props.thumbnail);
+  const compactMode = props.compact ?? thumbnailMode;
   const template = useMemo(() => getChartTemplate(props.templateCode), [props.templateCode]);
   const option = useMemo(
     () => props.preview && template.buildOption
@@ -285,7 +286,7 @@ export default function ChartRendererCore(props: {
   }
 
   if (template.renderer === 'table' || props.viewMode === 'table') {
-    return renderStaticTable(props.preview, compactMode);
+    return renderStaticTable(props.preview, thumbnailMode);
   }
 
   if (props.preview.rows.length === 0) {

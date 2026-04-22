@@ -370,7 +370,7 @@ public class DatasetServiceImpl implements DatasetService {
 
     @Override
     public List<SourceTableVo> listSourceTables() {
-        String databaseName = jdbcTemplate.queryForObject("SELECT DATABASE()", String.class);
+        String schemaName = currentSchemaName();
         List<SourceTableVo> managedTables = jdbcTemplate.query(
                 """
                 SELECT model_code, model_name, physical_table_name
@@ -398,7 +398,7 @@ public class DatasetServiceImpl implements DatasetService {
                 ORDER BY table_name
                 """,
                 String.class,
-                databaseName
+                schemaName
         );
         List<SourceTableVo> unmanagedTables = tableNames.stream()
                 .filter(table -> !managedTableSet.contains(table.toLowerCase(Locale.ROOT)))
@@ -419,11 +419,11 @@ public class DatasetServiceImpl implements DatasetService {
     }
 
     private boolean existsTable(String tableName) {
-        String databaseName = jdbcTemplate.queryForObject("SELECT DATABASE()", String.class);
+        String schemaName = currentSchemaName();
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
                 Integer.class,
-                databaseName,
+                schemaName,
                 tableName
         );
         return count != null && count > 0;
@@ -539,13 +539,13 @@ public class DatasetServiceImpl implements DatasetService {
     }
 
     private List<CreateDataPoolRequest.DataPoolFieldRequest> inferFields(String tableName, String alias) {
-        String databaseName = jdbcTemplate.queryForObject("SELECT DATABASE()", String.class);
+        String schemaName = currentSchemaName();
         return jdbcTemplate.query(
                 """
                 SELECT column_name, data_type
                 FROM information_schema.columns
                 WHERE table_schema = ? AND table_name = ?
-                ORDER BY ordinal_position
+                  ORDER BY ordinal_position
                 """,
                 (rs, rowNum) -> {
                     String columnName = rs.getString("column_name");
@@ -559,9 +559,23 @@ public class DatasetServiceImpl implements DatasetService {
                     field.setSourceExpr(alias + "." + columnName);
                     return field;
                 },
-                databaseName,
+                schemaName,
                 tableName
         );
+    }
+
+    private String currentSchemaName() {
+        return jdbcTemplate.execute(connection -> {
+            String schema = connection.getSchema();
+            if (schema != null && !schema.isBlank()) {
+                return schema;
+            }
+            String catalog = connection.getCatalog();
+            if (catalog != null && !catalog.isBlank()) {
+                return catalog;
+            }
+            return "PUBLIC";
+        });
     }
 
     private List<FieldMetaVo> previewSqlFields(String sql) {
