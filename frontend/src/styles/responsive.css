@@ -1,0 +1,80 @@
+@media (max-width: 1200px) {
+  .app-shell-sidebar {
+    display: block;
+    padding-left: 0;
+  }
+
+  .app-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    left: auto;
+  }
+
+  .app-sidebar.expanded {
+    width: 100%;
+  }
+
+  .app-sidebar-brand-text,
+  .app-sidebar-fold,
+  .app-sidebar-menu .ant-menu-submenu-arrow,
+  .app-sidebar-menu .ant-menu-title-content {
+    opacity: 1;
+  }
+
+  .page-shell,
+  .runtime-library-shell,
+  .table-designer-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adaptive-canvas {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .config-panel-shell,
+  .runtime-toc-card {
+    position: static;
+  }
+
+  .property-panel,
+  .runtime-toc-card {
+    max-height: none;
+  }
+
+  .app-content-sidebar {
+    padding-left: 20px;
+  }
+
+  .public-chart-grid,
+  .personal-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .page-header,
+  .chart-card-header,
+  .favorites-board-card-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .metric-card-grid,
+  .page-shell {
+    display: grid;
+  }
+
+  .adaptive-canvas,
+  .favorites-board-grid,
+  .public-chart-grid,
+  .personal-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adaptive-canvas-item {
+    grid-column: span 1 !important;
+    grid-row: span 1 !important;
+    min-height: 280px;
+  }
+}

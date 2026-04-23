@@ -1,0 +1,176 @@
+.table-designer-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+.table-designer-toolbar {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f9fc 100%);
+}
+
+.table-designer-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.9fr);
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+}
+
+.table-designer-stage.single-pane {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.table-designer-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  background: #fff;
+  overflow: auto;
+}
+
+.table-designer-columns {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.designer-grid-table {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #fff;
+}
+
+.designer-grid-table th,
+.designer-grid-table td {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  min-width: 88px;
+  height: 40px;
+  vertical-align: middle;
+  word-break: break-word;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.designer-grid-table th {
+  background: #f5f9fc;
+  font-weight: 700;
+  text-align: center;
+}
+
+.designer-axis-corner,
+.designer-axis-cell {
+  min-width: 72px;
+  background: #ecf4fb !important;
+  color: #47627d;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.designer-col-selector {
+  white-space: nowrap;
+}
+
+.designer-cell {
+  cursor: pointer;
+  user-select: none;
+}
+
+.designer-cell.selected {
+  box-shadow: inset 0 0 0 2px var(--accent-2);
+  background: #dbeafe;
+}
+
+.designer-cell.merged-origin {
+  position: relative;
+}
+
+.designer-cell.merged-origin::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.designer-empty-cell {
+  text-align: center;
+  color: var(--subtle);
+  background: #fbfdff;
+}
+
+.designer-cell-placeholder {
+  display: inline-block;
+  min-height: 1em;
+  min-width: 1ch;
+}
+
+.designer-cell-content {
+  min-height: 24px;
+  white-space: pre-wrap;
+}
+
+.simple-color-input {
+  width: 44px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0;
+  background: #fff;
+}
+
+.table-designer-columns-head {
+  padding: 12px 14px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--subtle);
+}
+
+.table-designer-columns-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.table-designer-column-card .ant-card-body {
+  padding: 12px;
+}
+
+.table-designer-label {
+  color: var(--subtle);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chart-renderer-thumbnail .table-designer-preview {
+  padding: 4px;
+}
+
+.chart-renderer-thumbnail .designer-grid-table th,
+.chart-renderer-thumbnail .designer-grid-table td,
+.library-chart-preview .designer-grid-table th,
+.library-chart-preview .designer-grid-table td {
+  padding: 4px 6px;
+  height: 26px;
+  font-size: 11px;
+}

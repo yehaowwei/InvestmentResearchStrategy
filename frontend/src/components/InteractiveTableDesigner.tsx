@@ -9,127 +9,19 @@ import {
 } from '@ant-design/icons';
 import { Button, Empty, Input, Space } from 'antd';
 import { useMemo, useState } from 'react';
-import type {
-  DashboardComponent,
-  DataPool,
-  TableBodyCellDsl,
-  TableMergeDsl,
-  TableStyleRule
-} from '../types/dashboard';
+import type { DashboardComponent, DataPool } from '../types/dashboard';
 import { resolveModel } from '../utils/dashboard';
-
-type TableRegion = 'body';
-
-interface SelectionRange {
-  region: TableRegion;
-  startRow: number;
-  endRow: number;
-  startCol: number;
-  endCol: number;
-}
-
-interface GridCell {
-  key: string;
-  region: TableRegion;
-  rowIndex: number;
-  colIndex: number;
-  text: string;
-  sourceText?: string;
-  value?: unknown;
-  fieldCode?: string;
-}
-
-function cellStyleKey(region: TableRegion, rowIndex: number, colIndex: number) {
-  return `${region}:${rowIndex}:${colIndex}`;
-}
-
-function normalizeSelection(selection: SelectionRange): SelectionRange {
-  return {
-    region: selection.region,
-    startRow: Math.min(selection.startRow, selection.endRow),
-    endRow: Math.max(selection.startRow, selection.endRow),
-    startCol: Math.min(selection.startCol, selection.endCol),
-    endCol: Math.max(selection.startCol, selection.endCol)
-  };
-}
-
-function isSelected(selection: SelectionRange | null, cell: GridCell) {
-  if (!selection || selection.region !== cell.region) {
-    return false;
-  }
-  return cell.rowIndex >= selection.startRow
-    && cell.rowIndex <= selection.endRow
-    && cell.colIndex >= selection.startCol
-    && cell.colIndex <= selection.endCol;
-}
-
-function matchesMerge(merge: TableMergeDsl, cell: GridCell) {
-  return merge.region === cell.region
-    && cell.rowIndex >= merge.rowIndex
-    && cell.rowIndex < merge.rowIndex + merge.rowSpan
-    && cell.colIndex >= merge.colIndex
-    && cell.colIndex < merge.colIndex + merge.colSpan;
-}
-
-function shouldHideCell(merges: TableMergeDsl[], cell: GridCell) {
-  const merge = merges.find(item => matchesMerge(item, cell));
-  return Boolean(merge && !(merge.rowIndex === cell.rowIndex && merge.colIndex === cell.colIndex));
-}
-
-function getCellSpan(merges: TableMergeDsl[], cell: GridCell) {
-  const merge = merges.find(item => (
-    item.region === cell.region
-    && item.rowIndex === cell.rowIndex
-    && item.colIndex === cell.colIndex
-  ));
-  return {
-    rowSpan: merge?.rowSpan ?? 1,
-    colSpan: merge?.colSpan ?? 1
-  };
-}
-
-function compareRule(operator: string, value: number, ruleValue: number) {
-  switch (operator) {
-    case 'gt': return value > ruleValue;
-    case 'gte': return value >= ruleValue;
-    case 'lt': return value < ruleValue;
-    case 'lte': return value <= ruleValue;
-    case 'eq': return value === ruleValue;
-    default: return false;
-  }
-}
-
-function createBodyCell(rowIndex: number, colIndex: number, text = '', fieldCode = ''): TableBodyCellDsl {
-  return {
-    key: `body-${rowIndex}-${colIndex}-${Date.now()}`,
-    rowIndex,
-    colIndex,
-    fieldCode,
-    text,
-    sourceText: text,
-    textOverride: text,
-    value: text
-  };
-}
-
-function shiftMerges(merges: TableMergeDsl[], axis: 'row' | 'col', target: number, delta: number) {
-  return merges
-    .filter(merge => {
-      if (axis === 'row') {
-        return !(delta < 0 && merge.rowIndex === target);
-      }
-      return !(delta < 0 && merge.colIndex === target);
-    })
-    .map(merge => {
-      if (axis === 'row' && merge.rowIndex >= target) {
-        return { ...merge, rowIndex: merge.rowIndex + delta };
-      }
-      if (axis === 'col' && merge.colIndex >= target) {
-        return { ...merge, colIndex: merge.colIndex + delta };
-      }
-      return merge;
-    });
-}
+import {
+  createBodyCell,
+  getCellSpan,
+  isSelected,
+  normalizeSelection,
+  resolveCellStyle,
+  shiftMerges,
+  shouldHideCell,
+  cellStyleKey
+} from './interactiveTableDesigner/helpers';
+import type { GridCell, SelectionRange } from './interactiveTableDesigner/types';
 
 export default function InteractiveTableDesigner(props: {
   component: DashboardComponent;
@@ -179,7 +71,7 @@ export default function InteractiveTableDesigner(props: {
         for (let colIndex = normalized.startCol; colIndex <= normalized.endCol; colIndex += 1) {
           const key = cellStyleKey('body', rowIndex, colIndex);
           nextStyles[key] = {
-            ...(nextStyles[key] as TableStyleRule | undefined),
+            ...(nextStyles[key] ?? {}),
             backgroundColor: paintColor
           };
         }
@@ -386,22 +278,11 @@ export default function InteractiveTableDesigner(props: {
   };
 
   const resolveStyle = (cell: GridCell) => {
-    const styleMap = props.component.dslConfig.tableDsl?.styles ?? {};
-    const style = (styleMap[cellStyleKey('body', cell.rowIndex, cell.colIndex)] as TableStyleRule | undefined) ?? {};
-    const matched = cell.rowIndex === 0 ? undefined : (props.component.dslConfig.tableDsl?.conditionalFormats ?? []).find(rule => {
-      if (rule.target && rule.target !== 'body' && rule.target !== 'all') {
-        return false;
-      }
-      if (rule.fieldCode && rule.fieldCode !== cell.fieldCode) {
-        return false;
-      }
-      const numeric = Number(cell.value ?? cell.text);
-      if (!Number.isFinite(numeric)) {
-        return false;
-      }
-      return compareRule(rule.operator, numeric, rule.value);
-    });
-    return matched ? { ...style, ...matched.style } : style;
+    return resolveCellStyle(
+      props.component.dslConfig.tableDsl?.styles ?? {},
+      props.component.dslConfig.tableDsl?.conditionalFormats ?? [],
+      cell
+    );
   };
 
   const selectWholeRow = (rowIndex: number) => {

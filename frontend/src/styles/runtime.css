@@ -1,0 +1,86 @@
+.runtime-chart-modal {
+  height: 100%;
+  min-height: 0;
+}
+
+.runtime-chart-modal .component-card,
+.runtime-chart-modal .component-card > .ant-card-body,
+.runtime-chart-modal .chart-host,
+.runtime-chart-modal .chart-renderer-shell,
+.runtime-chart-modal .chart-renderer-host {
+  height: 100%;
+}
+
+.runtime-toc-card {
+  position: sticky;
+  top: 20px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+}
+
+.runtime-toc-title {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.runtime-toc-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.runtime-toc-group {
+  display: grid;
+  gap: 8px;
+}
+
+.runtime-toc-group-button,
+.runtime-toc-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.runtime-toc-group-button {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 118, 110, 0.08);
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.runtime-toc-group-button.active {
+  background: rgba(29, 78, 216, 0.12);
+  color: #1d4ed8;
+}
+
+.runtime-toc-items {
+  display: grid;
+  gap: 4px;
+  padding-left: 8px;
+}
+
+.runtime-toc-item {
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--subtle);
+  font-size: 12px;
+  line-height: 1.35;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.runtime-toc-item:hover,
+.runtime-toc-item.active {
+  background: rgba(29, 78, 216, 0.08);
+  color: #1d4ed8;
+}

@@ -1,0 +1,120 @@
+:root {
+  --bg: #eef4f8;
+  --panel: #ffffff;
+  --line: #d9e3eb;
+  --ink: #112033;
+  --subtle: #5f7386;
+  --accent: #0f766e;
+  --accent-2: #1d4ed8;
+  --danger: #dc2626;
+  --shadow: 0 18px 42px rgba(17, 32, 51, 0.08);
+  font-family: "Segoe UI", "PingFang SC", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top left, #f8fcff 0, #eef4f8 40%, #e8eff5 100%);
+  color: var(--ink);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell-sidebar {
+  position: relative;
+  display: block;
+  padding-left: 84px;
+}
+
+.app-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 84px;
+  padding: 18px 12px;
+  background: linear-gradient(180deg, #e5ebf1 0%, #edf2f6 52%, #f6f8fb 100%);
+  border-right: 1px solid #d4dce4;
+  transition: width 0.2s ease;
+  overflow: hidden;
+  z-index: 10;
+  box-shadow: 0 16px 36px rgba(102, 118, 138, 0.12);
+}
+
+.app-sidebar.expanded {
+  width: 280px;
+}
+
+.app-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 18px;
+  color: #33485f;
+  font-size: 18px;
+}
+
+.app-sidebar-brand-text,
+.app-sidebar-fold {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.app-sidebar.expanded .app-sidebar-brand-text,
+.app-sidebar.expanded .app-sidebar-fold {
+  opacity: 1;
+}
+
+.app-sidebar-menu {
+  background: transparent !important;
+  border-inline-end: none !important;
+}
+
+.app-sidebar-menu .ant-menu-item,
+.app-sidebar-menu .ant-menu-submenu-title {
+  margin-inline: 0 !important;
+  width: 100% !important;
+  border-radius: 12px;
+  color: #506477 !important;
+}
+
+.app-sidebar-menu .ant-menu-submenu-arrow,
+.app-sidebar-menu .ant-menu-title-content {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.app-sidebar.expanded .app-sidebar-menu .ant-menu-submenu-arrow,
+.app-sidebar.expanded .app-sidebar-menu .ant-menu-title-content {
+  opacity: 1;
+}
+
+.app-sidebar-menu .ant-menu-item-selected,
+.app-sidebar-menu .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  background: rgba(92, 115, 138, 0.12) !important;
+  color: #34495f !important;
+}
+
+.app-sidebar-menu .ant-menu-sub {
+  background: transparent !important;
+}
+
+.app-content {
+  padding: 16px;
+}
+
+.app-content-sidebar {
+  padding: 20px;
+}

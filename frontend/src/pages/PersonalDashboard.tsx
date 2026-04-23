@@ -1,12 +1,12 @@
-import { DeleteOutlined, ExpandOutlined, HolderOutlined } from '@ant-design/icons';
-import { Button, Empty, Input, Modal, Popconfirm, Select, Space, message } from 'antd';
+import { ExpandOutlined } from '@ant-design/icons';
+import { Button, Empty, Input, Modal, Select, Space, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { api } from '../api/client';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
-import type { ChartCatalogItem, ChartPreview, DashboardCategoryKey, DashboardComponent } from '../types/dashboard';
+import type { ChartCatalogItem, ChartPreview, DashboardCategoryKey } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
-import { buildChartRuntimeCards, type ChartRuntimeCard } from '../utils/chartLibrary';
+import { buildChartRuntimeCards } from '../utils/chartLibrary';
 import { DASHBOARD_CATEGORIES, getCategoryLabel, getDashboardMeta } from '../utils/dashboardCatalog';
 import {
   createFavoriteFromComponent,
@@ -17,54 +17,21 @@ import {
   type PersonalChartEntry
 } from '../utils/favorites';
 import {
-  normalizeSearchKeyword,
   reorderItemsPreview,
   resolveActiveRowCodes,
   resolveClosestSortIdFromPoint,
   scrollContainerItemToCenter
 } from './dashboardPageUtils';
-
-type SortMode = 'manual' | 'time_asc' | 'time_desc';
-
-type AvailableChartCard = ChartRuntimeCard;
-
-function parseSortTime(value?: string) {
-  if (!value) return Number.NEGATIVE_INFINITY;
-  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
-  const timestamp = new Date(normalized).getTime();
-  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
-}
-
-function matchChartKeyword(entry: PersonalChartEntry, keyword: string) {
-  if (!keyword) return true;
-  const normalizedKeyword = normalizeSearchKeyword(keyword);
-  return [
-    normalizeDisplayText(entry.chart.componentTitle, entry.chart.componentCode),
-    entry.chart.componentCode
-  ].some(value => value.toLowerCase().includes(normalizedKeyword));
-}
-
-function toComponent(entry: PersonalChartEntry): DashboardComponent {
-  return {
-    componentCode: entry.chart.componentCode,
-    componentType: 'chart',
-    templateCode: entry.chart.templateCode,
-    modelCode: entry.chart.modelCode,
-    title: entry.chart.componentTitle,
-    dslConfig: entry.chart.dslConfig
-  };
-}
-
-function matchAvailableChartKeyword(chart: AvailableChartCard, keyword: string) {
-  if (!keyword) return true;
-  const normalizedKeyword = normalizeSearchKeyword(keyword);
-  return [
-    normalizeDisplayText(chart.component.dslConfig.visualDsl.title || chart.component.title, chart.component.componentCode),
-    normalizeDisplayText(chart.chartName, chart.chartCode),
-    chart.component.componentCode,
-    chart.chartCode
-  ].some(value => value.toLowerCase().includes(normalizedKeyword));
-}
+import AddChartModal from './personalDashboard/AddChartModal';
+import PersonalChartCard from './personalDashboard/PersonalChartCard';
+import {
+  matchAvailableChartKeyword,
+  matchChartKeyword,
+  parseSortTime,
+  toComponent,
+  type AvailableChartCard,
+  type SortMode
+} from './personalDashboard/helpers';
 
 export default function PersonalDashboard() {
   const [charts, setCharts] = useState<PersonalChartEntry[]>(listPersonalCharts());
@@ -421,10 +388,7 @@ export default function PersonalDashboard() {
       </div>
 
       <div className="favorites-filter-nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <Button
-          type={activeCategory === 'all' ? 'primary' : 'default'}
-          onClick={() => setActiveCategory('all')}
-        >
+        <Button type={activeCategory === 'all' ? 'primary' : 'default'} onClick={() => setActiveCategory('all')}>
           全部
         </Button>
         {DASHBOARD_CATEGORIES.map(option => (
@@ -460,70 +424,17 @@ export default function PersonalDashboard() {
           {filteredCharts.length > 0 ? (
             <div className="favorites-board-grid personal-chart-grid">
               {renderedCharts.map(item => (
-                <article
+                <PersonalChartCard
                   key={item.boardId}
-                  id={`personal-chart-card-${item.chart.componentCode}`}
-                  data-sort-id={item.boardId}
-                  className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card${draggingChartId === item.boardId ? ' personal-chart-card-dragging' : ''}${dragOverChartId === item.boardId && draggingChartId !== item.boardId ? ' drag-preview-target' : ''}`}
-                >
-                  <div className="favorites-board-card-head">
-                    <div>
-                      <h3 className="favorites-board-title">
-                        {normalizeDisplayText(item.chart.componentTitle, item.chart.componentCode)}
-                      </h3>
-                      <div className="favorites-board-meta">
-                        <span>{item.primaryLabel}</span>
-                        <span>{item.secondaryLabel}</span>
-                        <span>排序 {item.order}</span>
-                      </div>
-                    </div>
-                    <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">
-                      <Button icon={<ExpandOutlined />} onClick={() => setExpandedChart(item)}>
-                        放大查看
-                      </Button>
-                      <span
-                        className={`drag-handle-chip${sortMode !== 'manual' ? ' disabled' : ''}`}
-                        onMouseDown={event => handlePersonalSortStart(event, item.boardId)}
-                      >
-                        <HolderOutlined />
-                        <span>拖拽排序</span>
-                      </span>
-                      <Popconfirm title="确认删除当前图表吗？" okText="确认" cancelText="取消" onConfirm={() => removeChart(item)}>
-                        <Button icon={<DeleteOutlined />} danger>
-                          删除
-                        </Button>
-                      </Popconfirm>
-                    </div>
-                  </div>
-                  <div className="favorites-board-thumb">
-                    <div className="library-chart-preview">
-                      <div className="library-chart-preview-head">
-                        {normalizeDisplayText(item.chart.dslConfig.visualDsl.indicatorTag) ? (
-                          <span className="chart-card-tag">
-                            {normalizeDisplayText(item.chart.dslConfig.visualDsl.indicatorTag)}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="library-chart-preview-body">
-                        {previews[item.chart.componentCode] ? (
-                          <ChartRendererCore
-                            component={toComponent(item)}
-                            preview={previews[item.chart.componentCode]}
-                            templateCode={item.chart.templateCode}
-                            viewMode="chart"
-                            editable={false}
-                            selected={false}
-                            thumbnail
-                            compact={false}
-                            dense
-                          />
-                        ) : (
-                          <Empty description="当前图表暂无预览" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </article>
+                  item={item}
+                  preview={previews[item.chart.componentCode]}
+                  dragging={draggingChartId === item.boardId}
+                  dragOver={dragOverChartId === item.boardId && draggingChartId !== item.boardId}
+                  sortMode={sortMode}
+                  onExpand={() => setExpandedChart(item)}
+                  onSortStart={handlePersonalSortStart}
+                  onRemove={() => removeChart(item)}
+                />
               ))}
             </div>
           ) : (
@@ -607,111 +518,21 @@ export default function PersonalDashboard() {
         ) : null}
       </Modal>
 
-      <Modal
-        title="增加图表"
+      <AddChartModal
         open={addChartOpen}
-        footer={null}
-        onCancel={() => {
+        loading={addChartLoading}
+        category={addChartCategory}
+        keyword={addChartKeyword}
+        groups={availableChartGroups}
+        onClose={() => {
           setAddChartOpen(false);
           setAddChartCategory('all');
           setAddChartKeyword('');
         }}
-        width="90vw"
-        styles={{ body: { maxHeight: '78vh', overflow: 'auto', padding: 16 } }}
-      >
-        <div className="favorites-filter-nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-          <Button
-            type={addChartCategory === 'all' ? 'primary' : 'default'}
-            onClick={() => setAddChartCategory('all')}
-          >
-            全部
-          </Button>
-          {DASHBOARD_CATEGORIES.map(option => (
-            <Button
-              key={`add-${option.key}`}
-              type={addChartCategory === option.key ? 'primary' : 'default'}
-              onClick={() => setAddChartCategory(option.key)}
-            >
-              {option.label}
-            </Button>
-          ))}
-          <Input.Search
-            allowClear
-            placeholder="搜索未收藏图表名称"
-            style={{ width: 260 }}
-            value={addChartKeyword}
-            onChange={event => setAddChartKeyword(event.target.value)}
-          />
-        </div>
-        {availableChartGroups.length > 0 ? (
-          <div>
-            {availableChartGroups.map(group => (
-              <div key={group.key} style={{ marginBottom: 24 }}>
-                {addChartCategory === 'all' ? (
-                  <div className="runtime-toc-title" style={{ marginBottom: 12 }}>{group.label}</div>
-                ) : null}
-                <div className="favorites-board-grid public-chart-grid">
-                  {group.charts.map(item => (
-                    <article
-                      key={`${group.key}:${item.component.componentCode}`}
-                      className="panel-card favorites-board-card public-board-card"
-                    >
-                      <div className="favorites-board-card-head">
-                        <div>
-                          <h3 className="favorites-board-title">
-                            {normalizeDisplayText(
-                              item.component.dslConfig.visualDsl.title || item.component.title,
-                              item.component.componentCode
-                            )}
-                          </h3>
-                          <div className="favorites-board-meta" />
-                        </div>
-                        <div className="favorites-card-actions public-chart-card-actions">
-                          <Button type="primary" onClick={() => addChartToPersonal(item)}>
-                            加入我的指标
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="favorites-board-thumb">
-                        <div className="library-chart-preview">
-                          <div className="library-chart-preview-head">
-                            {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag) ? (
-                              <span className="chart-card-tag">
-                                {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag)}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="library-chart-preview-body">
-                            {item.preview ? (
-                              <ChartRendererCore
-                                component={item.component}
-                                preview={item.preview}
-                                templateCode={item.component.templateCode}
-                                viewMode="chart"
-                                editable={false}
-                                selected={false}
-                                thumbnail
-                                compact={false}
-                                dense
-                              />
-                            ) : (
-                              <Empty description="当前图表暂无预览" />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="panel-card canvas-card canvas-empty">
-            <Empty description={addChartLoading ? '正在加载可添加图表' : '当前没有可添加的未收藏图表'} />
-          </div>
-        )}
-      </Modal>
+        onCategoryChange={setAddChartCategory}
+        onKeywordChange={setAddChartKeyword}
+        onAdd={addChartToPersonal}
+      />
     </>
   );
 }
