@@ -10,7 +10,7 @@ import java.util.List;
 public interface DatasetService {
     List<DatasetVo> listDatasets();
 
-    DatasetVo getDataset(String datasetCode);
+    DatasetVo getDataset(String modelCode);
 
     DatasetVo createDataPool(CreateDataPoolRequest request);
 

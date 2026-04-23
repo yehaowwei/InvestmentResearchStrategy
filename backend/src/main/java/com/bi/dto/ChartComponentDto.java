@@ -12,8 +12,5 @@ public class ChartComponentDto {
     private String templateCode;
     private String modelCode;
     private String title;
-    private LayoutDto layout;
-    private QueryDsl queryDsl;
-    private ViewDsl viewDsl;
     private Map<String, Object> dslConfig = new LinkedHashMap<>();
 }

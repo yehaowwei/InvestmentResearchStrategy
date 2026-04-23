@@ -15,8 +15,6 @@ const BOARD_HEIGHT = 720;
 const BOARD_ROWS = 12;
 const BOARD_MARGIN = 16;
 const BOARD_ROW_HEIGHT = (BOARD_HEIGHT - (BOARD_MARGIN * (BOARD_ROWS + 1))) / BOARD_ROWS;
-const BOARD_COL_WIDTH = (BOARD_WIDTH - (BOARD_MARGIN * (BOARD_COLS + 1))) / BOARD_COLS;
-
 interface DashboardCanvasProps {
   components: DashboardComponent[];
   previews: Record<string, ChartPreview>;
@@ -101,6 +99,19 @@ function showLayerSelector(component: DashboardComponent) {
   return component.templateCode !== 'table' && component.componentType !== 'table';
 }
 
+function resolveActiveLayerId(
+  component: DashboardComponent,
+  activeLayers: Record<string, string>
+) {
+  const chartLayers = showLayerSelector(component)
+    ? component.dslConfig.chartLayersDsl.filter(layer => layer.enabled)
+    : [];
+  const selectedLayerId = activeLayers[component.componentCode];
+  const activeLayerId = chartLayers.find(layer => layer.id === selectedLayerId)?.id ?? chartLayers[0]?.id;
+
+  return { chartLayers, activeLayerId };
+}
+
 export default function DashboardCanvas({
   components,
   previews,
@@ -120,6 +131,25 @@ export default function DashboardCanvas({
   const [activeLayers, setActiveLayers] = useState<Record<string, string>>({});
   const boardShellRef = useRef<HTMLDivElement | null>(null);
   const [boardScale, setBoardScale] = useState(1);
+
+  const buildActions = (component: DashboardComponent, activeLayerId: string | undefined) => {
+    const { chartLayers } = resolveActiveLayerId(component, activeLayers);
+
+    return (
+      <div className="chart-card-actions">
+        {chartLayers.length > 0 ? (
+          <Select
+            size="small"
+            style={{ minWidth: 150 }}
+            value={activeLayerId}
+            options={chartLayers.map(layer => ({ label: normalizeDisplayText(layer.layerName, layer.id), value: layer.id }))}
+            onChange={value => setActiveLayers(state => ({ ...state, [component.componentCode]: value }))}
+          />
+        ) : null}
+        {renderActions?.(component, activeLayerId)}
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (mode !== 'grid') {
@@ -156,11 +186,7 @@ export default function DashboardCanvas({
 
   if (mode === 'thumbnail') {
     const component = components[0];
-    const chartLayers = showLayerSelector(component)
-      ? component.dslConfig.chartLayersDsl.filter(layer => layer.enabled)
-      : [];
-    const selectedLayerId = activeLayers[component.componentCode];
-    const activeLayerId = chartLayers.find(layer => layer.id === selectedLayerId)?.id ?? chartLayers[0]?.id;
+    const { activeLayerId } = resolveActiveLayerId(component, activeLayers);
 
     return (
       <div className="dashboard-thumbnail-shell">
@@ -184,25 +210,7 @@ export default function DashboardCanvas({
     return (
       <div className="adaptive-canvas">
         {components.map(component => {
-          const chartLayers = showLayerSelector(component)
-            ? component.dslConfig.chartLayersDsl.filter(layer => layer.enabled)
-            : [];
-          const selectedLayerId = activeLayers[component.componentCode];
-          const activeLayerId = chartLayers.find(layer => layer.id === selectedLayerId)?.id ?? chartLayers[0]?.id;
-          const defaultActions = (
-            <>
-              {chartLayers.length > 0 ? (
-                <Select
-                  size="small"
-                  style={{ minWidth: 150 }}
-                  value={activeLayerId}
-                  options={chartLayers.map(layer => ({ label: normalizeDisplayText(layer.layerName, layer.id), value: layer.id }))}
-                  onChange={value => setActiveLayers(state => ({ ...state, [component.componentCode]: value }))}
-                />
-              ) : null}
-              {renderActions?.(component, activeLayerId)}
-            </>
-          );
+          const { activeLayerId } = resolveActiveLayerId(component, activeLayers);
           return (
             <div
               key={component.componentCode}
@@ -222,7 +230,7 @@ export default function DashboardCanvas({
                 selectedComponentCode,
                 activeLayerId,
                 resizeTick,
-                <div className="chart-card-actions">{defaultActions}</div>,
+                buildActions(component, activeLayerId),
                 onSelect,
                 onComponentChange,
                 onComponentPreview
@@ -265,26 +273,7 @@ export default function DashboardCanvas({
             }}
           >
             {components.map(component => {
-              const chartLayers = showLayerSelector(component)
-                ? component.dslConfig.chartLayersDsl.filter(layer => layer.enabled)
-                : [];
-              const selectedLayerId = activeLayers[component.componentCode];
-              const activeLayerId = chartLayers.find(layer => layer.id === selectedLayerId)?.id ?? chartLayers[0]?.id;
-
-              const defaultActions = (
-                <div className="chart-card-actions">
-                  {chartLayers.length > 0 ? (
-                    <Select
-                      size="small"
-                      style={{ minWidth: 150 }}
-                      value={activeLayerId}
-                      options={chartLayers.map(layer => ({ label: normalizeDisplayText(layer.layerName, layer.id), value: layer.id }))}
-                      onChange={value => setActiveLayers(state => ({ ...state, [component.componentCode]: value }))}
-                    />
-                  ) : null}
-                  {renderActions?.(component, activeLayerId)}
-                </div>
-              );
+              const { activeLayerId } = resolveActiveLayerId(component, activeLayers);
               return (
                 <div
                   key={component.componentCode}
@@ -300,7 +289,7 @@ export default function DashboardCanvas({
                     selectedComponentCode,
                     activeLayerId,
                     resizeTick,
-                    defaultActions,
+                    buildActions(component, activeLayerId),
                     onSelect,
                     onComponentChange,
                     onComponentPreview

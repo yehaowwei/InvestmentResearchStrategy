@@ -3,30 +3,23 @@ export type ChartSeriesType = 'line' | 'area' | 'bar' | 'scatter' | 'pie' | 'tab
 export interface FieldMeta {
   fieldCode: string;
   fieldName: string;
-  fieldNameCn?: string;
   dataType: string;
   fieldRole: 'dimension' | 'metric' | 'attribute';
   aggType?: string;
   sourceExpr: string;
   calcType?: 'avg' | 'sum' | 'max' | 'min' | 'rolling_3y_avg' | string;
   baseFieldCode?: string;
-  aggs: string[];
 }
 
 export interface DatasetModel {
   dataPoolCode: string;
   dataPoolName: string;
-  dataPoolType: 'SOURCE_TABLE' | 'QUERY_TABLE' | 'SINGLE_TABLE' | 'MULTI_TABLE' | string;
-  dataPoolConfig: Record<string, unknown>;
-  datasetCode: string;
-  datasetName: string;
+  dataPoolType: 'SOURCE_TABLE' | 'QUERY_TABLE';
   tableName?: string;
   sourceSql?: string;
   createTableSql?: string;
   deletable?: boolean;
   modelCode: string;
-  modelName: string;
-  modelType: string;
   description?: string;
   modelConfig: Record<string, unknown>;
   fields: FieldMeta[];
@@ -70,15 +63,11 @@ export interface TableParamMap {
 
 export interface QueryDsl {
   modelCode?: string;
-  datasetCode?: string;
-  dimensionField?: string;
   dimensionFields: string[];
-  dimensions?: string[];
   seriesFields: string[];
   metrics: MetricSetting[];
   filters: FilterCondition[];
   orders: SortCondition[];
-  sorters?: SortCondition[];
   params?: TableParamMap;
   limit: number;
 }
@@ -369,7 +358,6 @@ export interface TemplateDefinition {
   templateCode: string;
   templateName: string;
   rendererCode: string;
-  description?: string;
   capability?: {
     renderer?: 'cartesian_combo' | 'scatter_quadrant' | 'table' | 'pie' | string;
     chartTypes?: ChartSeriesType[];
@@ -379,19 +367,13 @@ export interface TemplateDefinition {
     supportsMultiTableModel?: boolean;
     description?: string;
   };
-  panelSchema: {
-    sections: PanelSectionSchema[];
-  };
   defaultDsl: ComponentDslConfig;
 }
 
 export interface ChartPreview {
   modelCode: string;
   queryDsl: QueryDsl;
-  generatedSql: string;
   rows: Record<string, unknown>[];
-  dimensions: string[];
-  metrics: string[];
   dslConfig: ComponentDslConfig;
 }
 
@@ -451,7 +433,6 @@ export interface CreateDataPoolPayload {
   sourceAlias?: string;
   sqlText?: string;
   createTableSql?: string;
-  dataPoolConfig?: Record<string, unknown>;
   fields?: Array<{
     fieldCode: string;
     fieldName: string;

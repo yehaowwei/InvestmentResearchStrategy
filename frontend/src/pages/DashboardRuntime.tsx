@@ -5,61 +5,30 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
-import type { ChartCatalogItem, ChartDefinition, ChartPreview, DashboardComponent } from '../types/dashboard';
-import { normalizeDashboard, normalizeDisplayText } from '../utils/dashboard';
+import type { ChartCatalogItem, ChartDefinition, DashboardComponent } from '../types/dashboard';
+import { normalizeDisplayText } from '../utils/dashboard';
+import { buildChartRuntimeCards, matchCatalogChartKeyword, type ChartRuntimeCard } from '../utils/chartLibrary';
 import { createFavoriteFromComponent, isFavorite, removeComponentFromAllBoards } from '../utils/favorites';
 import {
   DASHBOARD_CATEGORIES,
   filterChartsByCategory,
+  getDashboardMeta,
   getCategoryLabel,
   normalizeCategoryKey
 } from '../utils/dashboardCatalog';
+import { normalizeSearchKeyword, resolveActiveRowCodes, scrollContainerItemToCenter } from './dashboardPageUtils';
 
-interface RuntimeChartCard {
-  chartCode: string;
-  chartName: string;
-  component: DashboardComponent;
-  preview?: ChartPreview;
-}
-
-function normalizeSearchKeyword(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function matchChartKeyword(chart: ChartCatalogItem, keyword: string) {
-  if (!keyword) return true;
-  const normalizedKeyword = normalizeSearchKeyword(keyword);
-  const targets = [
-    normalizeDisplayText(chart.chartName, chart.chartCode),
-    chart.chartCode
-  ];
-  return targets.some(value => value.toLowerCase().includes(normalizedKeyword));
-}
-
-function toChartDefinition(raw: ChartDefinition) {
-  const normalized = normalizeDashboard({
-    dashboardCode: raw.chartCode,
-    name: raw.chartName,
-    status: raw.status,
-    publishedVersion: raw.publishedVersion,
-    components: raw.components
-  });
-  return {
-    chartCode: normalized.dashboardCode,
-    chartName: normalized.name,
-    status: normalized.status,
-    publishedVersion: normalized.publishedVersion,
-    components: normalized.components
-  } satisfies ChartDefinition;
-}
+type RuntimeCategoryKey = 'all' | import('../types/dashboard').DashboardCategoryKey;
 
 export default function DashboardRuntime() {
   const navigate = useNavigate();
   const params = useParams();
-  const category = normalizeCategoryKey(params.categoryKey);
+  const category: RuntimeCategoryKey = params.categoryKey === 'all'
+    ? 'all'
+    : normalizeCategoryKey(params.categoryKey);
   const [charts, setCharts] = useState<ChartCatalogItem[]>([]);
-  const [runtimeCharts, setRuntimeCharts] = useState<RuntimeChartCard[]>([]);
-  const [expandedChart, setExpandedChart] = useState<RuntimeChartCard>();
+  const [runtimeCharts, setRuntimeCharts] = useState<ChartRuntimeCard[]>([]);
+  const [expandedChart, setExpandedChart] = useState<ChartRuntimeCard>();
   const [error, setError] = useState<string>();
   const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -67,17 +36,24 @@ export default function DashboardRuntime() {
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
 
   const categoryCharts = useMemo(
-    () => filterChartsByCategory(charts, category, true).filter(chart => matchChartKeyword(chart, searchKeyword)),
+    () => (
+      category === 'all'
+        ? charts.filter(chart => chart.status === 'PUBLISHED')
+        : filterChartsByCategory(charts, category, true)
+    ).filter(chart => matchCatalogChartKeyword(chart, searchKeyword, normalizeSearchKeyword)),
     [category, charts, searchKeyword]
   );
 
-  const categoryNavGroups = useMemo(
-    () => DASHBOARD_CATEGORIES.map(item => ({
+  const categoryNavGroups = useMemo(() => {
+    if (category !== 'all') {
+      return [];
+    }
+
+    return DASHBOARD_CATEGORIES.map(item => ({
       category: item,
-      charts: filterChartsByCategory(charts, item.key, true).filter(chart => matchChartKeyword(chart, searchKeyword))
-    })).filter(group => group.charts.length > 0),
-    [charts, searchKeyword]
-  );
+      charts: filterChartsByCategory(charts, item.key, true).filter(chart => matchCatalogChartKeyword(chart, searchKeyword, normalizeSearchKeyword))
+    })).filter(group => group.charts.length > 0);
+  }, [category, charts, searchKeyword]);
 
   useEffect(() => {
     api.listCharts()
@@ -96,30 +72,12 @@ export default function DashboardRuntime() {
     }
 
     let cancelled = false;
-    Promise.all(
-      categoryCharts.map(async item => {
-        const runtime = await api.loadRuntimeChart(item.chartCode);
-        const normalized = toChartDefinition(runtime.chart);
-        const previewPairs = await Promise.all(
-          normalized.components.map(async component => [
-            component.componentCode,
-            await api.previewComponent(component)
-          ] as const)
-        );
-        return normalized.components.map(component => ({
-          chartCode: normalized.chartCode,
-          chartName: normalized.chartName,
-          component,
-          preview: Object.fromEntries(previewPairs)[component.componentCode]
-        }));
-      })
-    )
+    Promise.all(categoryCharts.map(item => buildChartRuntimeCards(item.chartCode)))
       .then(entries => {
-        if (!cancelled) {
-          const nextCharts = entries.flat();
-          setRuntimeCharts(nextCharts);
-          setActiveChartCodes(nextCharts.slice(0, 3).map(item => item.chartCode));
-        }
+        if (cancelled) return;
+        const nextCharts = entries.flat();
+        setRuntimeCharts(nextCharts);
+        setActiveChartCodes(nextCharts.slice(0, 3).map(item => item.chartCode));
       })
       .catch(loadError => {
         console.error(loadError);
@@ -149,22 +107,10 @@ export default function DashboardRuntime() {
         })
         .filter((item): item is { chartCode: string; top: number; bottom: number } => Boolean(item));
 
-      if (cards.length === 0) {
+      const nextActiveCodes = resolveActiveRowCodes(cards);
+      if (nextActiveCodes.length === 0) {
         return;
       }
-
-      const visibleCards = cards.filter(item => item.bottom > 120);
-      const sortedCards = (visibleCards.length > 0 ? visibleCards : cards)
-        .sort((a, b) => Math.abs(a.top - 140) - Math.abs(b.top - 140))[0];
-      const rowTop = sortedCards?.top;
-      if (rowTop == null) {
-        return;
-      }
-
-      const nextActiveCodes = (visibleCards.length > 0 ? visibleCards : cards)
-        .filter(item => Math.abs(item.top - rowTop) < 24)
-        .slice(0, 3)
-        .map(item => item.chartCode);
 
       setActiveChartCodes(current => (
         current.length === nextActiveCodes.length && current.every((code, index) => code === nextActiveCodes[index])
@@ -186,16 +132,7 @@ export default function DashboardRuntime() {
     if (activeChartCodes.length === 0 || !tocScrollRef.current) {
       return;
     }
-    const container = tocScrollRef.current;
-    const activeItem = container.querySelector<HTMLButtonElement>(`[data-chart-code="${activeChartCodes[0]}"]`);
-    if (!activeItem) {
-      return;
-    }
-
-    const containerRect = container.getBoundingClientRect();
-    const itemRect = activeItem.getBoundingClientRect();
-    const nextTop = container.scrollTop + (itemRect.top - containerRect.top) - ((container.clientHeight - itemRect.height) / 2);
-    container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+    scrollContainerItemToCenter(tocScrollRef.current, `[data-chart-code="${activeChartCodes[0]}"]`);
   }, [activeChartCodes]);
 
   useEffect(() => {
@@ -211,7 +148,9 @@ export default function DashboardRuntime() {
   const favoriteChart = (component: DashboardComponent, sourceChart: ChartDefinition) => {
     const existed = isFavorite(component.componentCode);
     createFavoriteFromComponent(sourceChart.chartCode, sourceChart.chartName, component, {
-      primaryLabel: getCategoryLabel(category),
+      primaryLabel: getCategoryLabel(
+        category === 'all' ? getDashboardMeta(sourceChart.chartCode).category : category
+      ),
       secondaryLabel: normalizeDisplayText(component.dslConfig.visualDsl.title || component.title, component.componentCode)
     });
     message.success(existed ? '该图表已在我的指标中' : '图表已加入我的指标');
@@ -238,6 +177,12 @@ export default function DashboardRuntime() {
     <div>
       <div className="page-header compact">
         <div className="favorites-filter-nav">
+          <Button
+            type={category === 'all' ? 'primary' : 'default'}
+            onClick={() => navigate('/runtime/all')}
+          >
+            全部
+          </Button>
           {DASHBOARD_CATEGORIES.map(item => (
             <Button
               key={item.key}
@@ -257,7 +202,7 @@ export default function DashboardRuntime() {
             onChange={event => setSearchKeyword(event.target.value)}
           />
           <div>
-            <h2 className="page-title">{getCategoryLabel(category)}</h2>
+            <h2 className="page-title">{category === 'all' ? '指标中心' : getCategoryLabel(category)}</h2>
           </div>
         </Space>
       </div>
@@ -365,36 +310,46 @@ export default function DashboardRuntime() {
         <aside className="panel-card runtime-toc-card">
           <div className="runtime-toc-title">目录导航</div>
           <div className="runtime-toc-scroll" ref={tocScrollRef}>
-            {categoryNavGroups.map(group => (
-              <div key={group.category.key} className="runtime-toc-group">
-                <button
-                  type="button"
-                  className={`runtime-toc-group-button${category === group.category.key ? ' active' : ''}`}
-                  onClick={() => navigate(`/runtime/${group.category.key}`)}
-                >
-                  {group.category.label}
-                </button>
-                <div className="runtime-toc-items">
-                  {group.charts.map(chart => (
-                    <button
-                      key={`${group.category.key}:${chart.chartCode}`}
-                      type="button"
-                      data-chart-code={chart.chartCode}
-                      className={`runtime-toc-item${category === group.category.key && activeChartCodes.includes(chart.chartCode) ? ' active' : ''}`}
-                      onClick={() => {
-                        if (category !== group.category.key) {
-                          navigate(`/runtime/${group.category.key}`);
-                          return;
-                        }
-                        scrollToChartCard(chart.chartCode);
-                      }}
-                    >
-                      {normalizeDisplayText(chart.chartName, chart.chartCode)}
-                    </button>
-                  ))}
+            {category === 'all' ? (
+              categoryNavGroups.map(group => (
+                <div key={group.category.key} className="runtime-toc-group">
+                  <button
+                    type="button"
+                    className="runtime-toc-group-button active"
+                    onClick={() => navigate(`/runtime/${group.category.key}`)}
+                  >
+                    {group.category.label}
+                  </button>
+                  <div className="runtime-toc-items">
+                    {group.charts.map(chart => (
+                      <button
+                        key={`${group.category.key}:${chart.chartCode}`}
+                        type="button"
+                        data-chart-code={chart.chartCode}
+                        className={`runtime-toc-item${activeChartCodes.includes(chart.chartCode) ? ' active' : ''}`}
+                        onClick={() => scrollToChartCard(chart.chartCode)}
+                      >
+                        {normalizeDisplayText(chart.chartName, chart.chartCode)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="runtime-toc-items">
+                {categoryCharts.map(chart => (
+                  <button
+                    key={`${category}:${chart.chartCode}`}
+                    type="button"
+                    data-chart-code={chart.chartCode}
+                    className={`runtime-toc-item${activeChartCodes.includes(chart.chartCode) ? ' active' : ''}`}
+                    onClick={() => scrollToChartCard(chart.chartCode)}
+                  >
+                    {normalizeDisplayText(chart.chartName, chart.chartCode)}
+                  </button>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </aside>
       </div>

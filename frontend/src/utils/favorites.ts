@@ -5,6 +5,7 @@ import { getCategoryLabel } from './dashboardCatalog';
 const LEGACY_STORAGE_KEY = 'bi-dashboard-favorites';
 const BOARD_STORAGE_KEY = 'bi-dashboard-personal-boards';
 const CHANGE_EVENT = 'bi-dashboard-favorites-changed';
+const DEFAULT_PRIMARY_LABEL = '未分组';
 
 export interface PersonalChartEntry {
   boardId: string;
@@ -15,6 +16,10 @@ export interface PersonalChartEntry {
   createdAt: string;
   updatedAt: string;
   chart: FavoriteChart;
+}
+
+function normalizePrimaryLabel(value?: string) {
+  return normalizeDisplayText(value, DEFAULT_PRIMARY_LABEL);
 }
 
 function normalizeFavorite(item: FavoriteChart): FavoriteChart {
@@ -31,7 +36,7 @@ function normalizeBoard(board: PersonalBoard, fallbackOrder = 0): PersonalBoard 
   return {
     ...board,
     boardName: secondaryLabel,
-    primaryLabel: normalizeDisplayText(board.primaryLabel, '未分组'),
+    primaryLabel: normalizePrimaryLabel(board.primaryLabel),
     secondaryLabel,
     order: Number.isFinite(board.order) ? board.order : fallbackOrder,
     components: Array.isArray(board.components) ? board.components.map(normalizeFavorite) : []
@@ -63,6 +68,19 @@ function writeBoards(boards: PersonalBoard[]) {
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
 
+function migrateLegacyFavorites(legacyFavorites: FavoriteChart[]) {
+  return legacyFavorites.map((favorite, index) => ({
+    boardId: `favorite-${favorite.favoriteId}`,
+    boardName: favorite.componentTitle,
+    primaryLabel: DEFAULT_PRIMARY_LABEL,
+    secondaryLabel: favorite.componentTitle,
+    order: index + 1,
+    createdAt: favorite.addedAt,
+    updatedAt: favorite.addedAt,
+    components: [favorite]
+  }));
+}
+
 function readBoards(): PersonalBoard[] {
   if (typeof window === 'undefined') {
     return [];
@@ -75,16 +93,7 @@ function readBoards(): PersonalBoard[] {
       if (legacyFavorites.length === 0) {
         return [];
       }
-      const migratedBoards = legacyFavorites.map((favorite, index) => ({
-        boardId: `favorite-${favorite.favoriteId}`,
-        boardName: favorite.componentTitle,
-        primaryLabel: '未分组',
-        secondaryLabel: favorite.componentTitle,
-        order: index + 1,
-        createdAt: favorite.addedAt,
-        updatedAt: favorite.addedAt,
-        components: [favorite]
-      }));
+      const migratedBoards = migrateLegacyFavorites(legacyFavorites);
       writeBoards(migratedBoards);
       window.localStorage.removeItem(LEGACY_STORAGE_KEY);
       return migratedBoards;
@@ -122,6 +131,10 @@ function sortBoards(boards: PersonalBoard[]) {
   });
 }
 
+function updateBoards(updater: (boards: PersonalBoard[]) => PersonalBoard[]) {
+  writeBoards(sortBoards(updater(readBoards())));
+}
+
 export function listPersonalBoards() {
   return sortBoards(readBoards());
 }
@@ -131,7 +144,7 @@ export function listPersonalCharts(): PersonalChartEntry[] {
     .flatMap(board => board.components.map(chart => ({
       boardId: board.boardId,
       boardName: board.boardName,
-      primaryLabel: board.primaryLabel || '未分组',
+      primaryLabel: board.primaryLabel || DEFAULT_PRIMARY_LABEL,
       secondaryLabel: board.secondaryLabel || board.boardName,
       order: board.order,
       createdAt: board.createdAt,
@@ -142,12 +155,11 @@ export function listPersonalCharts(): PersonalChartEntry[] {
 
 export function reorderPersonalCharts(chartIdsInOrder: string[]) {
   const orderMap = new Map(chartIdsInOrder.map((id, index) => [id, index + 1]));
-  const boards = readBoards().map(board => ({
+  updateBoards(boards => boards.map(board => ({
     ...board,
     order: orderMap.get(board.boardId) ?? board.order,
     updatedAt: new Date().toISOString()
-  }));
-  writeBoards(sortBoards(boards));
+  })));
 }
 
 export function getPersonalChart(chartId?: string) {
@@ -161,19 +173,18 @@ export function getPersonalBoard(boardId?: string) {
 }
 
 export function updatePersonalChart(chartId: string, patch: Partial<Pick<PersonalChartEntry, 'primaryLabel' | 'secondaryLabel' | 'order'>>) {
-  const boards = readBoards().map(board => (
+  updateBoards(boards => boards.map(board => (
     board.boardId === chartId
       ? {
         ...board,
         boardName: normalizeDisplayText(patch.secondaryLabel || board.boardName, board.boardId),
-        primaryLabel: normalizeDisplayText(patch.primaryLabel ?? board.primaryLabel, '未分组'),
+        primaryLabel: normalizePrimaryLabel(patch.primaryLabel ?? board.primaryLabel),
         secondaryLabel: normalizeDisplayText(patch.secondaryLabel || board.secondaryLabel || board.boardName, board.boardId),
         order: patch.order ?? board.order,
         updatedAt: new Date().toISOString()
       }
       : board
-  ));
-  writeBoards(sortBoards(boards));
+  )));
 }
 
 export function createFavoriteFromComponent(
@@ -193,7 +204,7 @@ export function createFavoriteFromComponent(
   const nextBoard: PersonalBoard = {
     boardId: `favorite-${favorite.favoriteId}`,
     boardName: secondaryLabel,
-    primaryLabel: normalizeDisplayText(options?.primaryLabel, '未分组'),
+    primaryLabel: normalizePrimaryLabel(options?.primaryLabel),
     secondaryLabel,
     order: boards.length + 1,
     createdAt: new Date().toISOString(),
@@ -214,7 +225,7 @@ export function createBoardFromDashboard(dashboard: DashboardDraft, category?: D
     dashboard.name,
     dashboard.components[0],
     {
-      primaryLabel: category ? getCategoryLabel(category) : '未分组',
+      primaryLabel: category ? getCategoryLabel(category) : DEFAULT_PRIMARY_LABEL,
       secondaryLabel: normalizeDisplayText(dashboard.components[0].dslConfig.visualDsl.title || dashboard.components[0].title, dashboard.dashboardCode)
     }
   );
@@ -226,7 +237,7 @@ export function createPersonalBoard(boardName: string, options?: { primaryLabel?
   const nextBoard: PersonalBoard = {
     boardId: `board-${Date.now()}`,
     boardName: secondaryLabel,
-    primaryLabel: normalizeDisplayText(options?.primaryLabel, '未分组'),
+    primaryLabel: normalizePrimaryLabel(options?.primaryLabel),
     secondaryLabel,
     order: boards.length + 1,
     createdAt: new Date().toISOString(),
@@ -247,12 +258,12 @@ export function updatePersonalBoard(boardId: string, patch: Partial<Pick<Persona
 }
 
 export function deletePersonalBoard(boardId: string) {
-  writeBoards(sortBoards(readBoards().filter(board => board.boardId !== boardId)));
+  updateBoards(boards => boards.filter(board => board.boardId !== boardId));
 }
 
 export function addComponentToBoard(boardId: string, dashboardCode: string, dashboardName: string, component: DashboardComponent) {
   const nextFavorite = toFavoriteChart(dashboardCode, dashboardName, component);
-  const boards = readBoards().map(board => {
+  updateBoards(boards => boards.map(board => {
     if (board.boardId !== boardId) return board;
     return {
       ...board,
@@ -261,16 +272,15 @@ export function addComponentToBoard(boardId: string, dashboardCode: string, dash
       secondaryLabel: nextFavorite.componentTitle,
       components: [nextFavorite]
     };
-  });
-  writeBoards(sortBoards(boards));
+  }));
 }
 
 export function removeComponentFromBoard(boardId: string, componentCode: string) {
-  writeBoards(sortBoards(readBoards().filter(board => !(board.boardId === boardId && board.components.some(item => item.componentCode === componentCode)))));
+  updateBoards(boards => boards.filter(board => !(board.boardId === boardId && board.components.some(item => item.componentCode === componentCode))));
 }
 
 export function removeComponentFromAllBoards(componentCode: string) {
-  writeBoards(sortBoards(readBoards().filter(board => !board.components.some(item => item.componentCode === componentCode))));
+  updateBoards(boards => boards.filter(board => !board.components.some(item => item.componentCode === componentCode)));
 }
 
 export function isFavorite(componentCode: string) {
@@ -282,7 +292,8 @@ export function saveFavoriteLayouts(boardId: string, components: DashboardCompon
   if (!component) {
     return;
   }
-  const boards = readBoards().map(board => {
+
+  updateBoards(boards => boards.map(board => {
     if (board.boardId !== boardId) {
       return board;
     }
@@ -302,6 +313,5 @@ export function saveFavoriteLayouts(boardId: string, components: DashboardCompon
         dslConfig: normalizeDslConfig(deepClone(component.dslConfig))
       }]
     };
-  });
-  writeBoards(sortBoards(boards));
+  }));
 }

@@ -22,30 +22,28 @@ public class TemplateServiceImpl implements TemplateService {
     @Override
     public List<TemplateVo> listTemplates() {
         return jdbcTemplate.query(
-                "SELECT template_code, template_name, renderer_code, description, capability_json, panel_schema_json, default_dsl_json FROM bi_template ORDER BY id",
-                (rs, rowNum) -> mapTemplate(rs.getString("template_code"), rs.getString("template_name"), rs.getString("renderer_code"), rs.getString("description"), rs.getString("capability_json"), rs.getString("panel_schema_json"), rs.getString("default_dsl_json"))
+                "SELECT template_code, template_name, renderer_code, capability_json, default_dsl_json FROM bi_template ORDER BY id",
+                (rs, rowNum) -> mapTemplate(rs.getString("template_code"), rs.getString("template_name"), rs.getString("renderer_code"), rs.getString("capability_json"), rs.getString("default_dsl_json"))
         );
     }
 
     @Override
     public TemplateVo getTemplate(String templateCode) {
         List<TemplateVo> templates = jdbcTemplate.query(
-                "SELECT template_code, template_name, renderer_code, description, capability_json, panel_schema_json, default_dsl_json FROM bi_template WHERE template_code = ?",
-                (rs, rowNum) -> mapTemplate(rs.getString("template_code"), rs.getString("template_name"), rs.getString("renderer_code"), rs.getString("description"), rs.getString("capability_json"), rs.getString("panel_schema_json"), rs.getString("default_dsl_json")),
+                "SELECT template_code, template_name, renderer_code, capability_json, default_dsl_json FROM bi_template WHERE template_code = ?",
+                (rs, rowNum) -> mapTemplate(rs.getString("template_code"), rs.getString("template_name"), rs.getString("renderer_code"), rs.getString("capability_json"), rs.getString("default_dsl_json")),
                 templateCode
         );
         return templates.stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown template: " + templateCode));
     }
 
     @SuppressWarnings("unchecked")
-    private TemplateVo mapTemplate(String templateCode, String templateName, String rendererCode, String description, String capabilityJson, String panelSchemaJson, String defaultDslJson) {
+    private TemplateVo mapTemplate(String templateCode, String templateName, String rendererCode, String capabilityJson, String defaultDslJson) {
         return TemplateVo.builder()
                 .templateCode(templateCode)
                 .templateName(templateName)
                 .rendererCode(rendererCode)
-                .description(description)
                 .capability(jsonSnapshotSupport.fromJson(capabilityJson, Map.class))
-                .panelSchema(jsonSnapshotSupport.fromJson(panelSchemaJson, Map.class))
                 .defaultDsl(jsonSnapshotSupport.fromJson(defaultDslJson, Map.class))
                 .build();
     }

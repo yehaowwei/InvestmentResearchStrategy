@@ -1,5 +1,5 @@
 ﻿import { Button, Card, Collapse, ColorPicker, Empty, Input, InputNumber, Select, Space, Switch } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type {
   ChartPreview,
@@ -112,7 +112,7 @@ function isMetricField(field: FieldMeta) {
 }
 
 function sanitizeComponent(component: DashboardComponent): DashboardComponent {
-  const normalized = { ...component, dslConfig: normalizeDslConfig(component.dslConfig as never) };
+  const normalized = { ...component, dslConfig: normalizeDslConfig(component.dslConfig) };
   const chartLayers = normalized.dslConfig.chartLayersDsl.length > 0 ? normalized.dslConfig.chartLayersDsl : [createChartLayer(0)];
   const enabledLayers = chartLayers.some(layer => layer.enabled) ? chartLayers : chartLayers.map((layer, index) => ({ ...layer, enabled: index === 0 }));
   const validLayerIds = enabledLayers.map(layer => layer.id);
@@ -131,7 +131,6 @@ function sanitizeComponent(component: DashboardComponent): DashboardComponent {
       chartLayersDsl: enabledLayers,
       queryDsl: {
         ...normalized.dslConfig.queryDsl,
-        dimensionField: normalized.dslConfig.queryDsl.dimensionFields[0] ?? '',
         metrics: metrics.map(metric => ({ ...metric, layerIds: keepLayerIds(metric.layerIds) }))
       },
       dimensionConfigDsl: {
@@ -148,16 +147,16 @@ function sanitizeComponent(component: DashboardComponent): DashboardComponent {
           mean: mergeLine(base.mean, patch?.mean),
           std1: mergeBand(base.std1, patch?.std1),
           std2: mergeBand(base.std2, patch?.std2),
-          percentile: mergeLine(base.percentile, patch?.percentile ?? (Array.isArray(patch?.quantiles) ? patch.quantiles.find((q: { enabled?: boolean }) => q.enabled) : undefined))
+          percentile: mergeLine(base.percentile, patch?.percentile)
         });
         return {
           ...defaults,
           ...item,
           itemName: normalizeStatisticItemName(item.itemName, index),
           metricFieldCode,
-          rollingWindowYears: Number((item as { rollingWindowYears?: number; stdWindowYears?: number }).rollingWindowYears ?? (item as { stdWindowYears?: number }).stdWindowYears ?? defaults.rollingWindowYears ?? 3),
-          visible: mergeScope(defaults.visible, (item as { visible?: unknown }).visible ?? item),
-          rolling: mergeScope(defaults.rolling, (item as { rolling?: unknown }).rolling ?? {})
+          rollingWindowYears: Number(item.rollingWindowYears ?? defaults.rollingWindowYears ?? 3),
+          visible: mergeScope(defaults.visible, item.visible),
+          rolling: mergeScope(defaults.rolling, item.rolling)
         };
       })
     }
@@ -297,9 +296,9 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
     { label: '笛卡尔坐标图', value: cartesianTemplateCode },
     { label: '表格', value: 'table' }
   ];
-  const modelOptions = props.dataPools.map(dataPool => ({ label: dataPool.dataPoolName, value: dataPool.dataPoolCode }));
-  const dimensionOptions = dimensionFields.map(field => ({ label: field.fieldNameCn || field.fieldName || field.fieldCode, value: field.fieldCode }));
-  const metricOptions = metricFields.map(field => ({ label: field.fieldNameCn || field.fieldName || field.fieldCode, value: field.fieldCode }));
+  const modelOptions = props.dataPools.map(dataPool => ({ label: dataPool.dataPoolName, value: dataPool.modelCode }));
+  const dimensionOptions = dimensionFields.map(field => ({ label: field.fieldName || field.fieldCode, value: field.fieldCode }));
+  const metricOptions = metricFields.map(field => ({ label: field.fieldName || field.fieldCode, value: field.fieldCode }));
   const metricBindingOptions = component.dslConfig.queryDsl.metrics.map(metric => ({ label: metric.displayName || metric.fieldCode, value: metric.fieldCode }));
 
   const applyComponent = (updater: (current: DashboardComponent) => DashboardComponent) => props.onChange(sanitizeComponent(updater(component)));
@@ -374,10 +373,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                         queryDsl: {
                           ...current.dslConfig.queryDsl,
                           modelCode: current.modelCode,
-                          datasetCode: current.modelCode,
-                          dimensionField: defaultColumnFields[0] ?? '',
                           dimensionFields: defaultColumnFields,
-                          dimensions: defaultColumnFields,
                           metrics: []
                         }
                       }
@@ -408,7 +404,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
           {isCartesianTemplate && activeModule === 'dim_metric' ? (
             <>
               <div className="panel-section"><h3 className="panel-title">维度</h3><Space direction="vertical" size={12} style={{ width: '100%' }}>
-                <div><FieldLabel>维度字段</FieldLabel><Select mode="multiple" maxCount={2} style={{ width: '100%' }} value={component.dslConfig.queryDsl.dimensionFields} options={dimensionOptions} onChange={value => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, dimensionFields: value, dimensionField: value[0] ?? '' } } }))} /></div>
+                <div><FieldLabel>维度字段</FieldLabel><Select mode="multiple" maxCount={2} style={{ width: '100%' }} value={component.dslConfig.queryDsl.dimensionFields} options={dimensionOptions} onChange={value => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, dimensionFields: value } } }))} /></div>
                 <div><FieldLabel>所在图层</FieldLabel><Select mode="multiple" style={{ width: '100%' }} value={component.dslConfig.dimensionConfigDsl.layerIds} options={layerOptions} onChange={value => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, dimensionConfigDsl: { ...current.dslConfig.dimensionConfigDsl, layerIds: value } } }))} /></div>
                 <Space><span className="metric-field-label">第二维度堆叠</span><Switch checked={component.dslConfig.dimensionConfigDsl.stackBySecondDimension} onChange={checked => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, dimensionConfigDsl: { ...current.dslConfig.dimensionConfigDsl, stackBySecondDimension: checked } } }))} /></Space>
               </Space></div>
@@ -417,7 +413,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                 {component.dslConfig.queryDsl.metrics.map((metric, index) => (
                   <Card key={`${metric.fieldCode}-${index}`} size="small" title={metric.displayName || metric.fieldCode || `指标 ${index + 1}`} extra={component.dslConfig.queryDsl.metrics.length > 1 ? <Button size="small" danger onClick={() => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, metrics: current.dslConfig.queryDsl.metrics.filter((_, metricIndex) => metricIndex !== index) } } }))}>删除</Button> : null}>
                     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                      <Select style={{ width: '100%' }} value={metric.fieldCode} options={metricOptions} onChange={value => updateMetric(index, currentMetric => { const field = metricFields.find(item => item.fieldCode === value); return { ...currentMetric, fieldCode: value, displayName: field?.fieldNameCn || field?.fieldName || value }; })} />
+                      <Select style={{ width: '100%' }} value={metric.fieldCode} options={metricOptions} onChange={value => updateMetric(index, currentMetric => { const field = metricFields.find(item => item.fieldCode === value); return { ...currentMetric, fieldCode: value, displayName: field?.fieldName || value }; })} />
                       <Input value={metric.displayName} placeholder="显示名称" onChange={event => updateMetric(index, currentMetric => ({ ...currentMetric, displayName: event.target.value }))} />
                       <Space.Compact style={{ width: '100%' }}>
                         <Select style={{ width: '35%' }} value={metric.chartType} options={SERIES_TYPE_OPTIONS} onChange={value => updateMetric(index, currentMetric => ({ ...currentMetric, chartType: value as MetricSetting['chartType'] }))} />
@@ -430,7 +426,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                     </Space>
                   </Card>
                 ))}
-                <Button block onClick={() => { const field = metricFields[0]; if (!field) return; applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, metrics: [...current.dslConfig.queryDsl.metrics, { fieldCode: field.fieldCode, displayName: field.fieldNameCn || field.fieldName || field.fieldCode, aggType: field.aggType || 'sum', chartType: 'line', yAxis: 'left', color: '#1d4ed8', negativeColor: '#dc2626', smooth: false, layerIds: current.dslConfig.chartLayersDsl[0] ? [current.dslConfig.chartLayersDsl[0].id] : [] }] } } })); }}>新增指标</Button>
+                <Button block onClick={() => { const field = metricFields[0]; if (!field) return; applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, metrics: [...current.dslConfig.queryDsl.metrics, { fieldCode: field.fieldCode, displayName: field.fieldName || field.fieldCode, aggType: field.aggType || 'sum', chartType: 'line', yAxis: 'left', color: '#1d4ed8', negativeColor: '#dc2626', smooth: false, layerIds: current.dslConfig.chartLayersDsl[0] ? [current.dslConfig.chartLayersDsl[0].id] : [] }] } } })); }}>新增指标</Button>
               </Space></div>
             </>
           ) : null}

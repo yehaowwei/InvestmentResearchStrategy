@@ -1,30 +1,32 @@
 import { DeleteOutlined, ExpandOutlined, HolderOutlined } from '@ant-design/icons';
 import { Button, Empty, Input, Modal, Popconfirm, Select, Space, message } from 'antd';
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { api } from '../api/client';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
-import type { ChartPreview, DashboardCategoryKey, DashboardComponent } from '../types/dashboard';
+import type { ChartCatalogItem, ChartPreview, DashboardCategoryKey, DashboardComponent } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
-import { DASHBOARD_CATEGORIES } from '../utils/dashboardCatalog';
+import { buildChartRuntimeCards, type ChartRuntimeCard } from '../utils/chartLibrary';
+import { DASHBOARD_CATEGORIES, getCategoryLabel, getDashboardMeta } from '../utils/dashboardCatalog';
 import {
+  createFavoriteFromComponent,
   deletePersonalBoard,
+  isFavorite,
   listPersonalCharts,
   reorderPersonalCharts,
   type PersonalChartEntry
 } from '../utils/favorites';
+import {
+  normalizeSearchKeyword,
+  reorderItemsPreview,
+  resolveActiveRowCodes,
+  resolveClosestSortIdFromPoint,
+  scrollContainerItemToCenter
+} from './dashboardPageUtils';
 
 type SortMode = 'manual' | 'time_asc' | 'time_desc';
 
-function reorderItemsPreview<T>(items: T[], fromIndex: number, toIndex: number) {
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
-    return items;
-  }
-  const next = [...items];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
-}
+type AvailableChartCard = ChartRuntimeCard;
 
 function parseSortTime(value?: string) {
   if (!value) return Number.NEGATIVE_INFINITY;
@@ -33,18 +35,13 @@ function parseSortTime(value?: string) {
   return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
 
-function normalizeSearchKeyword(value: string) {
-  return value.trim().toLowerCase();
-}
-
 function matchChartKeyword(entry: PersonalChartEntry, keyword: string) {
   if (!keyword) return true;
   const normalizedKeyword = normalizeSearchKeyword(keyword);
-  const targets = [
+  return [
     normalizeDisplayText(entry.chart.componentTitle, entry.chart.componentCode),
     entry.chart.componentCode
-  ];
-  return targets.some(value => value.toLowerCase().includes(normalizedKeyword));
+  ].some(value => value.toLowerCase().includes(normalizedKeyword));
 }
 
 function toComponent(entry: PersonalChartEntry): DashboardComponent {
@@ -58,17 +55,37 @@ function toComponent(entry: PersonalChartEntry): DashboardComponent {
   };
 }
 
+function matchAvailableChartKeyword(chart: AvailableChartCard, keyword: string) {
+  if (!keyword) return true;
+  const normalizedKeyword = normalizeSearchKeyword(keyword);
+  return [
+    normalizeDisplayText(chart.component.dslConfig.visualDsl.title || chart.component.title, chart.component.componentCode),
+    normalizeDisplayText(chart.chartName, chart.chartCode),
+    chart.component.componentCode,
+    chart.chartCode
+  ].some(value => value.toLowerCase().includes(normalizedKeyword));
+}
+
 export default function PersonalDashboard() {
   const [charts, setCharts] = useState<PersonalChartEntry[]>(listPersonalCharts());
   const [previews, setPreviews] = useState<Record<string, ChartPreview>>({});
+  const [catalogCharts, setCatalogCharts] = useState<ChartCatalogItem[]>([]);
+  const [availableCharts, setAvailableCharts] = useState<AvailableChartCard[]>([]);
   const [activeCategory, setActiveCategory] = useState<'all' | DashboardCategoryKey>('all');
   const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [addChartKeyword, setAddChartKeyword] = useState('');
+  const [addChartCategory, setAddChartCategory] = useState<'all' | DashboardCategoryKey>('all');
+  const [addChartOpen, setAddChartOpen] = useState(false);
+  const [addChartLoading, setAddChartLoading] = useState(false);
   const [draggingChartId, setDraggingChartId] = useState<string>();
   const [dragOverChartId, setDragOverChartId] = useState<string>();
   const [expandedChart, setExpandedChart] = useState<PersonalChartEntry>();
   const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
+  const draggingChartIdRef = useRef<string>();
+  const dragOverChartIdRef = useRef<string>();
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   const filteredCharts = useMemo(() => {
     const base = activeCategory === 'all'
@@ -113,6 +130,31 @@ export default function PersonalDashboard() {
     }];
   }, [activeCategory, renderedCharts]);
 
+  const activeCategoryCharts = useMemo(
+    () => activeCategory === 'all' ? [] : renderedCharts,
+    [activeCategory, renderedCharts]
+  );
+
+  const availableChartGroups = useMemo(() => {
+    if (addChartCategory === 'all') {
+      return DASHBOARD_CATEGORIES.map(item => ({
+        key: item.key,
+        label: item.label,
+        charts: availableCharts.filter(chart =>
+          getDashboardMeta(chart.chartCode).category === item.key && matchAvailableChartKeyword(chart, addChartKeyword)
+        )
+      })).filter(group => group.charts.length > 0);
+    }
+
+    return [{
+      key: addChartCategory,
+      label: DASHBOARD_CATEGORIES.find(item => item.key === addChartCategory)?.label ?? '当前分类',
+      charts: availableCharts.filter(chart =>
+        getDashboardMeta(chart.chartCode).category === addChartCategory && matchAvailableChartKeyword(chart, addChartKeyword)
+      )
+    }].filter(group => group.charts.length > 0);
+  }, [addChartCategory, addChartKeyword, availableCharts]);
+
   useEffect(() => {
     const syncCharts = () => {
       const nextCharts = listPersonalCharts();
@@ -144,6 +186,15 @@ export default function PersonalDashboard() {
   }, []);
 
   useEffect(() => {
+    api.listCharts()
+      .then(setCatalogCharts)
+      .catch(error => {
+        console.error(error);
+        message.error(error instanceof Error ? error.message : '可添加图表加载失败');
+      });
+  }, []);
+
+  useEffect(() => {
     setActiveChartCodes(renderedCharts.slice(0, 3).map(item => item.chart.componentCode));
   }, [renderedCharts]);
 
@@ -163,22 +214,10 @@ export default function PersonalDashboard() {
         })
         .filter((item): item is { chartCode: string; top: number; bottom: number } => Boolean(item));
 
-      if (cards.length === 0) {
+      const nextActiveCodes = resolveActiveRowCodes(cards);
+      if (nextActiveCodes.length === 0) {
         return;
       }
-
-      const visibleCards = cards.filter(item => item.bottom > 120);
-      const sortedCards = (visibleCards.length > 0 ? visibleCards : cards)
-        .sort((a, b) => Math.abs(a.top - 140) - Math.abs(b.top - 140));
-      const rowTop = sortedCards[0]?.top;
-      if (rowTop == null) {
-        return;
-      }
-
-      const nextActiveCodes = sortedCards
-        .filter(item => Math.abs(item.top - rowTop) < 24)
-        .slice(0, 3)
-        .map(item => item.chartCode);
 
       setActiveChartCodes(current => (
         current.length === nextActiveCodes.length && current.every((code, index) => code === nextActiveCodes[index])
@@ -200,17 +239,47 @@ export default function PersonalDashboard() {
     if (activeChartCodes.length === 0 || !tocScrollRef.current) {
       return;
     }
-    const container = tocScrollRef.current;
-    const activeItem = container.querySelector<HTMLButtonElement>(`[data-chart-code="${activeChartCodes[0]}"]`);
-    if (!activeItem) {
+    scrollContainerItemToCenter(tocScrollRef.current, `[data-chart-code="${activeChartCodes[0]}"]`);
+  }, [activeChartCodes]);
+
+  useEffect(() => {
+    if (!addChartOpen) {
       return;
     }
 
-    const containerRect = container.getBoundingClientRect();
-    const itemRect = activeItem.getBoundingClientRect();
-    const nextTop = container.scrollTop + (itemRect.top - containerRect.top) - ((container.clientHeight - itemRect.height) / 2);
-    container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
-  }, [activeChartCodes]);
+    const unfavoritedCharts = catalogCharts
+      .filter(chart => chart.status === 'PUBLISHED')
+      .filter(chart => !charts.some(item => item.chart.dashboardCode === chart.chartCode));
+
+    if (unfavoritedCharts.length === 0) {
+      setAvailableCharts([]);
+      setAddChartLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setAddChartLoading(true);
+    Promise.all(unfavoritedCharts.map(chart => buildChartRuntimeCards(chart.chartCode)))
+      .then(entries => {
+        if (cancelled) return;
+        setAvailableCharts(entries.flat().filter(item => !isFavorite(item.component.componentCode)));
+      })
+      .catch(error => {
+        console.error(error);
+        if (!cancelled) {
+          message.error(error instanceof Error ? error.message : '可添加图表加载失败');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAddChartLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addChartOpen, catalogCharts, charts]);
 
   const removeChart = (target: PersonalChartEntry) => {
     deletePersonalBoard(target.boardId);
@@ -250,26 +319,69 @@ export default function PersonalDashboard() {
     reorderPersonalCharts(reordered.map(item => item.boardId));
   };
 
-  const handlePersonalDragStart = (event: DragEvent<HTMLElement>, sourceId: string) => {
-    if (sortMode !== 'manual') {
-      event.preventDefault();
-      return;
-    }
-    setDraggingChartId(sourceId);
-    setDragOverChartId(undefined);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', sourceId);
-  };
-
-  const handlePersonalDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
-    event.preventDefault();
-    const sourceId = draggingChartId || event.dataTransfer.getData('text/plain');
-    if (sourceId) {
+  const resetPersonalPointerSort = () => {
+    const sourceId = draggingChartIdRef.current;
+    const targetId = dragOverChartIdRef.current;
+    if (sortMode === 'manual' && sourceId && targetId && sourceId !== targetId) {
       moveChart(sourceId, targetId);
     }
     setDraggingChartId(undefined);
     setDragOverChartId(undefined);
+    draggingChartIdRef.current = undefined;
+    dragOverChartIdRef.current = undefined;
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
   };
+
+  const handlePersonalSortStart = (event: ReactMouseEvent<HTMLElement>, sourceId: string) => {
+    if (sortMode !== 'manual') {
+      event.preventDefault();
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+    setDraggingChartId(sourceId);
+    draggingChartIdRef.current = sourceId;
+    setDragOverChartId(undefined);
+    dragOverChartIdRef.current = undefined;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const targetId = resolveClosestSortIdFromPoint(moveEvent.clientX, moveEvent.clientY, 'data-sort-id');
+      if (!targetId || targetId === draggingChartIdRef.current) {
+        return;
+      }
+      if (dragOverChartIdRef.current !== targetId) {
+        dragOverChartIdRef.current = targetId;
+        setDragOverChartId(targetId);
+      }
+    };
+
+    const handleMouseUp = () => {
+      resetPersonalPointerSort();
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp, { once: true });
+    dragCleanupRef.current = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  };
+
+  useEffect(() => () => {
+    dragCleanupRef.current?.();
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }, []);
 
   const scrollToChartCard = (chartCode: string) => {
     const targetIndex = renderedCharts.findIndex(item => item.chart.componentCode === chartCode);
@@ -280,13 +392,32 @@ export default function PersonalDashboard() {
     document.getElementById(`personal-chart-card-${chartCode}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const addChartToPersonal = (item: AvailableChartCard) => {
+    createFavoriteFromComponent(
+      item.chartCode,
+      item.chartName,
+      item.component,
+      {
+        primaryLabel: getCategoryLabel(getDashboardMeta(item.chartCode).category),
+        secondaryLabel: normalizeDisplayText(item.component.dslConfig.visualDsl.title || item.component.title, item.component.componentCode)
+      }
+    );
+    setCharts(listPersonalCharts());
+    setAvailableCharts(current => current.filter(chart => chart.component.componentCode !== item.component.componentCode));
+    message.success('图表已加入我的指标');
+  };
+
   return (
     <>
       <div className="page-header">
         <div>
           <h2 className="page-title">我的指标</h2>
         </div>
-        <Space wrap size={12} />
+        <Space wrap size={12}>
+          <Button type="primary" onClick={() => setAddChartOpen(true)}>
+            增加图表
+          </Button>
+        </Space>
       </div>
 
       <div className="favorites-filter-nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -318,7 +449,7 @@ export default function PersonalDashboard() {
           options={[
             { label: '自定义排序', value: 'manual' },
             { label: '时间升序', value: 'time_asc' },
-            { label: '时间降序', value: 'time_desc' }
+            { label: '时间倒序', value: 'time_desc' }
           ]}
           onChange={value => setSortMode(value)}
         />
@@ -332,22 +463,8 @@ export default function PersonalDashboard() {
                 <article
                   key={item.boardId}
                   id={`personal-chart-card-${item.chart.componentCode}`}
+                  data-sort-id={item.boardId}
                   className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card${draggingChartId === item.boardId ? ' personal-chart-card-dragging' : ''}${dragOverChartId === item.boardId && draggingChartId !== item.boardId ? ' drag-preview-target' : ''}`}
-                  draggable={sortMode === 'manual'}
-                  onDragStart={event => handlePersonalDragStart(event, item.boardId)}
-                  onDragEnd={() => {
-                    setDraggingChartId(undefined);
-                    setDragOverChartId(undefined);
-                  }}
-                  onDragOver={event => {
-                    event.preventDefault();
-                  }}
-                  onDragEnter={() => {
-                    if (draggingChartId && draggingChartId !== item.boardId && dragOverChartId !== item.boardId) {
-                      setDragOverChartId(item.boardId);
-                    }
-                  }}
-                  onDrop={event => handlePersonalDrop(event, item.boardId)}
                 >
                   <div className="favorites-board-card-head">
                     <div>
@@ -366,12 +483,7 @@ export default function PersonalDashboard() {
                       </Button>
                       <span
                         className={`drag-handle-chip${sortMode !== 'manual' ? ' disabled' : ''}`}
-                        draggable={sortMode === 'manual'}
-                        onDragStart={event => handlePersonalDragStart(event, item.boardId)}
-                        onDragEnd={() => {
-                          setDraggingChartId(undefined);
-                          setDragOverChartId(undefined);
-                        }}
+                        onMouseDown={event => handlePersonalSortStart(event, item.boardId)}
                       >
                         <HolderOutlined />
                         <span>拖拽排序</span>
@@ -424,36 +536,46 @@ export default function PersonalDashboard() {
         <aside className="panel-card runtime-toc-card">
           <div className="runtime-toc-title">目录导航</div>
           <div className="runtime-toc-scroll" ref={tocScrollRef}>
-            {navGroups.map(group => (
-              <div key={group.key} className="runtime-toc-group">
-                <button
-                  type="button"
-                  className={`runtime-toc-group-button${activeCategory === 'all' || activeCategory === group.key ? ' active' : ''}`}
-                  onClick={() => setActiveCategory(group.key)}
-                >
-                  {group.label}
-                </button>
-                <div className="runtime-toc-items">
-                  {group.charts.map(item => (
-                    <button
-                      key={`${group.key}:${item.chart.componentCode}`}
-                      type="button"
-                      data-chart-code={item.chart.componentCode}
-                      className={`runtime-toc-item${activeChartCodes.includes(item.chart.componentCode) ? ' active' : ''}`}
-                      onClick={() => {
-                        if (activeCategory === 'all' || activeCategory === group.key) {
-                          scrollToChartCard(item.chart.componentCode);
-                          return;
-                        }
-                        setActiveCategory(group.key);
-                      }}
-                    >
-                      {normalizeDisplayText(item.chart.componentTitle, item.chart.componentCode)}
-                    </button>
-                  ))}
+            {activeCategory === 'all' ? (
+              navGroups.map(group => (
+                <div key={group.key} className="runtime-toc-group">
+                  <button
+                    type="button"
+                    className="runtime-toc-group-button active"
+                    onClick={() => setActiveCategory(group.key)}
+                  >
+                    {group.label}
+                  </button>
+                  <div className="runtime-toc-items">
+                    {group.charts.map(item => (
+                      <button
+                        key={`${group.key}:${item.chart.componentCode}`}
+                        type="button"
+                        data-chart-code={item.chart.componentCode}
+                        className={`runtime-toc-item${activeChartCodes.includes(item.chart.componentCode) ? ' active' : ''}`}
+                        onClick={() => scrollToChartCard(item.chart.componentCode)}
+                      >
+                        {normalizeDisplayText(item.chart.componentTitle, item.chart.componentCode)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="runtime-toc-items">
+                {activeCategoryCharts.map(item => (
+                  <button
+                    key={`${activeCategory}:${item.chart.componentCode}`}
+                    type="button"
+                    data-chart-code={item.chart.componentCode}
+                    className={`runtime-toc-item${activeChartCodes.includes(item.chart.componentCode) ? ' active' : ''}`}
+                    onClick={() => scrollToChartCard(item.chart.componentCode)}
+                  >
+                    {normalizeDisplayText(item.chart.componentTitle, item.chart.componentCode)}
+                  </button>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </aside>
       </div>
@@ -483,6 +605,112 @@ export default function PersonalDashboard() {
             </ChartContainer>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        title="增加图表"
+        open={addChartOpen}
+        footer={null}
+        onCancel={() => {
+          setAddChartOpen(false);
+          setAddChartCategory('all');
+          setAddChartKeyword('');
+        }}
+        width="90vw"
+        styles={{ body: { maxHeight: '78vh', overflow: 'auto', padding: 16 } }}
+      >
+        <div className="favorites-filter-nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+          <Button
+            type={addChartCategory === 'all' ? 'primary' : 'default'}
+            onClick={() => setAddChartCategory('all')}
+          >
+            全部
+          </Button>
+          {DASHBOARD_CATEGORIES.map(option => (
+            <Button
+              key={`add-${option.key}`}
+              type={addChartCategory === option.key ? 'primary' : 'default'}
+              onClick={() => setAddChartCategory(option.key)}
+            >
+              {option.label}
+            </Button>
+          ))}
+          <Input.Search
+            allowClear
+            placeholder="搜索未收藏图表名称"
+            style={{ width: 260 }}
+            value={addChartKeyword}
+            onChange={event => setAddChartKeyword(event.target.value)}
+          />
+        </div>
+        {availableChartGroups.length > 0 ? (
+          <div>
+            {availableChartGroups.map(group => (
+              <div key={group.key} style={{ marginBottom: 24 }}>
+                {addChartCategory === 'all' ? (
+                  <div className="runtime-toc-title" style={{ marginBottom: 12 }}>{group.label}</div>
+                ) : null}
+                <div className="favorites-board-grid public-chart-grid">
+                  {group.charts.map(item => (
+                    <article
+                      key={`${group.key}:${item.component.componentCode}`}
+                      className="panel-card favorites-board-card public-board-card"
+                    >
+                      <div className="favorites-board-card-head">
+                        <div>
+                          <h3 className="favorites-board-title">
+                            {normalizeDisplayText(
+                              item.component.dslConfig.visualDsl.title || item.component.title,
+                              item.component.componentCode
+                            )}
+                          </h3>
+                          <div className="favorites-board-meta" />
+                        </div>
+                        <div className="favorites-card-actions public-chart-card-actions">
+                          <Button type="primary" onClick={() => addChartToPersonal(item)}>
+                            加入我的指标
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="favorites-board-thumb">
+                        <div className="library-chart-preview">
+                          <div className="library-chart-preview-head">
+                            {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag) ? (
+                              <span className="chart-card-tag">
+                                {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag)}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="library-chart-preview-body">
+                            {item.preview ? (
+                              <ChartRendererCore
+                                component={item.component}
+                                preview={item.preview}
+                                templateCode={item.component.templateCode}
+                                viewMode="chart"
+                                editable={false}
+                                selected={false}
+                                thumbnail
+                                compact={false}
+                                dense
+                              />
+                            ) : (
+                              <Empty description="当前图表暂无预览" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="panel-card canvas-card canvas-empty">
+            <Empty description={addChartLoading ? '正在加载可添加图表' : '当前没有可添加的未收藏图表'} />
+          </div>
+        )}
       </Modal>
     </>
   );

@@ -8,7 +8,6 @@ import java.util.List;
 @Data
 public class FilterCondition {
     private String fieldCode;
-    private String op;
     private String operator;
     private List<String> values = new ArrayList<>();
     private String value;

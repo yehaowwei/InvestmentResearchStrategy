@@ -24,8 +24,8 @@ public class DatasetController {
         return ApiResponse.ok(datasetService.listDatasets());
     }
 
-    @GetMapping("/{datasetCode}")
-    public ApiResponse<DatasetVo> detail(@PathVariable("datasetCode") String datasetCode) {
-        return ApiResponse.ok(datasetService.getDataset(datasetCode));
+    @GetMapping("/{modelCode}")
+    public ApiResponse<DatasetVo> detail(@PathVariable("modelCode") String modelCode) {
+        return ApiResponse.ok(datasetService.getDataset(modelCode));
     }
 }

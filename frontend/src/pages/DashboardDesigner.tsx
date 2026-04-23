@@ -1,4 +1,4 @@
-import {
+﻿import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -6,7 +6,7 @@ import {
   PlusOutlined
 } from '@ant-design/icons';
 import { Button, Empty, Form, Input, Modal, Popconfirm, Select, Space, Spin, message } from 'antd';
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import ChartConfigPanel from '../components/ChartConfigPanel';
@@ -23,7 +23,6 @@ import type {
 } from '../types/dashboard';
 import {
   createComponentFromTemplate,
-  normalizeDashboard,
   normalizeDisplayText,
   resolveModel,
   syncTableComponentWithModel
@@ -38,93 +37,21 @@ import {
   normalizeCategoryKey,
   removeDashboardMeta
 } from '../utils/dashboardCatalog';
-
-type SortMode = 'manual' | 'time_asc' | 'time_desc';
-
-interface LibraryPreviewItem {
-  component: DashboardComponent;
-  preview: ChartPreview;
-}
-
-function reorderItemsPreview<T>(items: T[], fromIndex: number, toIndex: number) {
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
-    return items;
-  }
-  const next = [...items];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
-}
-
-function parseSortTime(value?: string) {
-  if (!value) return Number.NEGATIVE_INFINITY;
-  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
-  const timestamp = new Date(normalized).getTime();
-  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
-}
-
-function normalizeSearchKeyword(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function canPreview(component: DashboardComponent) {
-  const queryDsl = component.dslConfig.queryDsl;
-  if (component.templateCode === 'table' || component.componentType === 'table') {
-    return Boolean(component.modelCode && component.dslConfig.tableDsl?.template.columnFields?.length);
-  }
-  return Boolean(component.modelCode && queryDsl.dimensionFields?.length > 0 && queryDsl.metrics?.length > 0);
-}
-
-function normalizeChartDefinition(chart: ChartDefinition) {
-  const normalized = normalizeDashboard({
-    dashboardCode: chart.chartCode,
-    name: chart.chartName,
-    status: chart.status,
-    publishedVersion: chart.publishedVersion,
-    components: chart.components
-  });
-  const primaryComponent = normalized.components[0];
-  return {
-    chartCode: normalized.dashboardCode,
-    chartName: normalized.name,
-    status: normalized.status,
-    publishedVersion: normalized.publishedVersion,
-    createdAt: chart.createdAt,
-    updatedAt: chart.updatedAt,
-    components: primaryComponent ? [primaryComponent] : []
-  } satisfies ChartDefinition;
-}
-
-function formatDateTime(value?: string) {
-  if (!value) return '未记录';
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return value;
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hour = String(date.getHours()).padStart(2, '0');
-  const minute = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hour}:${minute}`;
-}
-
-function resolveComponentChartName(component?: DashboardComponent, fallback?: string) {
-  if (!component) return normalizeDisplayText(fallback, '');
-  return normalizeDisplayText(
-    component.dslConfig.visualDsl.title || component.title,
-    fallback || component.componentCode
-  );
-}
-
-async function loadLibraryPreview(chartCode: string) {
-  const draft = normalizeChartDefinition(await api.loadChartDraft(chartCode));
-  const component = draft.components[0];
-  if (!component || !canPreview(component)) {
-    return undefined;
-  }
-  const preview = await api.previewComponent(component);
-  return { component, preview } satisfies LibraryPreviewItem;
-}
+import {
+  canPreview,
+  formatDateTime,
+  loadLibraryPreview,
+  type LibraryPreviewItem,
+  resolveComponentChartName
+} from './dashboardDesignerHelpers';
+import { normalizeChartDefinition } from '../utils/chartDefinition';
+import {
+  normalizeSearchKeyword,
+  reorderItemsPreview,
+  resolveActiveRowCodes,
+  resolveClosestSortIdFromPoint,
+  scrollContainerItemToCenter
+} from './dashboardPageUtils';
 
 export default function DashboardDesigner() {
   const navigate = useNavigate();
@@ -144,12 +71,14 @@ export default function DashboardDesigner() {
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [draggingChartCode, setDraggingChartCode] = useState<string>();
   const [dragOverChartCode, setDragOverChartCode] = useState<string>();
   const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
+  const draggingChartCodeRef = useRef<string>();
+  const dragOverChartCodeRef = useRef<string>();
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   const isEditMode = Boolean(chartCode);
   const selectedChart = draft?.components[0];
@@ -163,7 +92,7 @@ export default function DashboardDesigner() {
 
   const libraryCharts = useMemo(() => {
     const keyword = normalizeSearchKeyword(searchKeyword);
-    const next = filterChartsByCategory(charts, routeCategory, false).filter(item => {
+    return filterChartsByCategory(charts, routeCategory, false).filter(item => {
       if (!keyword) {
         return true;
       }
@@ -172,26 +101,16 @@ export default function DashboardDesigner() {
         item.chartCode
       ].some(value => value.toLowerCase().includes(keyword));
     });
-    if (sortMode === 'manual') {
-      return next;
-    }
-    return [...next].sort((a, b) => {
-      const compare = parseSortTime(a.updatedAt ?? a.createdAt) - parseSortTime(b.updatedAt ?? b.createdAt);
-      if (compare !== 0) {
-        return sortMode === 'time_asc' ? compare : -compare;
-      }
-      return normalizeDisplayText(a.chartName, a.chartCode).localeCompare(normalizeDisplayText(b.chartName, b.chartCode));
-    });
-  }, [charts, routeCategory, searchKeyword, sortMode]);
+  }, [charts, routeCategory, searchKeyword]);
 
   const renderedLibraryCharts = useMemo(() => {
-    if (!draggingChartCode || !dragOverChartCode || sortMode !== 'manual') {
+    if (!draggingChartCode || !dragOverChartCode) {
       return libraryCharts;
     }
     const fromIndex = libraryCharts.findIndex(item => item.chartCode === draggingChartCode);
     const toIndex = libraryCharts.findIndex(item => item.chartCode === dragOverChartCode);
     return reorderItemsPreview(libraryCharts, fromIndex, toIndex);
-  }, [dragOverChartCode, draggingChartCode, libraryCharts, sortMode]);
+  }, [dragOverChartCode, draggingChartCode, libraryCharts]);
 
   const livePreviewKey = useMemo(() => {
     if (!selectedChart || selectedChart.templateCode === 'table' || selectedChart.componentType === 'table') {
@@ -221,6 +140,17 @@ export default function DashboardDesigner() {
       tableTemplate: selectedChart.dslConfig.tableDsl?.template
     });
   }, [selectedChart]);
+
+  const syncTableComponent = (component: DashboardComponent, preview: ChartPreview) => {
+    if (component.templateCode !== 'table' && component.componentType !== 'table') {
+      return component;
+    }
+    return syncTableComponentWithModel(
+      component,
+      resolveModel(dataPools, component.modelCode),
+      preview.rows
+    );
+  };
 
   useEffect(() => {
     Promise.all([api.listCharts(), api.listDataPools(), api.listTemplates()])
@@ -281,6 +211,7 @@ export default function DashboardDesigner() {
     if (isEditMode || renderedLibraryCharts.length === 0) {
       return;
     }
+
     const updateActiveCharts = () => {
       const cards = renderedLibraryCharts
         .map(item => {
@@ -291,18 +222,10 @@ export default function DashboardDesigner() {
         })
         .filter((item): item is { chartCode: string; top: number; bottom: number } => Boolean(item));
 
-      if (cards.length === 0) return;
-
-      const visibleCards = cards.filter(item => item.bottom > 120);
-      const sortedCards = (visibleCards.length > 0 ? visibleCards : cards)
-        .sort((a, b) => Math.abs(a.top - 140) - Math.abs(b.top - 140));
-      const rowTop = sortedCards[0]?.top;
-      if (rowTop == null) return;
-
-      const nextActiveCodes = sortedCards
-        .filter(item => Math.abs(item.top - rowTop) < 24)
-        .slice(0, 3)
-        .map(item => item.chartCode);
+      const nextActiveCodes = resolveActiveRowCodes(cards);
+      if (nextActiveCodes.length === 0) {
+        return;
+      }
 
       setActiveChartCodes(current => (
         current.length === nextActiveCodes.length && current.every((code, index) => code === nextActiveCodes[index])
@@ -324,13 +247,7 @@ export default function DashboardDesigner() {
     if (activeChartCodes.length === 0 || !tocScrollRef.current || isEditMode) {
       return;
     }
-    const container = tocScrollRef.current;
-    const activeItem = container.querySelector<HTMLButtonElement>(`[data-chart-code="${activeChartCodes[0]}"]`);
-    if (!activeItem) return;
-    const containerRect = container.getBoundingClientRect();
-    const itemRect = activeItem.getBoundingClientRect();
-    const nextTop = container.scrollTop + (itemRect.top - containerRect.top) - ((container.clientHeight - itemRect.height) / 2);
-    container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+    scrollContainerItemToCenter(tocScrollRef.current, `[data-chart-code="${activeChartCodes[0]}"]`);
   }, [activeChartCodes, isEditMode]);
 
   useEffect(() => {
@@ -366,19 +283,14 @@ export default function DashboardDesigner() {
           setDraftPreview(undefined);
           return;
         }
+
         const preview = await api.previewComponent(component);
-        if (component.templateCode === 'table' || component.componentType === 'table') {
-          const syncedComponent = syncTableComponentWithModel(
-            component,
-            resolveModel(dataPools, component.modelCode),
-            preview.rows
-          );
-          setDraft(current => current ? {
-            ...current,
-            chartName: resolveComponentChartName(syncedComponent, current.chartName),
-            components: [syncedComponent]
-          } : current);
-        }
+        const syncedComponent = syncTableComponent(component, preview);
+        setDraft(current => current ? {
+          ...current,
+          chartName: resolveComponentChartName(syncedComponent, current.chartName),
+          components: [syncedComponent]
+        } : current);
         setDraftPreview(preview);
       })
       .catch(error => {
@@ -386,6 +298,23 @@ export default function DashboardDesigner() {
       })
       .finally(() => setLoadingDraft(false));
   }, [chartCode, dataPools, initializing, routeCategory]);
+
+  const previewComponent = async (component: DashboardComponent) => {
+    if (!draft) return;
+    if (!canPreview(component)) {
+      setDraftPreview(undefined);
+      return;
+    }
+
+    const preview = await api.previewComponent(component);
+    const syncedComponent = syncTableComponent(component, preview);
+    setDraft(current => current ? {
+      ...current,
+      chartName: resolveComponentChartName(syncedComponent, current.chartName),
+      components: [syncedComponent]
+    } : current);
+    setDraftPreview(preview);
+  };
 
   useEffect(() => {
     if (!selectedChart || !livePreviewKey || !canPreview(selectedChart)) {
@@ -417,35 +346,88 @@ export default function DashboardDesigner() {
     orderedCharts.forEach((item, index) => {
       ensureDashboardMeta(item.chartCode, { category: routeCategory, order: index + 1 });
     });
-    setCharts(current => [...current]);
+    setCharts(current => {
+      const orderedCodes = orderedCharts.map(item => item.chartCode);
+      const visibleSet = new Set(orderedCodes);
+      const reorderedVisible = orderedCodes
+        .map(chartCode => current.find(item => item.chartCode === chartCode))
+        .filter((item): item is ChartCatalogItem => Boolean(item));
+      const hiddenCharts = current.filter(item => !visibleSet.has(item.chartCode));
+      return [...reorderedVisible, ...hiddenCharts];
+    });
   };
 
   const moveLibraryChart = (sourceChartCode: string, targetChartCode: string) => {
-    if (sortMode !== 'manual' || sourceChartCode === targetChartCode) return;
+    if (sourceChartCode === targetChartCode) {
+      return;
+    }
     const sourceIndex = libraryCharts.findIndex(item => item.chartCode === sourceChartCode);
     const targetIndex = libraryCharts.findIndex(item => item.chartCode === targetChartCode);
-    if (sourceIndex < 0 || targetIndex < 0) return;
+    if (sourceIndex < 0 || targetIndex < 0) {
+      return;
+    }
     syncCategoryOrder(reorderItemsPreview(libraryCharts, sourceIndex, targetIndex));
   };
 
-  const handleLibraryDragStart = (event: DragEvent<HTMLElement>, sourceChartCode: string) => {
-    if (sortMode !== 'manual') {
-      event.preventDefault();
-      return;
+  const resetLibraryPointerSort = () => {
+    const sourceChartCode = draggingChartCodeRef.current;
+    const targetChartCode = dragOverChartCodeRef.current;
+    if (sourceChartCode && targetChartCode && sourceChartCode !== targetChartCode) {
+      moveLibraryChart(sourceChartCode, targetChartCode);
     }
-    setDraggingChartCode(sourceChartCode);
-    setDragOverChartCode(undefined);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', sourceChartCode);
-  };
-
-  const handleLibraryDrop = (event: DragEvent<HTMLElement>, targetChartCode: string) => {
-    event.preventDefault();
-    const sourceChartCode = draggingChartCode || event.dataTransfer.getData('text/plain');
-    if (sourceChartCode) moveLibraryChart(sourceChartCode, targetChartCode);
     setDraggingChartCode(undefined);
     setDragOverChartCode(undefined);
+    draggingChartCodeRef.current = undefined;
+    dragOverChartCodeRef.current = undefined;
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
   };
+
+  const handleLibrarySortStart = (event: ReactMouseEvent<HTMLElement>, sourceChartCode: string) => {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+    setDraggingChartCode(sourceChartCode);
+    draggingChartCodeRef.current = sourceChartCode;
+    setDragOverChartCode(undefined);
+    dragOverChartCodeRef.current = undefined;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const targetChartCode = resolveClosestSortIdFromPoint(moveEvent.clientX, moveEvent.clientY, 'data-sort-id');
+      if (!targetChartCode || targetChartCode === draggingChartCodeRef.current) {
+        return;
+      }
+      if (dragOverChartCodeRef.current !== targetChartCode) {
+        dragOverChartCodeRef.current = targetChartCode;
+        setDragOverChartCode(targetChartCode);
+      }
+    };
+
+    const handleMouseUp = () => {
+      resetLibraryPointerSort();
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp, { once: true });
+    dragCleanupRef.current = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  };
+
+  useEffect(() => () => {
+    dragCleanupRef.current?.();
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }, []);
 
   const scrollToChartCard = (targetChartCode: string) => {
     const targetIndex = renderedLibraryCharts.findIndex(item => item.chartCode === targetChartCode);
@@ -462,25 +444,6 @@ export default function DashboardDesigner() {
       chartName: resolveComponentChartName(component, current.chartName),
       components: [component]
     } : current);
-  };
-
-  const previewComponent = async (component: DashboardComponent) => {
-    if (!draft) return;
-    if (!canPreview(component)) {
-      setDraftPreview(undefined);
-      return;
-    }
-
-    const preview = await api.previewComponent(component);
-    if (component.templateCode === 'table' || component.componentType === 'table') {
-      const syncedComponent = syncTableComponentWithModel(
-        component,
-        resolveModel(dataPools, component.modelCode),
-        preview.rows
-      );
-      applyDraftComponent(syncedComponent);
-    }
-    setDraftPreview(preview);
   };
 
   const saveDraft = async () => {
@@ -507,13 +470,14 @@ export default function DashboardDesigner() {
       message.warning('当前缺少模板或数据池，无法新建图表');
       return;
     }
+
     setCreating(true);
     try {
       const template =
         templates.find(item => (item.capability?.renderer ?? item.rendererCode) === 'cartesian_combo')
         ?? templates[0];
       const chartTitle = values.name.trim();
-      const baseComponent = createComponentFromTemplate(template, dataPools[0].dataPoolCode, 0);
+      const baseComponent = createComponentFromTemplate(template, dataPools[0].modelCode, 0);
       const component = {
         ...baseComponent,
         title: chartTitle,
@@ -574,7 +538,7 @@ export default function DashboardDesigner() {
       <>
         <div className="page-header designer-library-header">
           <div>
-            <h2 className="page-title">指标配置（面向IT人员使用）</h2>
+            <h2 className="page-title">指标配置（面向 IT 人员使用）</h2>
             <div className="page-subtitle">这里以图库方式展示当前分类下的图表，可直接预览、修改、删除、拖拽排序，也可以新建图表。</div>
           </div>
         </div>
@@ -597,16 +561,6 @@ export default function DashboardDesigner() {
               style={{ width: 220 }}
               value={searchKeyword}
               onChange={event => setSearchKeyword(event.target.value)}
-            />
-            <Select
-              style={{ width: 180 }}
-              value={sortMode}
-              options={[
-                { label: '自定义排序', value: 'manual' },
-                { label: '时间升序', value: 'time_asc' },
-                { label: '时间降序', value: 'time_desc' }
-              ]}
-              onChange={value => setSortMode(value)}
             />
             <Button
               type="primary"
@@ -632,26 +586,14 @@ export default function DashboardDesigner() {
                     <article
                       key={item.chartCode}
                       id={`designer-chart-card-${item.chartCode}`}
+                      data-sort-id={item.chartCode}
                       className={`panel-card favorites-board-card public-board-card personal-chart-card designer-library-card${draggingChartCode === item.chartCode ? ' personal-chart-card-dragging' : ''}${dragOverChartCode === item.chartCode && draggingChartCode !== item.chartCode ? ' drag-preview-target' : ''}`}
-                      draggable={sortMode === 'manual'}
-                      onDragStart={event => handleLibraryDragStart(event, item.chartCode)}
-                      onDragEnd={() => {
-                        setDraggingChartCode(undefined);
-                        setDragOverChartCode(undefined);
-                      }}
-                      onDragOver={event => event.preventDefault()}
-                      onDragEnter={() => {
-                        if (draggingChartCode && draggingChartCode !== item.chartCode && dragOverChartCode !== item.chartCode) {
-                          setDragOverChartCode(item.chartCode);
-                        }
-                      }}
-                      onDrop={event => handleLibraryDrop(event, item.chartCode)}
                     >
                       <div className="favorites-board-card-head">
                         <div>
                           <h3 className="favorites-board-title">{normalizeDisplayText(item.chartName, item.chartCode)}</h3>
                           <div className="favorites-board-meta">
-                            <span>状态 {item.status}</span>
+                            <span>状态：{item.status}</span>
                             <span>排序 {getDashboardMeta(item.chartCode).order}</span>
                           </div>
                         </div>
@@ -660,13 +602,8 @@ export default function DashboardDesigner() {
                             修改
                           </Button>
                           <span
-                            className={`drag-handle-chip${sortMode !== 'manual' ? ' disabled' : ''}`}
-                            draggable={sortMode === 'manual'}
-                            onDragStart={event => handleLibraryDragStart(event, item.chartCode)}
-                            onDragEnd={() => {
-                              setDraggingChartCode(undefined);
-                              setDragOverChartCode(undefined);
-                            }}
+                            className="drag-handle-chip"
+                            onMouseDown={event => handleLibrarySortStart(event, item.chartCode)}
                           >
                             <HolderOutlined />
                             <span>拖拽排序</span>
@@ -874,3 +811,4 @@ export default function DashboardDesigner() {
     </>
   );
 }
+

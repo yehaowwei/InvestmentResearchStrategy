@@ -29,7 +29,7 @@ export default function TableDesignerPanel(props: {
       <div className="config-panel-shell">
         <div className="panel-card property-panel property-panel-empty">
           <div className="panel-section">
-            <Empty description="请先为表格选择数据模型" />
+            <Empty description="请先选择数据模型" />
           </div>
         </div>
       </div>
@@ -48,13 +48,13 @@ export default function TableDesignerPanel(props: {
 
   const modelOptions = props.dataPools.map(dataPool => ({
     label: dataPool.dataPoolName,
-    value: dataPool.dataPoolCode
+    value: dataPool.modelCode
   }));
 
   const fieldOptions = fields
     .filter(field => isSelectableField(field.dataType, field.fieldRole))
     .map(field => ({
-      label: field.fieldNameCn || field.fieldName || field.fieldCode,
+      label: field.fieldName || field.fieldCode,
       value: field.fieldCode
     }));
 
@@ -86,9 +86,7 @@ export default function TableDesignerPanel(props: {
         ...component.dslConfig,
         queryDsl: {
           ...component.dslConfig.queryDsl,
-          dimensionField: nextColumnFields[0] ?? '',
           dimensionFields: nextColumnFields,
-          dimensions: nextColumnFields,
           metrics: []
         },
         tableDsl: buildInitialTableDsl({
@@ -97,9 +95,7 @@ export default function TableDesignerPanel(props: {
             ...component.dslConfig,
             queryDsl: {
               ...component.dslConfig.queryDsl,
-              dimensionField: nextColumnFields[0] ?? '',
               dimensionFields: nextColumnFields,
-              dimensions: nextColumnFields,
               metrics: []
             },
             tableDsl: {
@@ -166,8 +162,7 @@ export default function TableDesignerPanel(props: {
                       ...component.dslConfig,
                       queryDsl: {
                         ...component.dslConfig.queryDsl,
-                        modelCode: value,
-                        datasetCode: value
+                        modelCode: value
                       }
                     }
                   }), true)}

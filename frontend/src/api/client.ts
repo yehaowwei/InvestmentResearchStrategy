@@ -16,6 +16,7 @@ import type {
   SourceTable,
   TemplateDefinition
 } from '../types/dashboard';
+import { normalizeComponentForTransport, normalizeDashboardForTransport } from '../utils/dashboard';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -71,6 +72,31 @@ function toRuntimeChartResponse(runtime: RuntimeDashboardResponse): RuntimeChart
   };
 }
 
+function buildChartDraftPayload(chart: ChartDefinition): DashboardDraft {
+  return normalizeDashboardForTransport({
+    dashboardCode: chart.chartCode || undefined,
+    name: chart.chartName,
+    status: chart.status,
+    publishedVersion: chart.publishedVersion,
+    components: chart.components
+  } as DashboardDraft);
+}
+
+function buildPreviewPayload(component: { modelCode: string; dslConfig: ComponentDslConfig }) {
+  const normalizedComponent = normalizeComponentForTransport({
+    componentCode: 'preview-component',
+    componentType: 'chart',
+    templateCode: 'line',
+    modelCode: component.modelCode,
+    title: component.dslConfig.visualDsl?.title || '预览图表',
+    dslConfig: component.dslConfig
+  });
+  return {
+    modelCode: normalizedComponent.modelCode,
+    dslConfig: normalizedComponent.dslConfig
+  };
+}
+
 export const api = {
   listDashboards: () => unwrap<DashboardSummary[]>(client.get('/dashboard')),
   listCharts: async () => (await unwrap<DashboardSummary[]>(client.get('/dashboard'))).map(toChartCatalogItem),
@@ -86,17 +112,20 @@ export const api = {
   listTemplates: () => unwrap<TemplateDefinition[]>(client.get('/template')),
   loadDraft: (dashboardCode: string) => unwrap<DashboardDraft>(client.get(`/design/dashboard/${dashboardCode}`)),
   loadChartDraft: async (chartCode: string) => toChartDefinition(await unwrap<DashboardDraft>(client.get(`/design/dashboard/${chartCode}`))),
-  saveDraft: (draft: DashboardDraft) => unwrap<DashboardDraft>(client.post('/design/dashboard/save', { dashboardCode: draft.dashboardCode, draft })),
-  saveChartDraft: async (chart: ChartDefinition) => toChartDefinition(await unwrap<DashboardDraft>(client.post('/design/dashboard/save', {
-    dashboardCode: chart.chartCode || undefined,
-    draft: {
+  saveDraft: (draft: DashboardDraft) => {
+    const normalizedDraft = normalizeDashboardForTransport(draft);
+    return unwrap<DashboardDraft>(client.post('/design/dashboard/save', {
+      dashboardCode: normalizedDraft.dashboardCode,
+      draft: normalizedDraft
+    }));
+  },
+  saveChartDraft: async (chart: ChartDefinition) => {
+    const normalizedDraft = buildChartDraftPayload(chart);
+    return toChartDefinition(await unwrap<DashboardDraft>(client.post('/design/dashboard/save', {
       dashboardCode: chart.chartCode || undefined,
-      name: chart.chartName,
-      status: chart.status,
-      publishedVersion: chart.publishedVersion,
-      components: chart.components
-    }
-  }))),
+      draft: normalizedDraft
+    })));
+  },
   deleteDashboard: (dashboardCode: string) => unwrap<boolean>(client.delete(`/design/dashboard/${dashboardCode}`)),
   deleteChartDraft: (chartCode: string) => unwrap<boolean>(client.delete(`/design/dashboard/${chartCode}`)),
   publish: (dashboardCode: string) => unwrap<{ dashboardCode: string; versionNo: number }>(client.post('/design/dashboard/publish', { dashboardCode })),
@@ -107,18 +136,5 @@ export const api = {
   loadRuntime: (dashboardCode: string) => unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode } })),
   loadRuntimeChart: async (chartCode: string) => toRuntimeChartResponse(await unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode: chartCode } }))),
   previewComponent: (component: { modelCode: string; dslConfig: ComponentDslConfig }) =>
-    unwrap<ChartPreview>(client.post('/chart/preview', {
-      modelCode: component.modelCode,
-      queryDsl: {
-        ...component.dslConfig.queryDsl,
-        modelCode: component.dslConfig.queryDsl.modelCode || component.modelCode
-      },
-      dslConfig: {
-        ...component.dslConfig,
-        queryDsl: {
-          ...component.dslConfig.queryDsl,
-          modelCode: component.dslConfig.queryDsl.modelCode || component.modelCode
-        }
-      }
-    }))
+    unwrap<ChartPreview>(client.post('/chart/preview', buildPreviewPayload(component)))
 };

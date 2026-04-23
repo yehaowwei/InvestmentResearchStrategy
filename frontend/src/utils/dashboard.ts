@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   ChartLayerDsl,
   ComponentDslConfig,
   DashboardComponent,
@@ -7,44 +7,36 @@
   FilterCondition,
   MetricSetting,
   SortCondition,
+  StatisticLineConfig,
   StatisticalItemDsl,
-  TableBodyCellDsl,
-  TableConditionalFormatDsl,
-  TableDesignerColumnDsl,
-  TableDsl,
-  TableLayoutDsl,
-  TableTemplateDsl,
   TemplateDefinition
 } from '../types/dashboard';
+import {
+  buildInitialTableDsl,
+  buildTableColumnsFromQuery,
+  normalizeTableDsl,
+  normalizeTableLayoutDsl,
+  syncTableComponentWithModel as syncTableComponentWithModelBase
+} from './dashboardTable';
+import {
+  deepClone,
+  getDefaultTableColumnFields,
+  isSelectableTableField,
+  normalizeDisplayText,
+  resolveModel
+} from './dashboardText';
 
-export function isSelectableTableField(dataType: string, fieldRole: string) {
-  return fieldRole === 'dimension'
-    || fieldRole === 'attribute'
-    || ['date', 'datetime', 'string', 'number'].includes(dataType);
-}
-
-export function getDefaultTableColumnFields(model?: DatasetModel, limit = 6) {
-  return (model?.fields ?? [])
-    .filter(field => isSelectableTableField(field.dataType, field.fieldRole))
-    .slice(0, limit)
-    .map(field => field.fieldCode);
-}
-
-export function deepClone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-export function resolveModel(models: DatasetModel[], modelCode?: string) {
-  return models.find(model => model.modelCode === modelCode || model.datasetCode === modelCode || model.dataPoolCode === modelCode);
-}
-
-export function resolveTemplate(templates: TemplateDefinition[], templateCode?: string) {
-  return templates.find(template => template.templateCode === templateCode);
-}
-
-export function getLayout(component: DashboardComponent) {
-  return component.dslConfig.layout;
-}
+export {
+  buildInitialTableDsl,
+  buildTableColumnsFromQuery,
+  deepClone,
+  getDefaultTableColumnFields,
+  isSelectableTableField,
+  normalizeDisplayText,
+  normalizeTableDsl,
+  normalizeTableLayoutDsl,
+  resolveModel
+};
 
 export function createChartLayer(index = 0): ChartLayerDsl {
   return {
@@ -52,21 +44,6 @@ export function createChartLayer(index = 0): ChartLayerDsl {
     layerName: `图层 ${index + 1}`,
     enabled: true
   };
-}
-
-export function normalizeDisplayText(value?: string, fallback = '') {
-  if (!value) return fallback;
-
-  const chars = Array.from(value);
-  if (chars.length === 0 || chars.some(char => char.charCodeAt(0) > 0xFF)) {
-    return value;
-  }
-
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(chars.map(char => char.charCodeAt(0))));
-  } catch {
-    return value;
-  }
 }
 
 export function normalizeStatisticItemName(name: string | undefined, index: number) {
@@ -157,337 +134,6 @@ export function createStatisticItem(defaultLayerIds: string[], metricFieldCode?:
   };
 }
 
-function createDefaultMetric(fieldCode: string, displayName: string, index = 0): MetricSetting {
-  const palette = ['#1d4ed8', '#0f766e', '#dc2626', '#7c3aed', '#f97316'];
-  return {
-    fieldCode,
-    displayName,
-    aggType: 'sum',
-    chartType: 'table',
-    yAxis: 'left',
-    color: palette[index % palette.length],
-    negativeColor: '#dc2626',
-    smooth: false,
-    layerIds: []
-  };
-}
-
-function createDefaultTableLayoutDsl(): TableLayoutDsl {
-  return {
-    mode: 'list',
-    frozenLeftCount: 0,
-    frozenRightCount: 0,
-    headerRowCount: 1,
-    bodyRowCount: 12,
-    gridColumns: [],
-    gridRows: []
-  };
-}
-
-function createDefaultConditionalFormats(): TableConditionalFormatDsl[] {
-  return [];
-}
-
-function createDefaultTableTemplateDsl(): TableTemplateDsl {
-  return {
-    rowFields: [],
-    columnFields: [],
-    valueFields: [],
-    threshold: 0,
-    gtColor: '#fecaca',
-    lteColor: '#dcfce7'
-  };
-}
-
-function createDefaultTableDsl(): TableDsl {
-  return {
-    template: createDefaultTableTemplateDsl(),
-    rowHeaders: [],
-    columnHeaders: [],
-    columns: [],
-    headerGroups: [],
-    headerCells: [],
-    bodyCells: [],
-    merges: [],
-    styles: {},
-    conditionalFormats: createDefaultConditionalFormats(),
-    widgets: [],
-    regionStyles: [],
-    pagination: {
-      enabled: true,
-      pageSize: 12
-    },
-    summary: {
-      enabled: false,
-      label: '合计',
-      metricFieldCodes: []
-    },
-    rowNumber: false,
-    striped: false,
-    bordered: true,
-    size: 'small',
-    rowSelection: false,
-    emptyText: '暂无数据'
-  };
-}
-
-function getFieldLabel(model: DatasetModel | undefined, fieldCode: string) {
-  const field = model?.fields.find(item => item.fieldCode === fieldCode);
-  return normalizeDisplayText(field?.fieldNameCn || field?.fieldName, fieldCode);
-}
-
-function buildDesignerColumns(
-  fieldCodes: string[],
-  model?: DatasetModel,
-  previousColumns: TableDesignerColumnDsl[] = []
-) {
-  const previousMap = new Map(previousColumns.map(column => [column.id, column]));
-  return fieldCodes.map((fieldCode, index) => {
-    const id = `field-${fieldCode}`;
-    const previous = previousMap.get(id);
-    const field = model?.fields.find(item => item.fieldCode === fieldCode);
-    const isNumeric = field?.fieldRole === 'metric' || field?.dataType === 'number';
-    return {
-      id,
-      fieldCode,
-      title: previous?.title || getFieldLabel(model, fieldCode),
-      role: isNumeric ? ('metric' as const) : ('dimension' as const),
-      width: previous?.width || (index === 0 ? 160 : 140),
-      align: previous?.align || (isNumeric ? 'right' : 'left'),
-      formatter: previous?.formatter || (isNumeric ? 'number' : 'text'),
-      visible: previous?.visible ?? true,
-      groupTitle: previous?.groupTitle || ''
-    };
-  });
-}
-
-function createEmptyBodyMatrix(columns: TableDesignerColumnDsl[], rowCount = 4): TableBodyCellDsl[] {
-  const cells: TableBodyCellDsl[] = [];
-  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-    for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
-      const column = columns[colIndex];
-      const defaultText = rowIndex === 0 ? column.title : '';
-      cells.push({
-        key: `body-${rowIndex}-${colIndex}`,
-        rowIndex,
-        colIndex,
-        fieldCode: rowIndex === 0 ? '' : column.fieldCode,
-        text: defaultText,
-        sourceText: defaultText,
-        value: defaultText
-      });
-    }
-  }
-  return cells;
-}
-
-export function buildInitialTableDsl(
-  component: DashboardComponent,
-  model?: DatasetModel,
-  previewRows: Record<string, unknown>[] = []
-): TableDsl {
-  const currentTableDsl = component.dslConfig.tableDsl ?? createDefaultTableDsl();
-  const template = {
-    ...createDefaultTableTemplateDsl(),
-    ...currentTableDsl.template
-  };
-  const columnFields = template.columnFields;
-  const previousBodyCellMap = new Map(
-    (currentTableDsl.bodyCells ?? []).map(cell => [`${cell.rowIndex}:${cell.colIndex}`, cell])
-  );
-
-  if (columnFields.length === 0) {
-    return {
-      ...currentTableDsl,
-      template,
-      columns: [],
-      headerGroups: [],
-      headerCells: [],
-      bodyCells: [],
-      conditionalFormats: [],
-      merges: []
-    };
-  }
-
-  const columns = buildDesignerColumns(columnFields, model, currentTableDsl.columns);
-  const conditionalTargets = columns.filter(column => column.role === 'metric').map(column => column.fieldCode);
-  const bodyCells: TableBodyCellDsl[] = [];
-  columns.forEach((column, colIndex) => {
-    const previousCell = previousBodyCellMap.get(`0:${colIndex}`);
-    const sourceText = column.title;
-    bodyCells.push({
-      key: `body-0-${colIndex}`,
-      rowIndex: 0,
-      colIndex,
-      fieldCode: '',
-      text: previousCell?.textOverride ?? sourceText,
-      sourceText,
-      textOverride: previousCell?.textOverride,
-      value: sourceText
-    });
-  });
-
-  previewRows.forEach((row, rowIndex) => {
-    columnFields.forEach((fieldCode, colIndex) => {
-      const nextRowIndex = rowIndex + 1;
-      const previousCell = previousBodyCellMap.get(`${nextRowIndex}:${colIndex}`);
-      const value = row[fieldCode];
-      const sourceText = value == null ? '' : String(value);
-      bodyCells.push({
-        key: `body-${nextRowIndex}-${colIndex}`,
-        rowIndex: nextRowIndex,
-        colIndex,
-        fieldCode,
-        text: previousCell?.textOverride ?? sourceText,
-        sourceText,
-        textOverride: previousCell?.textOverride,
-        value
-      });
-    });
-  });
-
-  return {
-    ...currentTableDsl,
-    template,
-    rowHeaders: [],
-    columnHeaders: columns.map(column => column.title),
-    columns,
-    headerGroups: [],
-    headerCells: [],
-    bodyCells: bodyCells.length > 0 ? bodyCells : createEmptyBodyMatrix(columns),
-    conditionalFormats: conditionalTargets.flatMap(fieldCode => ([
-      {
-        key: `cf-gt-${fieldCode}`,
-        fieldCode,
-        target: 'body' as const,
-        operator: 'gt' as const,
-        value: template.threshold,
-        style: { backgroundColor: template.gtColor }
-      },
-      {
-        key: `cf-lte-${fieldCode}`,
-        fieldCode,
-        target: 'body' as const,
-        operator: 'lte' as const,
-        value: template.threshold,
-        style: { backgroundColor: template.lteColor }
-      }
-    ])),
-    merges: []
-  };
-}
-
-export function buildTableColumnsFromQuery(
-  dimensionFields: string[],
-  metrics: MetricSetting[],
-  model?: DatasetModel,
-  previousColumns: TableDesignerColumnDsl[] = []
-) {
-  const previousMap = new Map(previousColumns.map(column => [column.fieldCode, column]));
-  const dimensions = dimensionFields.map((fieldCode, index) => {
-    const previous = previousMap.get(fieldCode);
-    return {
-      id: previous?.id || `table-col-d-${fieldCode}`,
-      fieldCode,
-      title: previous?.title || getFieldLabel(model, fieldCode),
-      role: 'dimension' as const,
-      width: previous?.width || (index === 0 ? 180 : 140),
-      align: previous?.align || 'left',
-      fixed: previous?.fixed,
-      formatter: previous?.formatter || 'text',
-      visible: previous?.visible ?? true,
-      groupTitle: previous?.groupTitle || '维度'
-    };
-  });
-  const metricColumns = metrics.map((metric, index) => {
-    const previous = previousMap.get(metric.fieldCode);
-    return {
-      id: previous?.id || `table-col-m-${metric.fieldCode}`,
-      fieldCode: metric.fieldCode,
-      title: previous?.title || normalizeDisplayText(metric.displayName, metric.fieldCode),
-      role: 'metric' as const,
-      width: previous?.width || 140,
-      align: previous?.align || 'right',
-      fixed: previous?.fixed,
-      formatter: previous?.formatter || 'number',
-      visible: previous?.visible ?? true,
-      groupTitle: previous?.groupTitle || (index === 0 ? '指标' : previous?.groupTitle || '指标')
-    };
-  });
-  return [...dimensions, ...metricColumns];
-}
-
-function normalizeTableDsl(
-  dslConfig: ComponentDslConfig,
-  model?: DatasetModel
-): TableDsl {
-  const tableDsl = dslConfig.tableDsl ?? createDefaultTableDsl();
-  const template = {
-    ...createDefaultTableTemplateDsl(),
-    ...tableDsl.template
-  };
-  const dimensionFields = dslConfig.queryDsl.dimensions?.length
-    ? dslConfig.queryDsl.dimensions
-    : dslConfig.queryDsl.dimensionFields;
-  const columns = (tableDsl.columns?.length ? tableDsl.columns : buildTableColumnsFromQuery(dimensionFields, dslConfig.queryDsl.metrics, model)).map(column => ({
-    ...column,
-    title: normalizeDisplayText(column.title, column.fieldCode),
-    visible: column.visible ?? true,
-    align: column.align || (column.role === 'metric' ? 'right' : 'left'),
-    formatter: column.formatter || (column.role === 'metric' ? 'number' : 'text'),
-    groupTitle: normalizeDisplayText(column.groupTitle, column.role === 'metric' ? '指标' : '维度')
-  }));
-  return {
-    ...createDefaultTableDsl(),
-    ...tableDsl,
-    template,
-    rowHeaders: [...(tableDsl.rowHeaders ?? [])],
-    columnHeaders: [...(tableDsl.columnHeaders ?? [])],
-    columns,
-    headerGroups: [...(tableDsl.headerGroups ?? [])],
-    headerCells: [...(tableDsl.headerCells ?? [])],
-    bodyCells: [...(tableDsl.bodyCells ?? [])],
-    merges: [...(tableDsl.merges ?? [])],
-    styles: tableDsl.styles ?? {},
-    conditionalFormats: [...(tableDsl.conditionalFormats ?? [])],
-    widgets: [...(tableDsl.widgets ?? [])],
-    regionStyles: [...(tableDsl.regionStyles ?? [])],
-    pagination: {
-      enabled: tableDsl.pagination?.enabled ?? true,
-      pageSize: tableDsl.pagination?.pageSize ?? 12
-    },
-    summary: {
-      enabled: tableDsl.summary?.enabled ?? false,
-      label: normalizeDisplayText(tableDsl.summary?.label, '合计'),
-      metricFieldCodes: tableDsl.summary?.metricFieldCodes?.length
-        ? tableDsl.summary.metricFieldCodes
-        : dslConfig.queryDsl.metrics.map(metric => metric.fieldCode)
-    },
-    rowNumber: tableDsl.rowNumber ?? false,
-    striped: tableDsl.striped ?? false,
-    bordered: tableDsl.bordered ?? true,
-    size: tableDsl.size ?? 'small',
-    rowSelection: tableDsl.rowSelection ?? false,
-    emptyText: normalizeDisplayText(tableDsl.emptyText, '暂无数据')
-  };
-}
-
-function normalizeTableLayoutDsl(layoutDsl?: TableLayoutDsl, tableDsl?: TableDsl): TableLayoutDsl {
-  const base = createDefaultTableLayoutDsl();
-  const visibleColumns = tableDsl?.columns?.filter(column => column.visible !== false) ?? [];
-  return {
-    ...base,
-    ...layoutDsl,
-    mode: layoutDsl?.mode === 'report' ? 'report' : 'list',
-    frozenLeftCount: Math.max(0, layoutDsl?.frozenLeftCount ?? base.frozenLeftCount),
-    frozenRightCount: Math.max(0, layoutDsl?.frozenRightCount ?? base.frozenRightCount),
-    headerRowCount: Math.max(1, layoutDsl?.headerRowCount ?? 1),
-    bodyRowCount: Math.max(1, layoutDsl?.bodyRowCount ?? Math.max(visibleColumns.length, base.bodyRowCount)),
-    gridColumns: layoutDsl?.gridColumns?.length ? layoutDsl.gridColumns : visibleColumns.map(column => column.fieldCode),
-    gridRows: layoutDsl?.gridRows?.length ? layoutDsl.gridRows : ['header', 'body']
-  };
-}
-
 export function createComponentFromTemplate(template: TemplateDefinition, modelCode: string, index: number): DashboardComponent {
   const dslConfig = normalizeDslConfig(deepClone(template.defaultDsl));
   const firstLayerId = dslConfig.chartLayersDsl[0]?.id || createChartLayer(0).id;
@@ -495,15 +141,11 @@ export function createComponentFromTemplate(template: TemplateDefinition, modelC
   dslConfig.queryDsl = {
     ...dslConfig.queryDsl,
     modelCode,
-    datasetCode: modelCode,
-    dimensionField: '',
     dimensionFields: [],
-    dimensions: [],
     seriesFields: [],
     metrics: [],
     filters: [],
     orders: [],
-    sorters: [],
     params: {}
   };
   dslConfig.dimensionConfigDsl = {
@@ -578,109 +220,41 @@ function normalizeChartLayers(chartLayers: ChartLayerDsl[] | undefined) {
 function normalizeStatisticItems(
   items: StatisticalItemDsl[] | undefined,
   defaultLayerIds: string[],
-  firstMetricCode?: string,
-  legacyLayers?: any[]
+  firstMetricCode?: string
 ) {
   if (items?.length) {
-    return items.map((item: any, index) => {
-      const legacyLayerIds = Array.isArray(item.layerIds) && item.layerIds.length ? item.layerIds : defaultLayerIds;
-      const rollingWindowYears = Number(item.rollingWindowYears ?? item.stdWindowYears ?? 3);
+    return items.map((item, index) => {
       const metricFieldCode = item.metricFieldCode || firstMetricCode || '';
-      const wrapLine = (value: any, defaults: any) => ({
+      const wrapLine = (value: StatisticLineConfig, defaults: StatisticLineConfig): StatisticLineConfig => ({
         enabled: value?.enabled ?? defaults.enabled,
         yAxis: value?.yAxis === 'right' ? 'right' : defaults.yAxis,
         lineColor: value?.lineColor || defaults.lineColor,
         lineStyle: value?.lineStyle ?? defaults.lineStyle,
-        layerIds: Array.isArray(value?.layerIds) && value.layerIds.length ? value.layerIds : legacyLayerIds
+        layerIds: value?.layerIds?.length ? value.layerIds : defaultLayerIds
       });
-      const wrapBand = (value: any, defaults: any) => ({
+      const wrapBand = (value: StatisticalItemDsl['visible']['std1'], defaults: StatisticalItemDsl['visible']['std1']) => ({
         ...wrapLine(value, defaults),
         bandColor: value?.bandColor || defaults.bandColor
       });
       const defaultItem = createStatisticItem(defaultLayerIds, metricFieldCode, index);
-      if (item.visible && item.rolling) {
-        return {
-          id: item.id || `stat-item-${index}`,
-          itemName: normalizeStatisticItemName(item.itemName, index),
-          metricFieldCode,
-          rollingWindowYears: Number.isFinite(rollingWindowYears) && rollingWindowYears > 0 ? rollingWindowYears : 3,
-          visible: {
-            mean: wrapLine(item.visible.mean, defaultItem.visible.mean),
-            std1: wrapBand(item.visible.std1, defaultItem.visible.std1),
-            std2: wrapBand(item.visible.std2, defaultItem.visible.std2),
-            percentile: wrapLine(
-              item.visible.percentile ?? item.visible.quantiles?.find((q: any) => q.enabled),
-              defaultItem.visible.percentile
-            )
-          },
-          rolling: {
-            mean: wrapLine(item.rolling.mean, defaultItem.rolling.mean),
-            std1: wrapBand(item.rolling.std1, defaultItem.rolling.std1),
-            std2: wrapBand(item.rolling.std2, defaultItem.rolling.std2),
-            percentile: wrapLine(
-              item.rolling.percentile ?? item.rolling.quantiles?.find((q: any) => q.enabled),
-              defaultItem.rolling.percentile
-            )
-          }
-        } as StatisticalItemDsl;
-      }
-      const legacyPercentile = item.percentile ?? (Array.isArray(item.quantiles) ? item.quantiles.find((q: any) => q.enabled) : undefined);
       return {
         id: item.id || `stat-item-${index}`,
         itemName: normalizeStatisticItemName(item.itemName, index),
         metricFieldCode,
-        rollingWindowYears: Number.isFinite(rollingWindowYears) && rollingWindowYears > 0 ? rollingWindowYears : 3,
+        rollingWindowYears: item.rollingWindowYears && item.rollingWindowYears > 0 ? item.rollingWindowYears : 3,
         visible: {
-          mean: wrapLine(item.mean, defaultItem.visible.mean),
-          std1: wrapBand(item.std1, defaultItem.visible.std1),
-          std2: wrapBand(item.std2, defaultItem.visible.std2),
-          percentile: wrapLine(legacyPercentile, defaultItem.visible.percentile)
+          mean: wrapLine(item.visible.mean, defaultItem.visible.mean),
+          std1: wrapBand(item.visible.std1, defaultItem.visible.std1),
+          std2: wrapBand(item.visible.std2, defaultItem.visible.std2),
+          percentile: wrapLine(item.visible.percentile, defaultItem.visible.percentile)
         },
         rolling: {
-          mean: wrapLine(undefined, defaultItem.rolling.mean),
-          std1: wrapBand(undefined, defaultItem.rolling.std1),
-          std2: wrapBand(undefined, defaultItem.rolling.std2),
-          percentile: wrapLine(undefined, defaultItem.rolling.percentile)
+          mean: wrapLine(item.rolling.mean, defaultItem.rolling.mean),
+          std1: wrapBand(item.rolling.std1, defaultItem.rolling.std1),
+          std2: wrapBand(item.rolling.std2, defaultItem.rolling.std2),
+          percentile: wrapLine(item.rolling.percentile, defaultItem.rolling.percentile)
         }
-      } as StatisticalItemDsl;
-    });
-  }
-
-  if (legacyLayers?.length) {
-    return legacyLayers.map((layer: any, index) => {
-      const metricFieldCode = layer.metricFieldCode || firstMetricCode || '';
-      const defaultItem = createStatisticItem(defaultLayerIds, metricFieldCode, index);
-      const layerIds = [layer.id || defaultLayerIds[0]].filter(Boolean);
-      const wrapLine = (value: any, defaults: any) => ({
-        enabled: value?.enabled ?? defaults.enabled,
-        yAxis: value?.yAxis === 'right' ? 'right' : defaults.yAxis,
-        lineColor: value?.lineColor || defaults.lineColor,
-        lineStyle: value?.lineStyle ?? defaults.lineStyle,
-        layerIds
-      });
-      const wrapBand = (value: any, defaults: any) => ({
-        ...wrapLine(value, defaults),
-        bandColor: value?.bandColor || defaults.bandColor
-      });
-      const legacyPercentile = layer.percentile ?? layer.quantiles?.find((q: any) => q.enabled);
-      return {
-        id: layer.id || `stat-item-${index}`,
-        itemName: normalizeStatisticItemName(layer.layerName, index),
-        metricFieldCode,
-        rollingWindowYears: layer.stdWindowYears && layer.stdWindowYears > 0 ? layer.stdWindowYears : 3,
-        visible: {
-          mean: wrapLine(layer.mean, defaultItem.visible.mean),
-          std1: wrapBand(layer.std1, defaultItem.visible.std1),
-          std2: wrapBand(layer.std2, defaultItem.visible.std2),
-          percentile: wrapLine(legacyPercentile, defaultItem.visible.percentile)
-        },
-        rolling: {
-          mean: wrapLine(undefined, defaultItem.rolling.mean),
-          std1: wrapBand(undefined, defaultItem.rolling.std1),
-          std2: wrapBand(undefined, defaultItem.rolling.std2),
-          percentile: wrapLine(undefined, defaultItem.rolling.percentile)
-        }
-      } as StatisticalItemDsl;
+      };
     });
   }
 
@@ -688,36 +262,21 @@ function normalizeStatisticItems(
 }
 
 export function normalizeDslConfig(
-  dslConfig: ComponentDslConfig & { statisticalLayersDsl?: any[] },
+  dslConfig: ComponentDslConfig,
   model?: DatasetModel
 ): ComponentDslConfig {
   const chartLayersDsl = normalizeChartLayers(dslConfig.chartLayersDsl);
   const defaultLayerIds = chartLayersDsl.map(layer => layer.id);
-  const dimensionFields = dslConfig.queryDsl.dimensions?.length
-    ? dslConfig.queryDsl.dimensions
-    : dslConfig.queryDsl.dimensionFields?.length
-      ? dslConfig.queryDsl.dimensionFields
-      : dslConfig.queryDsl.dimensionField
-        ? [dslConfig.queryDsl.dimensionField]
-        : [];
-  const metrics = (dslConfig.queryDsl.metrics ?? []).map((metric, index) => {
-    if (!metric.fieldCode && typeof metric === 'string') {
-      return createDefaultMetric(metric, metric, index);
-    }
-    return ensureMetricDefaults(metric, defaultLayerIds);
-  });
+  const dimensionFields = dslConfig.queryDsl.dimensionFields ?? [];
+  const metrics = (dslConfig.queryDsl.metrics ?? []).map(metric => ensureMetricDefaults(metric, defaultLayerIds));
   const firstMetric = metrics[0];
   const nextQueryDsl = {
     modelCode: dslConfig.queryDsl.modelCode,
-    datasetCode: dslConfig.queryDsl.datasetCode ?? dslConfig.queryDsl.modelCode,
-    dimensionField: dimensionFields[0] ?? dslConfig.queryDsl.dimensionField ?? '',
     dimensionFields,
-    dimensions: dimensionFields,
     seriesFields: dslConfig.queryDsl.seriesFields ?? [],
     metrics,
     filters: (dslConfig.queryDsl.filters ?? []).map(ensureFilterDefaults),
-    orders: (dslConfig.queryDsl.orders ?? dslConfig.queryDsl.sorters ?? []).map(ensureSortDefaults),
-    sorters: (dslConfig.queryDsl.sorters ?? dslConfig.queryDsl.orders ?? []).map(ensureSortDefaults),
+    orders: (dslConfig.queryDsl.orders ?? []).map(ensureSortDefaults),
     params: dslConfig.queryDsl.params ?? {},
     limit: dslConfig.queryDsl.limit ?? 500
   };
@@ -747,7 +306,7 @@ export function normalizeDslConfig(
       slider: dslConfig.interactionDsl.slider ?? true
     },
     chartLayersDsl,
-    statisticalItemsDsl: normalizeStatisticItems(dslConfig.statisticalItemsDsl, defaultLayerIds, firstMetric?.fieldCode, dslConfig.statisticalLayersDsl),
+    statisticalItemsDsl: normalizeStatisticItems(dslConfig.statisticalItemsDsl, defaultLayerIds, firstMetric?.fieldCode),
     layout: {
       x: dslConfig.layout.x ?? 0,
       y: dslConfig.layout.y ?? 0,
@@ -769,10 +328,47 @@ export function normalizeDashboard(draft: DashboardDraft, models: DatasetModel[]
       ...component,
       title: normalizeDisplayText(component.title, component.componentCode),
       dslConfig: normalizeDslConfig(
-        component.dslConfig as ComponentDslConfig & { statisticalLayersDsl?: any[] },
+        component.dslConfig,
         resolveModel(models, component.modelCode)
       )
     }))
+  };
+}
+
+export function normalizeComponentForTransport(
+  component: DashboardComponent,
+  model?: DatasetModel
+): DashboardComponent {
+  const normalizedDsl = normalizeDslConfig(component.dslConfig, model);
+  const normalizedModelCode = normalizedDsl.queryDsl.modelCode || component.modelCode;
+  return {
+    ...component,
+    modelCode: normalizedModelCode,
+    title: normalizeDisplayText(component.title, component.componentCode),
+    dslConfig: {
+      ...normalizedDsl,
+      queryDsl: {
+        ...normalizedDsl.queryDsl,
+        modelCode: normalizedModelCode
+      },
+      visualDsl: {
+        ...normalizedDsl.visualDsl,
+        title: normalizeDisplayText(normalizedDsl.visualDsl.title, component.title || component.componentCode)
+      }
+    }
+  };
+}
+
+export function normalizeDashboardForTransport(
+  draft: DashboardDraft,
+  models: DatasetModel[] = []
+): DashboardDraft {
+  return {
+    ...draft,
+    name: normalizeDisplayText(draft.name, draft.dashboardCode),
+    components: draft.components.map(component =>
+      normalizeComponentForTransport(component, resolveModel(models, component.modelCode))
+    )
   };
 }
 
@@ -781,44 +377,5 @@ export function syncTableComponentWithModel(
   model?: DatasetModel,
   previewRows: Record<string, unknown>[] = []
 ) {
-  const normalized = normalizeDslConfig(component.dslConfig, model);
-  const currentColumnFields = normalized.tableDsl?.template?.columnFields ?? [];
-  const nextColumnFields = currentColumnFields.length > 0
-    ? currentColumnFields
-    : getDefaultTableColumnFields(model);
-  normalized.queryDsl = {
-    ...normalized.queryDsl,
-    dimensionField: nextColumnFields[0] ?? '',
-    dimensionFields: nextColumnFields,
-    dimensions: nextColumnFields,
-    metrics: []
-  };
-  const seededTableDsl: TableDsl = {
-    ...(normalized.tableDsl ?? createDefaultTableDsl()),
-    template: {
-      ...createDefaultTableTemplateDsl(),
-      ...normalized.tableDsl?.template,
-      rowFields: [],
-      columnFields: nextColumnFields,
-      valueFields: [],
-      threshold: normalized.tableDsl?.template?.threshold ?? 0,
-      gtColor: normalized.tableDsl?.template?.gtColor ?? '#fecaca',
-      lteColor: normalized.tableDsl?.template?.lteColor ?? '#dcfce7'
-    }
-  };
-  const nextTableDsl = buildInitialTableDsl({
-    ...component,
-    dslConfig: {
-      ...normalized,
-      tableDsl: seededTableDsl
-    }
-  }, model, previewRows);
-  normalized.tableDsl = nextTableDsl;
-  normalized.layoutDsl = normalizeTableLayoutDsl(normalized.layoutDsl, normalized.tableDsl);
-  return {
-    ...component,
-    componentType: component.templateCode === 'table' ? 'table' : component.componentType,
-    dslConfig: normalized
-  };
+  return syncTableComponentWithModelBase(component, normalizeDslConfig, model, previewRows);
 }
-

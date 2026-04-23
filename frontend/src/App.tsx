@@ -15,9 +15,14 @@ import { DASHBOARD_CATEGORIES } from './utils/dashboardCatalog';
 
 const items = [
   {
-    key: '/designer',
-    icon: <FundProjectionScreenOutlined />,
-    label: <Link to="/designer">指标配置</Link>
+    key: '/favorites',
+    icon: <StarOutlined />,
+    label: <Link to="/favorites">我的指标</Link>
+  },
+  {
+    key: '/my-strategy',
+    icon: <StarOutlined />,
+    label: <Link to="/my-strategy">我的策略</Link>
   },
   {
     key: 'runtime-group',
@@ -48,20 +53,18 @@ const items = [
     ]
   },
   {
-    key: '/favorites',
-    icon: <StarOutlined />,
-    label: <Link to="/favorites">我的指标</Link>
-  },
-  {
-    key: '/my-strategy',
-    icon: <StarOutlined />,
-    label: <Link to="/my-strategy">我的策略</Link>
+    key: '/designer',
+    icon: <FundProjectionScreenOutlined />,
+    label: <Link to="/designer">指标配置</Link>
   }
 ];
 
 function resolveSelectedKey(pathname: string) {
   if (pathname.startsWith('/runtime/')) {
     const [, , categoryKey] = pathname.split('/');
+    if (categoryKey === 'all') {
+      return 'runtime-group';
+    }
     return DASHBOARD_CATEGORIES.some(item => item.key === categoryKey)
       ? `/runtime/${categoryKey}`
       : '/runtime/valuation';

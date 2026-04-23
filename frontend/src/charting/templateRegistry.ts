@@ -40,11 +40,7 @@ function resolveActiveLayerId(preview: ChartPreview, context?: ChartLayerContext
 }
 
 function dimensionFields(preview: ChartPreview, activeLayerId?: string) {
-  const allDimensions = preview.queryDsl.dimensionFields?.length
-    ? preview.queryDsl.dimensionFields
-    : preview.queryDsl.dimensionField
-      ? [preview.queryDsl.dimensionField]
-      : preview.dimensions;
+  const allDimensions = preview.queryDsl.dimensionFields ?? [];
 
   if (!activeLayerId) return allDimensions;
   return preview.dslConfig.dimensionConfigDsl.layerIds.includes(activeLayerId) ? allDimensions : [];
