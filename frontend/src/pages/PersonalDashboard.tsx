@@ -33,6 +33,24 @@ import {
   type SortMode
 } from './personalDashboard/helpers';
 
+const TEXT = {
+  title: '\u6211\u7684\u6307\u6807',
+  addChart: '\u589e\u52a0\u56fe\u8868',
+  all: '\u5168\u90e8',
+  currentCategory: '\u5f53\u524d\u5206\u7c7b',
+  searchChart: '\u641c\u7d22\u56fe\u8868\u540d\u79f0',
+  manualSort: '\u81ea\u5b9a\u4e49\u6392\u5e8f',
+  timeAsc: '\u65f6\u95f4\u5347\u5e8f',
+  timeDesc: '\u65f6\u95f4\u964d\u5e8f',
+  loadFailed: '\u6211\u7684\u6307\u6807\u52a0\u8f7d\u5931\u8d25',
+  loadAddableFailed: '\u53ef\u6dfb\u52a0\u56fe\u8868\u52a0\u8f7d\u5931\u8d25',
+  removed: '\u56fe\u8868\u5df2\u4ece\u6211\u7684\u6307\u6807\u79fb\u9664',
+  added: '\u56fe\u8868\u5df2\u52a0\u5165\u6211\u7684\u6307\u6807',
+  emptyCategory: '\u5f53\u524d\u5206\u7c7b\u4e0b\u8fd8\u6ca1\u6709\u56fe\u8868',
+  toc: '\u76ee\u5f55\u5bfc\u822a',
+  chartDetail: '\u56fe\u8868\u8be6\u60c5'
+};
+
 export default function PersonalDashboard() {
   const [charts, setCharts] = useState<PersonalChartEntry[]>(listPersonalCharts());
   const [previews, setPreviews] = useState<Record<string, ChartPreview>>({});
@@ -92,7 +110,7 @@ export default function PersonalDashboard() {
 
     return [{
       key: activeCategory,
-      label: DASHBOARD_CATEGORIES.find(item => item.key === activeCategory)?.label ?? '当前分类',
+      label: DASHBOARD_CATEGORIES.find(item => item.key === activeCategory)?.label ?? TEXT.currentCategory,
       charts: renderedCharts
     }];
   }, [activeCategory, renderedCharts]);
@@ -115,7 +133,7 @@ export default function PersonalDashboard() {
 
     return [{
       key: addChartCategory,
-      label: DASHBOARD_CATEGORIES.find(item => item.key === addChartCategory)?.label ?? '当前分类',
+      label: DASHBOARD_CATEGORIES.find(item => item.key === addChartCategory)?.label ?? TEXT.currentCategory,
       charts: availableCharts.filter(chart =>
         getDashboardMeta(chart.chartCode).category === addChartCategory && matchAvailableChartKeyword(chart, addChartKeyword)
       )
@@ -139,7 +157,7 @@ export default function PersonalDashboard() {
         .then(entries => setPreviews(Object.fromEntries(entries)))
         .catch(error => {
           console.error(error);
-          message.error(error instanceof Error ? error.message : '我的指标加载失败');
+          message.error(error instanceof Error ? error.message : TEXT.loadFailed);
         });
     };
 
@@ -157,7 +175,7 @@ export default function PersonalDashboard() {
       .then(setCatalogCharts)
       .catch(error => {
         console.error(error);
-        message.error(error instanceof Error ? error.message : '可添加图表加载失败');
+        message.error(error instanceof Error ? error.message : TEXT.loadAddableFailed);
       });
   }, []);
 
@@ -234,7 +252,7 @@ export default function PersonalDashboard() {
       .catch(error => {
         console.error(error);
         if (!cancelled) {
-          message.error(error instanceof Error ? error.message : '可添加图表加载失败');
+          message.error(error instanceof Error ? error.message : TEXT.loadAddableFailed);
         }
       })
       .finally(() => {
@@ -256,7 +274,7 @@ export default function PersonalDashboard() {
       delete next[target.chart.componentCode];
       return next;
     });
-    message.success('图表已从我的指标移除');
+    message.success(TEXT.removed);
   };
 
   const moveChart = (sourceId: string, targetId: string) => {
@@ -371,25 +389,25 @@ export default function PersonalDashboard() {
     );
     setCharts(listPersonalCharts());
     setAvailableCharts(current => current.filter(chart => chart.component.componentCode !== item.component.componentCode));
-    message.success('图表已加入我的指标');
+    message.success(TEXT.added);
   };
 
   return (
     <>
       <div className="page-header">
         <div>
-          <h2 className="page-title">我的指标</h2>
+          <h2 className="page-title">{TEXT.title}</h2>
         </div>
         <Space wrap size={12}>
           <Button type="primary" onClick={() => setAddChartOpen(true)}>
-            增加图表
+            {TEXT.addChart}
           </Button>
         </Space>
       </div>
 
       <div className="favorites-filter-nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <Button type={activeCategory === 'all' ? 'primary' : 'default'} onClick={() => setActiveCategory('all')}>
-          全部
+          {TEXT.all}
         </Button>
         {DASHBOARD_CATEGORIES.map(option => (
           <Button
@@ -402,7 +420,7 @@ export default function PersonalDashboard() {
         ))}
         <Input.Search
           allowClear
-          placeholder="搜索图表名称"
+          placeholder={TEXT.searchChart}
           style={{ width: 220, marginLeft: 'auto' }}
           value={searchKeyword}
           onChange={event => setSearchKeyword(event.target.value)}
@@ -411,9 +429,9 @@ export default function PersonalDashboard() {
           style={{ width: 160 }}
           value={sortMode}
           options={[
-            { label: '自定义排序', value: 'manual' },
-            { label: '时间升序', value: 'time_asc' },
-            { label: '时间倒序', value: 'time_desc' }
+            { label: TEXT.manualSort, value: 'manual' },
+            { label: TEXT.timeAsc, value: 'time_asc' },
+            { label: TEXT.timeDesc, value: 'time_desc' }
           ]}
           onChange={value => setSortMode(value)}
         />
@@ -439,13 +457,13 @@ export default function PersonalDashboard() {
             </div>
           ) : (
             <div className="panel-card canvas-card canvas-empty">
-              <Empty description="当前分类下还没有图表" />
+              <Empty description={TEXT.emptyCategory} />
             </div>
           )}
         </div>
 
         <aside className="panel-card runtime-toc-card">
-          <div className="runtime-toc-title">目录导航</div>
+          <div className="runtime-toc-title">{TEXT.toc}</div>
           <div className="runtime-toc-scroll" ref={tocScrollRef}>
             {activeCategory === 'all' ? (
               navGroups.map(group => (
@@ -492,7 +510,7 @@ export default function PersonalDashboard() {
       </div>
 
       <Modal
-        title={expandedChart ? normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode) : '图表详情'}
+        title={expandedChart ? normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode) : TEXT.chartDetail}
         open={Boolean(expandedChart)}
         footer={null}
         onCancel={() => setExpandedChart(undefined)}

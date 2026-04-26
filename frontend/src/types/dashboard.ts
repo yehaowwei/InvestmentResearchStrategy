@@ -450,3 +450,33 @@ export interface CreateCalculatedMetricPayload {
   calcType: 'avg' | 'sum' | 'max' | 'min' | 'rolling_3y_avg';
   aggType?: string;
 }
+
+export interface TkfAgentMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface TkfChartCandidate {
+  chartId: string;
+  chartCode: string;
+  chartName: string;
+  componentCode: string;
+  componentTitle: string;
+  category?: string;
+  indicatorTag?: string;
+}
+
+export interface TkfChartReason {
+  chartId: string;
+  reason: string;
+}
+
+export interface TkfAgentResponse {
+  intent: string;
+  reply: string;
+  strategyName: string;
+  strategyDescription: string;
+  selectedChartIds: string[];
+  chartReasons: TkfChartReason[];
+  fallback: boolean;
+}

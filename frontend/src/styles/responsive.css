@@ -47,7 +47,9 @@
   }
 
   .public-chart-grid,
-  .personal-chart-grid {
+  .personal-chart-grid,
+  .strategy-config-grid,
+  .strategy-center-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -68,7 +70,9 @@
   .adaptive-canvas,
   .favorites-board-grid,
   .public-chart-grid,
-  .personal-chart-grid {
+  .personal-chart-grid,
+  .strategy-config-grid,
+  .strategy-center-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

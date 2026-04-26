@@ -1,6 +1,7 @@
-import { Empty } from 'antd';
+import { EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons';
+import { Button, Empty } from 'antd';
 import * as echarts from 'echarts';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { getChartTemplate } from '../charting/templateRegistry';
 import type {
   ChartPreview,
@@ -10,6 +11,7 @@ import type {
   TableMergeDsl,
   TableStyleRule
 } from '../types/dashboard';
+import { normalizeDisplayText } from '../utils/dashboard';
 import InteractiveTableDesigner from './InteractiveTableDesigner';
 
 function readZoomRange(chart: echarts.EChartsType) {
@@ -70,6 +72,71 @@ function getCellSpan(merges: TableMergeDsl[], cell: GridCell) {
     rowSpan: merge?.rowSpan ?? 1,
     colSpan: merge?.colSpan ?? 1
   };
+}
+
+interface ThumbnailLegendItem {
+  key: string;
+  label: string;
+  color: string;
+}
+
+interface LegendPosition {
+  x: number;
+  y: number;
+}
+
+function buildThumbnailLegendItems(preview: ChartPreview, activeLayerId?: string): ThumbnailLegendItem[] {
+  const metricMap = new Map(preview.dslConfig.queryDsl.metrics.map(metric => [metric.fieldCode, metric]));
+  const items: ThumbnailLegendItem[] = [];
+  const pushItem = (key: string, label: string, color: string) => {
+    if (items.some(item => item.key === key)) {
+      return;
+    }
+    items.push({ key, label, color });
+  };
+  const matchesLayer = (layerIds: string[]) => !activeLayerId || layerIds.includes(activeLayerId);
+
+  preview.dslConfig.queryDsl.metrics
+    .filter(metric => matchesLayer(metric.layerIds))
+    .forEach(metric => {
+      pushItem(`metric-${metric.fieldCode}`, normalizeDisplayText(metric.displayName, metric.fieldCode), metric.color);
+    });
+
+  preview.dslConfig.statisticalItemsDsl.forEach((item, index) => {
+    const metric = metricMap.get(item.metricFieldCode ?? '') ?? preview.dslConfig.queryDsl.metrics[0];
+    if (!metric) {
+      return;
+    }
+    const metricName = normalizeDisplayText(metric.displayName, metric.fieldCode);
+    const itemName = normalizeDisplayText(item.itemName, `统计量${index + 1}`);
+
+    if (item.visible.mean.enabled && matchesLayer(item.visible.mean.layerIds)) {
+      pushItem(`${item.id}-visible-mean`, `${metricName} ${itemName} 均值`, item.visible.mean.lineColor);
+    }
+    if (item.visible.std1.enabled && matchesLayer(item.visible.std1.layerIds)) {
+      pushItem(`${item.id}-visible-std1`, `${metricName} ${itemName} ±1σ`, item.visible.std1.lineColor);
+    }
+    if (item.visible.std2.enabled && matchesLayer(item.visible.std2.layerIds)) {
+      pushItem(`${item.id}-visible-std2`, `${metricName} ${itemName} ±2σ`, item.visible.std2.lineColor);
+    }
+    if (item.visible.percentile.enabled && matchesLayer(item.visible.percentile.layerIds)) {
+      pushItem(`${item.id}-visible-percentile`, `${metricName} ${itemName} 分位点`, item.visible.percentile.lineColor);
+    }
+    if (item.rolling.mean.enabled && matchesLayer(item.rolling.mean.layerIds)) {
+      pushItem(`${item.id}-rolling-mean`, `${metricName} ${itemName} 滚动均值`, item.rolling.mean.lineColor);
+    }
+    if (item.rolling.std1.enabled && matchesLayer(item.rolling.std1.layerIds)) {
+      pushItem(`${item.id}-rolling-std1`, `${metricName} ${itemName} 滚动±1σ`, item.rolling.std1.lineColor);
+    }
+    if (item.rolling.std2.enabled && matchesLayer(item.rolling.std2.layerIds)) {
+      pushItem(`${item.id}-rolling-std2`, `${metricName} ${itemName} 滚动±2σ`, item.rolling.std2.lineColor);
+    }
+    if (item.rolling.percentile.enabled && matchesLayer(item.rolling.percentile.layerIds)) {
+      pushItem(`${item.id}-rolling-percentile`, `${metricName} ${itemName} 滚动分位点`, item.rolling.percentile.lineColor);
+    }
+  });
+
+  return items;
 }
 
 function renderStaticTable(preview: ChartPreview, thumbnail = false) {
@@ -173,23 +240,31 @@ export default function ChartRendererCore(props: {
   compact?: boolean;
   dense?: boolean;
 }) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.EChartsType | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const [zoomRange, setZoomRange] = useState<{ start: number; end: number }>({ start: 0, end: 100 });
+  const [thumbnailLegendVisible, setThumbnailLegendVisible] = useState(false);
+  const [thumbnailLegendPosition, setThumbnailLegendPosition] = useState<LegendPosition>({ x: 10, y: 34 });
   const thumbnailMode = Boolean(props.thumbnail);
   const compactMode = props.compact ?? thumbnailMode;
   const template = useMemo(() => getChartTemplate(props.templateCode), [props.templateCode]);
+  const thumbnailLegendItems = useMemo(
+    () => (thumbnailMode && props.preview ? buildThumbnailLegendItems(props.preview, props.activeLayerId) : []),
+    [props.activeLayerId, props.preview, thumbnailMode]
+  );
   const option = useMemo(
     () => props.preview && template.buildOption
       ? template.buildOption(props.preview, {
         zoomRange,
         activeLayerId: props.activeLayerId,
         compact: compactMode,
-        dense: props.dense
+        dense: props.dense,
+        thumbnail: thumbnailMode
       })
       : undefined,
-    [compactMode, props.activeLayerId, props.dense, props.preview, template, zoomRange]
+    [compactMode, props.activeLayerId, props.dense, props.preview, template, thumbnailMode, zoomRange]
   );
 
   const resizeChart = useCallback(() => {
@@ -202,6 +277,22 @@ export default function ChartRendererCore(props: {
     });
   }, []);
 
+  const clampLegendPosition = useCallback((position: LegendPosition) => {
+    const shell = shellRef.current;
+    if (!shell) {
+      return position;
+    }
+    const panel = shell.querySelector('.chart-thumbnail-legend-floating') as HTMLDivElement | null;
+    const shellWidth = shell.clientWidth;
+    const shellHeight = shell.clientHeight;
+    const panelWidth = panel?.offsetWidth ?? 220;
+    const panelHeight = panel?.offsetHeight ?? 140;
+    return {
+      x: Math.min(Math.max(8, position.x), Math.max(8, shellWidth - panelWidth - 8)),
+      y: Math.min(Math.max(30, position.y), Math.max(30, shellHeight - panelHeight - 8))
+    };
+  }, []);
+
   const shouldRenderChart = props.viewMode !== 'table' && template.renderer !== 'table' && Boolean(option);
 
   useEffect(() => {
@@ -209,6 +300,16 @@ export default function ChartRendererCore(props: {
       setZoomRange({ start: 0, end: 100 });
     }
   }, [props.preview]);
+
+  useEffect(() => {
+    if (!thumbnailLegendVisible) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setThumbnailLegendPosition(current => clampLegendPosition(current));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [clampLegendPosition, thumbnailLegendItems.length, thumbnailLegendVisible]);
 
   useEffect(() => {
     if (!shouldRenderChart || !hostRef.current) {
@@ -293,12 +394,71 @@ export default function ChartRendererCore(props: {
     return <Empty description="当前条件下暂无数据" />;
   }
 
+  const startLegendDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const originX = event.clientX;
+    const originY = event.clientY;
+    const originPosition = thumbnailLegendPosition;
+
+    const handleMove = (moveEvent: MouseEvent) => {
+      setThumbnailLegendPosition(clampLegendPosition({
+        x: originPosition.x + (moveEvent.clientX - originX),
+        y: originPosition.y + (moveEvent.clientY - originY)
+      }));
+    };
+
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  };
+
   return (
-    <div className={`chart-renderer-shell${props.thumbnail ? ' chart-renderer-thumbnail' : ''}`}>
+    <div ref={shellRef} className={`chart-renderer-shell${props.thumbnail ? ' chart-renderer-thumbnail' : ''}`}>
+      {thumbnailMode && shouldRenderChart && thumbnailLegendItems.length > 0 ? (
+        <div className="chart-thumbnail-toolbar">
+          <Button
+            size="small"
+            type={thumbnailLegendVisible ? 'primary' : 'default'}
+            icon={thumbnailLegendVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+            onMouseDown={event => event.stopPropagation()}
+            onClick={event => {
+              event.stopPropagation();
+              setThumbnailLegendVisible(value => !value);
+            }}
+          >
+            {thumbnailLegendVisible ? '隐藏图例' : '显示图例'}
+          </Button>
+        </div>
+      ) : null}
+      {thumbnailMode && thumbnailLegendVisible && thumbnailLegendItems.length > 0 ? (
+        <div
+          className="chart-thumbnail-legend-floating"
+          style={{ left: thumbnailLegendPosition.x, top: thumbnailLegendPosition.y }}
+          onMouseDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
+        >
+          <div className="chart-thumbnail-legend-drag" onMouseDown={startLegendDrag}>
+            图例
+          </div>
+          <div className="chart-thumbnail-legend">
+            {thumbnailLegendItems.map(item => (
+              <span key={item.key} className="chart-thumbnail-legend-item">
+                <span className="chart-thumbnail-legend-dot" style={{ backgroundColor: item.color }} />
+                <span className="chart-thumbnail-legend-label">{item.label}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div
         ref={hostRef}
         className="chart-renderer-host"
-        style={{ minHeight: props.thumbnail ? 220 : 360 }}
+        style={{ minHeight: props.thumbnail ? 248 : 360 }}
       />
     </div>
   );

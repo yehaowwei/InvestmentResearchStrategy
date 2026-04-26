@@ -1,33 +1,55 @@
 # 投研 BI 看板系统
 
-## 目录
+## 一键启动
 
-- `backend`：Spring Boot 3 / Java 17 后端
-- `frontend`：React / Vite / Ant Design 前端
-
-## 启动
-
-### 后端
+Windows 环境下，拉取代码后直接运行仓库根目录的以下任一命令即可：
 
 ```powershell
-cd backend
-mvn spring-boot:run
+.\start-all.ps1
 ```
 
-### 前端
+或：
+
+```bat
+start-all.bat
+```
+
+脚本会自动完成这些事情：
+
+1. 安装前端依赖（首次启动时）
+2. 构建前端
+3. 打包后端
+4. 启动 Spring Boot 服务
+
+启动成功后访问：
+
+- 主页：`http://localhost:28637`
+- 设计页：`http://localhost:28637/#/designer`
+- H2 控制台：`http://localhost:28637/h2-console`
+
+## 运行前准备
+
+请确保本机已安装并加入 `PATH`：
+
+- Node.js 18+
+- Maven 3.9+
+- Java 17+
+
+## 数据说明
+
+- 演示数据直接保存在仓库内的 `backend/data/bi-demo.mv.db`
+- 不依赖额外 SQL 导入
+- 另一台设备 `git pull` 后可直接启动
+
+## TKF 智能体说明
+
+- 默认读取环境变量 `DEEPSEEK_API_KEY`
+- 如果没有配置 API Key，系统仍可正常启动
+- 未配置 Key 时，TKF 智能体会自动走本地 fallback 演示逻辑，不影响演示
+
+如需启用 DeepSeek，可在启动前设置：
 
 ```powershell
-cd frontend
-npm install
-npm run dev -- --host 0.0.0.0
+$env:DEEPSEEK_API_KEY="your_api_key"
+.\start-all.ps1
 ```
-
-## 地址
-
-- 设计态：`http://localhost:8080/#/designer`
-- 运行态：`http://localhost:8080/#/runtime/volatility_tracking_dashboard`
-- 后端 API：`http://localhost:8080/api`
-
-## 设计态流程
-
-设计态围绕数据池配置图表：先选择或新建数据池，再选择预设模板，然后配置维度、系列拆分字段、指标、筛选排序和通用展示设置。数据池支持单表来源，也预留多表查询配置；数据池内可以继续添加计算指标，例如平均值、滚动三年平均值。

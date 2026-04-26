@@ -14,6 +14,9 @@ import type {
   RuntimeChartResponse,
   RuntimeDashboardResponse,
   SourceTable,
+  TkfAgentMessage,
+  TkfAgentResponse,
+  TkfChartCandidate,
   TemplateDefinition
 } from '../types/dashboard';
 import { normalizeComponentForTransport, normalizeDashboardForTransport } from '../utils/dashboard';
@@ -136,5 +139,7 @@ export const api = {
   loadRuntime: (dashboardCode: string) => unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode } })),
   loadRuntimeChart: async (chartCode: string) => toRuntimeChartResponse(await unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode: chartCode } }))),
   previewComponent: (component: { modelCode: string; dslConfig: ComponentDslConfig }) =>
-    unwrap<ChartPreview>(client.post('/chart/preview', buildPreviewPayload(component)))
+    unwrap<ChartPreview>(client.post('/chart/preview', buildPreviewPayload(component))),
+  tkfAgentChat: (payload: { messages: TkfAgentMessage[]; availableCharts: TkfChartCandidate[] }) =>
+    unwrap<TkfAgentResponse>(client.post('/agent/tkf/chat', payload))
 };

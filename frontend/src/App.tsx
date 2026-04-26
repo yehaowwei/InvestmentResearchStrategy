@@ -1,8 +1,11 @@
 import {
-  BarChartOutlined,
-  FolderOpenOutlined,
-  FundProjectionScreenOutlined,
+  AppstoreOutlined,
+  ClusterOutlined,
+  DatabaseOutlined,
+  FolderViewOutlined,
+  OrderedListOutlined,
   MenuFoldOutlined,
+  SettingOutlined,
   StarOutlined
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
@@ -10,52 +13,55 @@ import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import DashboardDesigner from './pages/DashboardDesigner';
 import PersonalDashboard from './pages/PersonalDashboard';
 import DashboardRuntime from './pages/DashboardRuntime';
-import StrategyPlaceholder from './pages/StrategyPlaceholder';
+import MyStrategy from './pages/MyStrategy';
+import StrategyCenter from './pages/StrategyCenter';
+import StrategyConfig from './pages/StrategyConfig';
 import { DASHBOARD_CATEGORIES } from './utils/dashboardCatalog';
+
+const TEXT = {
+  myFavorites: '\u6211\u7684\u6307\u6807',
+  myStrategy: '\u6211\u7684\u7b56\u7565',
+  strategyCenter: '\u7b56\u7565\u4e2d\u5fc3',
+  runtimeCenter: '\u6307\u6807\u4e2d\u5fc3',
+  strategyConfig: '\u7b56\u7565\u914d\u7f6e',
+  designer: '\u6307\u6807\u914d\u7f6e',
+  brand: '\u6295\u7814\u7b56\u7565\u5316\u5e73\u53f0'
+};
 
 const items = [
   {
     key: '/favorites',
     icon: <StarOutlined />,
-    label: <Link to="/favorites">我的指标</Link>
+    label: <Link to="/favorites">{TEXT.myFavorites}</Link>
   },
   {
     key: '/my-strategy',
-    icon: <StarOutlined />,
-    label: <Link to="/my-strategy">我的策略</Link>
+    icon: <FolderViewOutlined />,
+    label: <Link to="/my-strategy">{TEXT.myStrategy}</Link>
   },
   {
     key: 'runtime-group',
-    icon: <FolderOpenOutlined />,
-    label: '指标中心',
+    icon: <DatabaseOutlined />,
+    label: TEXT.runtimeCenter,
     children: DASHBOARD_CATEGORIES.map(item => ({
       key: `/runtime/${item.key}`,
       label: <Link to={`/runtime/${item.key}`}>{item.label}</Link>
     }))
   },
   {
-    key: 'strategy-group',
-    icon: <BarChartOutlined />,
-    label: '策略中心',
-    children: [
-      {
-        key: '/strategy/config',
-        label: <Link to="/strategy/config">配置策略</Link>
-      },
-      {
-        key: '/strategy/timing',
-        label: <Link to="/strategy/timing">择时策略</Link>
-      },
-      {
-        key: '/strategy/multi-asset',
-        label: <Link to="/strategy/multi-asset">多元细分品种策略</Link>
-      }
-    ]
+    key: '/strategy-center',
+    icon: <ClusterOutlined />,
+    label: <Link to="/strategy-center">{TEXT.strategyCenter}</Link>
   },
   {
     key: '/designer',
-    icon: <FundProjectionScreenOutlined />,
-    label: <Link to="/designer">指标配置</Link>
+    icon: <AppstoreOutlined />,
+    label: <Link to="/designer">{TEXT.designer}</Link>
+  },
+  {
+    key: '/strategy/config',
+    icon: <OrderedListOutlined />,
+    label: <Link to="/strategy/config">{TEXT.strategyConfig}</Link>
   }
 ];
 
@@ -75,11 +81,8 @@ function resolveSelectedKey(pathname: string) {
   if (pathname.startsWith('/strategy/config')) {
     return '/strategy/config';
   }
-  if (pathname.startsWith('/strategy/timing')) {
-    return '/strategy/timing';
-  }
-  if (pathname.startsWith('/strategy/multi-asset')) {
-    return '/strategy/multi-asset';
+  if (pathname.startsWith('/strategy-center')) {
+    return '/strategy-center';
   }
   if (pathname.startsWith('/my-strategy')) {
     return '/my-strategy';
@@ -99,14 +102,14 @@ export default function App() {
         onMouseLeave={event => event.currentTarget.classList.remove('expanded')}
       >
         <div className="app-sidebar-brand">
-          <BarChartOutlined />
-          <span className="app-sidebar-brand-text">投研策略化平台</span>
+          <SettingOutlined />
+          <span className="app-sidebar-brand-text">{TEXT.brand}</span>
           <MenuFoldOutlined className="app-sidebar-fold" />
         </div>
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
-          defaultOpenKeys={['runtime-group', 'strategy-group']}
+          defaultOpenKeys={['runtime-group']}
           items={items}
           className="app-sidebar-menu"
         />
@@ -122,10 +125,11 @@ export default function App() {
           <Route path="/runtime/:categoryKey/:chartCode" element={<DashboardRuntime />} />
           <Route path="/favorites" element={<PersonalDashboard />} />
           <Route path="/favorites/:chartId" element={<PersonalDashboard />} />
-          <Route path="/strategy/config" element={<StrategyPlaceholder />} />
-          <Route path="/strategy/timing" element={<StrategyPlaceholder />} />
-          <Route path="/strategy/multi-asset" element={<StrategyPlaceholder />} />
-          <Route path="/my-strategy" element={<StrategyPlaceholder />} />
+          <Route path="/my-strategy" element={<MyStrategy />} />
+          <Route path="/my-strategy/:strategyId" element={<MyStrategy />} />
+          <Route path="/strategy-center" element={<StrategyCenter />} />
+          <Route path="/strategy-center/:strategyId" element={<StrategyCenter />} />
+          <Route path="/strategy/config" element={<StrategyConfig />} />
         </Routes>
       </Layout.Content>
     </Layout>

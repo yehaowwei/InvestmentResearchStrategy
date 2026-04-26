@@ -2,7 +2,6 @@
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
-  HolderOutlined,
   PlusOutlined
 } from '@ant-design/icons';
 import { Button, Empty, Form, Input, Modal, Popconfirm, Select, Space, Spin, message } from 'antd';
@@ -423,6 +422,14 @@ export default function DashboardDesigner() {
     };
   };
 
+  const handleLibraryCardMouseDown = (event: ReactMouseEvent<HTMLElement>, sourceChartCode: string) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button')) {
+      return;
+    }
+    handleLibrarySortStart(event, sourceChartCode);
+  };
+
   useEffect(() => () => {
     dragCleanupRef.current?.();
     document.body.style.userSelect = '';
@@ -587,7 +594,8 @@ export default function DashboardDesigner() {
                       key={item.chartCode}
                       id={`designer-chart-card-${item.chartCode}`}
                       data-sort-id={item.chartCode}
-                      className={`panel-card favorites-board-card public-board-card personal-chart-card designer-library-card${draggingChartCode === item.chartCode ? ' personal-chart-card-dragging' : ''}${dragOverChartCode === item.chartCode && draggingChartCode !== item.chartCode ? ' drag-preview-target' : ''}`}
+                      className={`panel-card favorites-board-card public-board-card personal-chart-card personal-chart-card-sortable designer-library-card${draggingChartCode === item.chartCode ? ' personal-chart-card-dragging' : ''}${dragOverChartCode === item.chartCode && draggingChartCode !== item.chartCode ? ' drag-preview-target' : ''}`}
+                      onMouseDown={event => handleLibraryCardMouseDown(event, item.chartCode)}
                     >
                       <div className="favorites-board-card-head">
                         <div>
@@ -601,13 +609,6 @@ export default function DashboardDesigner() {
                           <Button icon={<EditOutlined />} onClick={() => navigate(`/designer/${routeCategory}/${item.chartCode}`)}>
                             修改
                           </Button>
-                          <span
-                            className="drag-handle-chip"
-                            onMouseDown={event => handleLibrarySortStart(event, item.chartCode)}
-                          >
-                            <HolderOutlined />
-                            <span>拖拽排序</span>
-                          </span>
                           <Popconfirm title="确认删除当前图表吗？" okText="删除" cancelText="取消" onConfirm={() => void deleteChart(item.chartCode)}>
                             <Button danger icon={<DeleteOutlined />}>删除</Button>
                           </Popconfirm>

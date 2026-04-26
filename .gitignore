@@ -20,6 +20,7 @@ backend/runtime/
 backend/data/*.mv.db
 backend/data/*.trace.db
 backend/data/*.lock.db
+!backend/data/bi-demo.mv.db
 data/*.mv.db
 data/*.trace.db
 data/*.lock.db

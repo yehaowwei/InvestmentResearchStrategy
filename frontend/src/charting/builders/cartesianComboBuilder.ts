@@ -51,8 +51,17 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
   const enableStack = preview.dslConfig.dimensionConfigDsl.stackBySecondDimension && dimensions.length >= 2;
   const compact = Boolean(context?.compact);
   const dense = !compact && Boolean(context?.dense);
+  const thumbnail = Boolean(context?.thumbnail);
+  const legendRightPadding = dense ? 112 : 140;
   const sliderBottom = 0;
   const gridBottom = interactionDsl.slider ? (compact ? 40 : dense ? 34 : 46) : (compact ? 38 : dense ? 28 : 40);
+  const thumbnailGrid = {
+    left: 40,
+    right: hasRightAxis ? 44 : 20,
+    top: 16,
+    bottom: 34,
+    containLabel: true
+  };
 
   return {
     animationDuration: compact ? 0 : 300,
@@ -66,35 +75,28 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
       axisPointer: { type: 'line', label: { show: !dense } },
       extraCssText: dense ? 'max-width: 180px; white-space: normal; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);' : undefined
     },
-    legend: compact || !interactionDsl.legend ? { show: false } : {
+    legend: compact || thumbnail || !interactionDsl.legend ? { show: false } : {
       top: dense ? 2 : 0,
+      left: dense ? 8 : 12,
+      right: legendRightPadding,
       type: 'scroll',
       itemWidth: dense ? 10 : 14,
       itemHeight: dense ? 7 : 10,
+      pageIconColor: '#475569',
+      pageIconInactiveColor: '#94a3b8',
+      pageIconSize: dense ? 10 : 12,
+      pageTextStyle: dense ? { fontSize: 10, color: '#1f2937' } : { color: '#1f2937' },
       textStyle: dense ? { fontSize: 10, color: '#1f2937' } : { color: '#1f2937' }
     },
-    grid: compact
+    grid: thumbnail
+      ? thumbnailGrid
+      : compact
       ? { left: 40, right: hasRightAxis ? 40 : 18, top: 16, bottom: gridBottom, containLabel: true }
       : dense
-        ? { left: 52, right: hasRightAxis ? 52 : 22, top: 34, bottom: gridBottom, containLabel: true }
-        : { left: 64, right: hasRightAxis ? 64 : 28, top: 52, bottom: gridBottom, containLabel: true },
-    dataZoom: compact
-      ? interactionDsl.dataZoom
-        ? [
-          ...(interactionDsl.slider ? [{
-            type: 'slider' as const,
-            start: zoom.start,
-            end: zoom.end,
-            height: 16,
-            bottom: sliderBottom,
-            showDetail: false,
-            brushSelect: false,
-            textStyle: { color: '#475569', fontSize: 10 },
-            labelFormatter: (value: string | number) => formatTimeLabel(value, xValues)
-          }] : []),
-          { type: 'inside' as const, start: zoom.start, end: zoom.end }
-        ]
-        : []
+        ? { left: 52, right: hasRightAxis ? 52 : 22, top: 38, bottom: gridBottom, containLabel: true }
+        : { left: 64, right: hasRightAxis ? 64 : 28, top: 56, bottom: gridBottom, containLabel: true },
+    dataZoom: compact || thumbnail
+      ? []
       : interactionDsl.dataZoom
         ? [
           ...(interactionDsl.slider ? [{

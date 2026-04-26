@@ -1,10 +1,21 @@
-import { DeleteOutlined, ExpandOutlined, HolderOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ExpandOutlined } from '@ant-design/icons';
 import { Button, Empty, Popconfirm } from 'antd';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { ChartPreview } from '../../types/dashboard';
 import ChartRendererCore from '../../components/ChartRendererCore';
 import { normalizeDisplayText } from '../../utils/dashboard';
 import type { PersonalChartEntry } from '../../utils/favorites';
 import { toComponent } from './helpers';
+
+const TEXT = {
+  order: '\u6392\u5e8f',
+  enlarge: '\u653e\u5927\u67e5\u770b',
+  delete: '\u5220\u9664',
+  deleteConfirm: '\u786e\u8ba4\u5220\u9664\u5f53\u524d\u56fe\u8868\u5417\uff1f',
+  confirm: '\u786e\u8ba4',
+  cancel: '\u53d6\u6d88',
+  noPreview: '\u5f53\u524d\u56fe\u8868\u6682\u65e0\u9884\u89c8'
+} as const;
 
 export default function PersonalChartCard(props: {
   item: PersonalChartEntry;
@@ -13,15 +24,25 @@ export default function PersonalChartCard(props: {
   dragOver: boolean;
   sortMode: 'manual' | 'time_asc' | 'time_desc';
   onExpand: () => void;
-  onSortStart: (event: React.MouseEvent<HTMLElement>, boardId: string) => void;
+  onSortStart: (event: ReactMouseEvent<HTMLElement>, boardId: string) => void;
   onRemove: () => void;
 }) {
   const { item } = props;
+
+  const handleMouseDown = (event: ReactMouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button')) {
+      return;
+    }
+    props.onSortStart(event, item.boardId);
+  };
+
   return (
     <article
       id={`personal-chart-card-${item.chart.componentCode}`}
       data-sort-id={item.boardId}
-      className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card${props.dragging ? ' personal-chart-card-dragging' : ''}${props.dragOver ? ' drag-preview-target' : ''}`}
+      className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card${props.dragging ? ' personal-chart-card-dragging' : ''}${props.dragOver ? ' drag-preview-target' : ''}${props.sortMode === 'manual' ? ' personal-chart-card-sortable' : ''}`}
+      onMouseDown={handleMouseDown}
     >
       <div className="favorites-board-card-head">
         <div>
@@ -31,23 +52,16 @@ export default function PersonalChartCard(props: {
           <div className="favorites-board-meta">
             <span>{item.primaryLabel}</span>
             <span>{item.secondaryLabel}</span>
-            <span>排序 {item.order}</span>
+            <span>{TEXT.order} {item.order}</span>
           </div>
         </div>
         <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">
           <Button icon={<ExpandOutlined />} onClick={props.onExpand}>
-            放大查看
+            {TEXT.enlarge}
           </Button>
-          <span
-            className={`drag-handle-chip${props.sortMode !== 'manual' ? ' disabled' : ''}`}
-            onMouseDown={event => props.onSortStart(event, item.boardId)}
-          >
-            <HolderOutlined />
-            <span>拖拽排序</span>
-          </span>
-          <Popconfirm title="确认删除当前图表吗？" okText="确认" cancelText="取消" onConfirm={props.onRemove}>
+          <Popconfirm title={TEXT.deleteConfirm} okText={TEXT.confirm} cancelText={TEXT.cancel} onConfirm={props.onRemove}>
             <Button icon={<DeleteOutlined />} danger>
-              删除
+              {TEXT.delete}
             </Button>
           </Popconfirm>
         </div>
@@ -72,13 +86,13 @@ export default function PersonalChartCard(props: {
                 selected={false}
                 thumbnail
                 compact={false}
-                            dense
-                          />
-                        ) : (
-                          <Empty description="当前图表暂无预览" />
-                        )}
-                      </div>
-                    </div>
+                dense
+              />
+            ) : (
+              <Empty description={TEXT.noPreview} />
+            )}
+          </div>
+        </div>
       </div>
     </article>
   );

@@ -2,15 +2,30 @@ import type { ChartCatalogItem, DashboardCategoryKey, DashboardMeta, DashboardSu
 
 const STORAGE_KEY = 'bi-dashboard-category-meta';
 
+const BUILTIN_META: Record<string, DashboardMeta> = {
+  margin_financing_dashboard: {
+    dashboardCode: 'margin_financing_dashboard',
+    category: 'liquidity',
+    order: 1
+  }
+};
+
+const CATEGORY_LABELS: Record<DashboardCategoryKey, string> = {
+  valuation: '\u4f30\u503c\u6307\u6807',
+  liquidity: '\u6d41\u52a8\u6027\u6307\u6807',
+  sentiment: '\u60c5\u7eea\u6307\u6807',
+  cycle: '\u5468\u671f\u5b9a\u4f4d\u6307\u6807'
+};
+
 export const DASHBOARD_CATEGORIES: Array<{ key: DashboardCategoryKey; label: string }> = [
-  { key: 'valuation', label: '估值指标' },
-  { key: 'liquidity', label: '流动性指标' },
-  { key: 'sentiment', label: '情绪指标' },
-  { key: 'cycle', label: '周期定位指标' }
+  { key: 'valuation', label: CATEGORY_LABELS.valuation },
+  { key: 'liquidity', label: CATEGORY_LABELS.liquidity },
+  { key: 'sentiment', label: CATEGORY_LABELS.sentiment },
+  { key: 'cycle', label: CATEGORY_LABELS.cycle }
 ];
 
 function defaultMeta(dashboardCode: string): DashboardMeta {
-  return {
+  return BUILTIN_META[dashboardCode] ?? {
     dashboardCode,
     category: 'valuation',
     order: 0
@@ -53,7 +68,7 @@ export function normalizeCategoryKey(value?: string): DashboardCategoryKey {
 }
 
 export function getCategoryLabel(category: DashboardCategoryKey) {
-  return DASHBOARD_CATEGORIES.find(item => item.key === category)?.label ?? '估值指标';
+  return CATEGORY_LABELS[category] ?? CATEGORY_LABELS.valuation;
 }
 
 export function getDashboardMeta(dashboardCode: string) {
