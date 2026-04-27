@@ -35,12 +35,7 @@ $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendRoot = Join-Path $repoRoot 'backend'
 $frontendRoot = Join-Path $repoRoot 'frontend'
 $staticRoot = Join-Path $backendRoot 'src\main\resources\static'
-$staticKeepFile = Join-Path $staticRoot '.gitkeep'
 $runtimeRoot = Join-Path $backendRoot 'runtime'
-$runtimeDataRoot = Join-Path $runtimeRoot 'data'
-$dbTemplateRoot = Join-Path $backendRoot 'data-template'
-$dbTemplateFile = Join-Path $dbTemplateRoot 'bi-demo.mv.db'
-$dbRuntimeFile = Join-Path $runtimeDataRoot 'bi-demo.mv.db'
 $packagedJar = Join-Path $backendRoot 'target\bi-dashboard-engine-1.0.0.jar'
 $runtimeJar = Join-Path $runtimeRoot 'bi-dashboard-engine-1.0.0.jar'
 $mavenRepo = Join-Path $repoRoot '.m2'
@@ -86,7 +81,6 @@ if (Test-Path $staticRoot) {
   Remove-Item -LiteralPath $staticRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $staticRoot -Force | Out-Null
-Set-Content -LiteralPath $staticKeepFile -Value '' -NoNewline
 Copy-Item -Path (Join-Path $frontendRoot 'dist\*') -Destination $staticRoot -Recurse -Force
 
 Push-Location $backendRoot
@@ -100,18 +94,8 @@ try {
   if (-not (Test-Path $runtimeRoot)) {
     New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
   }
-  if (-not (Test-Path $runtimeDataRoot)) {
-    New-Item -ItemType Directory -Path $runtimeDataRoot -Force | Out-Null
-  }
   if (-not (Test-Path $logsRoot)) {
     New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
-  }
-  if (-not (Test-Path $dbTemplateFile)) {
-    throw "Database template is missing: $dbTemplateFile"
-  }
-  if (-not (Test-Path $dbRuntimeFile)) {
-    Write-Host 'Initializing runtime database from template...'
-    Copy-Item -LiteralPath $dbTemplateFile -Destination $dbRuntimeFile -Force
   }
 
   Copy-Item -LiteralPath $packagedJar -Destination $runtimeJar -Force

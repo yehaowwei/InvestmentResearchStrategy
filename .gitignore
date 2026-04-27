@@ -10,24 +10,17 @@ Thumbs.db
 # Frontend
 frontend/node_modules/
 frontend/dist/
-QueryH2.class
 
 # Backend build / runtime
 backend/target/
 backend/runtime/
 .m2/
 
-# Generated frontend bundle copied into backend before packaging
-backend/src/main/resources/static/*
-!backend/src/main/resources/static/.gitkeep
-
 # Local databases
 backend/data/*.mv.db
 backend/data/*.trace.db
 backend/data/*.lock.db
-backend/data/
-backend/data-template/*.trace.db
-backend/data-template/*.lock.db
+!backend/data/bi-demo.mv.db
 data/*.mv.db
 data/*.trace.db
 data/*.lock.db
