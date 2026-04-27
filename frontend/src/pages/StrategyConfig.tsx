@@ -13,7 +13,14 @@ import type { ChartCatalogItem } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
 import { getDashboardMeta, getCategoryLabel } from '../utils/dashboardCatalog';
 import { buildChartRuntimeCards, type ChartRuntimeCard } from '../utils/chartLibrary';
-import { createStrategy, toStrategyChartSnapshot } from '../utils/strategies';
+import {
+  createStrategy,
+  deleteStrategy,
+  listStrategies,
+  strategyChangeEventName,
+  toStrategyChartSnapshot,
+  updateStrategy
+} from '../utils/strategies';
 import {
   normalizeSearchKeyword,
   reorderItemsPreview,
@@ -68,6 +75,7 @@ type StrategyConfigScope = 'personal' | 'public';
 
 type StrategyConfigDraft = {
   draftId: string;
+  strategyId?: string;
   strategyName: string;
   selectedChartIds: string[];
   order: number;
@@ -104,6 +112,7 @@ function formatDateTime(value?: string) {
 function normalizeDraft(draft: StrategyConfigDraft, fallbackOrder: number): StrategyConfigDraft {
   return {
     draftId: draft.draftId,
+    strategyId: draft.strategyId,
     strategyName: normalizeDisplayText(draft.strategyName, draft.draftId),
     selectedChartIds: Array.isArray(draft.selectedChartIds) ? draft.selectedChartIds.filter(item => typeof item === 'string') : [],
     order: Number.isFinite(draft.order) ? draft.order : fallbackOrder,
@@ -114,6 +123,47 @@ function normalizeDraft(draft: StrategyConfigDraft, fallbackOrder: number): Stra
   };
 }
 
+function syncDraftsWithStrategies(scope: StrategyConfigScope, drafts: StrategyConfigDraft[]) {
+  const strategies = listStrategies(scope);
+  const nextDrafts = drafts
+    .filter(draft => !draft.strategyId || strategies.some(strategy => strategy.strategyId === draft.strategyId));
+  const linkedStrategyIds = new Set(
+    nextDrafts
+      .map(draft => draft.strategyId)
+      .filter((strategyId): strategyId is string => Boolean(strategyId))
+  );
+
+  let changed = nextDrafts.length !== drafts.length;
+
+  strategies.forEach(strategy => {
+    if (linkedStrategyIds.has(strategy.strategyId)) {
+      return;
+    }
+    nextDrafts.push({
+      draftId: `strategy-config-linked-${scope}-${strategy.strategyId}`,
+      strategyId: strategy.strategyId,
+      strategyName: strategy.strategyName,
+      selectedChartIds: strategy.charts.map(chart => chart.chartId),
+      order: nextDrafts.length + 1,
+      createdAt: strategy.createdAt,
+      updatedAt: strategy.updatedAt,
+      savedAt: strategy.updatedAt,
+      publishedAt: strategy.updatedAt
+    });
+    changed = true;
+  });
+
+  const normalized = nextDrafts
+    .map((item, index) => normalizeDraft(item, index + 1))
+    .sort((a, b) => (a.order - b.order) || a.createdAt.localeCompare(b.createdAt));
+
+  if (changed && typeof window !== 'undefined') {
+    window.localStorage.setItem(storageKey(scope), JSON.stringify(normalized));
+  }
+
+  return normalized;
+}
+
 function listDrafts(scope: StrategyConfigScope) {
   if (typeof window === 'undefined') {
     return [] as StrategyConfigDraft[];
@@ -121,17 +171,15 @@ function listDrafts(scope: StrategyConfigScope) {
   try {
     const raw = window.localStorage.getItem(storageKey(scope));
     if (!raw) {
-      return [];
+      return syncDraftsWithStrategies(scope, []);
     }
     const parsed = JSON.parse(raw) as StrategyConfigDraft[];
     if (!Array.isArray(parsed)) {
-      return [];
+      return syncDraftsWithStrategies(scope, []);
     }
-    return parsed
-      .map((item, index) => normalizeDraft(item, index + 1))
-      .sort((a, b) => (a.order - b.order) || a.createdAt.localeCompare(b.createdAt));
+    return syncDraftsWithStrategies(scope, parsed);
   } catch {
-    return [];
+    return syncDraftsWithStrategies(scope, []);
   }
 }
 
@@ -162,7 +210,7 @@ function createDraft(scope: StrategyConfigScope, input?: { strategyName?: string
 function updateDraft(
   scope: StrategyConfigScope,
   draftId: string,
-  patch: Partial<Pick<StrategyConfigDraft, 'strategyName' | 'selectedChartIds' | 'savedAt' | 'publishedAt' | 'order'>>
+  patch: Partial<Pick<StrategyConfigDraft, 'strategyId' | 'strategyName' | 'selectedChartIds' | 'savedAt' | 'publishedAt' | 'order'>>
 ) {
   const drafts = listDrafts(scope).map(draft => {
     if (draft.draftId !== draftId) {
@@ -170,6 +218,7 @@ function updateDraft(
     }
     return {
       ...draft,
+      strategyId: patch.strategyId ?? draft.strategyId,
       strategyName: patch.strategyName != null ? normalizeDisplayText(patch.strategyName, draft.draftId) : draft.strategyName,
       selectedChartIds: patch.selectedChartIds ?? draft.selectedChartIds,
       order: patch.order ?? draft.order,
@@ -182,7 +231,12 @@ function updateDraft(
 }
 
 function deleteDraft(scope: StrategyConfigScope, draftId: string) {
-  const nextDrafts = listDrafts(scope)
+  const drafts = listDrafts(scope);
+  const targetDraft = drafts.find(draft => draft.draftId === draftId);
+  if (targetDraft?.strategyId) {
+    deleteStrategy(targetDraft.strategyId, scope);
+  }
+  const nextDrafts = drafts
     .filter(draft => draft.draftId !== draftId)
     .map((draft, index) => ({ ...draft, order: index + 1 }));
   writeDrafts(scope, nextDrafts);
@@ -231,11 +285,14 @@ function StrategyConfigOverview(props: {
 
   useEffect(() => {
     const sync = () => setDrafts(listDrafts(props.scope));
+    const strategyEventName = strategyChangeEventName(props.scope);
     window.addEventListener('storage', sync);
     window.addEventListener(CHANGE_EVENT, sync as EventListener);
+    window.addEventListener(strategyEventName, sync as EventListener);
     return () => {
       window.removeEventListener('storage', sync);
       window.removeEventListener(CHANGE_EVENT, sync as EventListener);
+      window.removeEventListener(strategyEventName, sync as EventListener);
     };
   }, [props.scope]);
 
@@ -532,11 +589,14 @@ function StrategyConfigEditor(props: {
 
   useEffect(() => {
     const sync = () => setDraft(getDraft(props.scope, props.draftId));
+    const strategyEventName = strategyChangeEventName(props.scope);
     window.addEventListener('storage', sync);
     window.addEventListener(CHANGE_EVENT, sync as EventListener);
+    window.addEventListener(strategyEventName, sync as EventListener);
     return () => {
       window.removeEventListener('storage', sync);
       window.removeEventListener(CHANGE_EVENT, sync as EventListener);
+      window.removeEventListener(strategyEventName, sync as EventListener);
     };
   }, [props.draftId, props.scope]);
 
@@ -576,17 +636,26 @@ function StrategyConfigEditor(props: {
     navigate(`/strategy/config${scopeQuery}`);
   };
 
-  const persistDraft = (patch: Partial<Pick<StrategyConfigDraft, 'strategyName' | 'selectedChartIds' | 'savedAt' | 'publishedAt'>>) => {
+  const persistDraft = (patch: Partial<Pick<StrategyConfigDraft, 'strategyId' | 'strategyName' | 'selectedChartIds' | 'savedAt' | 'publishedAt'>>) => {
     updateDraft(props.scope, draft.draftId, patch);
     setDraft(getDraft(props.scope, draft.draftId));
   };
 
   const saveDraft = () => {
     try {
+      const now = new Date().toISOString();
+      const nextName = strategyName.trim() || draft.strategyName;
+      const nextCharts = selectedCharts.map(toStrategyChartSnapshot);
+      if (draft.strategyId) {
+        updateStrategy(draft.strategyId, {
+          strategyName: nextName,
+          charts: nextCharts
+        }, props.scope);
+      }
       persistDraft({
-        strategyName,
+        strategyName: nextName,
         selectedChartIds: draft.selectedChartIds,
-        savedAt: new Date().toISOString()
+        savedAt: now
       });
       message.success(TEXT.draftSaved);
     } catch (saveError) {
@@ -601,14 +670,25 @@ function StrategyConfigEditor(props: {
       return;
     }
     try {
-      createStrategy({
-        scope: props.scope,
-        strategyName: strategyName.trim() || draft.strategyName,
-        charts: selectedCharts.map(toStrategyChartSnapshot)
-      });
       const now = new Date().toISOString();
+      const nextName = strategyName.trim() || draft.strategyName;
+      const nextCharts = selectedCharts.map(toStrategyChartSnapshot);
+      let strategyId = draft.strategyId;
+      if (strategyId) {
+        updateStrategy(strategyId, {
+          strategyName: nextName,
+          charts: nextCharts
+        }, props.scope);
+      } else {
+        strategyId = createStrategy({
+          scope: props.scope,
+          strategyName: nextName,
+          charts: nextCharts
+        }).strategyId;
+      }
       persistDraft({
-        strategyName,
+        strategyId,
+        strategyName: nextName,
         selectedChartIds: draft.selectedChartIds,
         savedAt: draft.savedAt ?? now,
         publishedAt: now
