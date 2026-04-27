@@ -93,15 +93,21 @@ function Test-NeedsRefresh {
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendRoot = Join-Path $repoRoot 'backend'
 $frontendRoot = Join-Path $repoRoot 'frontend'
-$staticRoot = Join-Path $backendRoot 'src\main\resources\static'
-$runtimeRoot = Join-Path $backendRoot 'runtime'
+$staticRoot = Join-Path $backendRoot 'target\classes\static'
+$cacheRoot = Join-Path $repoRoot '.cache'
+$runtimeRoot = Join-Path $repoRoot '.runtime'
+$runtimeDataRoot = Join-Path $runtimeRoot 'data'
 $packagedJar = Join-Path $backendRoot 'target\bi-dashboard-engine-1.0.0.jar'
 $runtimeJar = Join-Path $runtimeRoot 'bi-dashboard-engine-1.0.0.jar'
-$mavenRepo = Join-Path $repoRoot '.m2'
+$mavenRepo = Join-Path $cacheRoot 'maven'
 $logsRoot = Join-Path $runtimeRoot 'logs'
 $stdoutLog = Join-Path $logsRoot 'backend.out.log'
 $stderrLog = Join-Path $logsRoot 'backend.err.log'
 $pidFile = Join-Path $runtimeRoot 'backend.pid'
+$demoDbFile = Join-Path $repoRoot 'seed-data\bi-demo.mv.db'
+$runtimeDbFile = Join-Path $runtimeDataRoot 'bi-demo.mv.db'
+$runtimeDbBase = (Join-Path $runtimeDataRoot 'bi-demo') -replace '\\', '/'
+$defaultDbUrl = "jdbc:h2:file:$runtimeDbBase;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
 $frontendNodeModules = Join-Path $frontendRoot 'node_modules'
 $frontendPackageLock = Join-Path $frontendRoot 'package-lock.json'
 $frontendDistRoot = Join-Path $frontendRoot 'dist'
@@ -113,7 +119,6 @@ $frontendSourcePaths = @(
   (Join-Path $frontendRoot 'package-lock.json'),
   (Join-Path $frontendRoot 'vite.config.js'),
   (Join-Path $frontendRoot 'tsconfig.json'),
-  (Join-Path $frontendRoot 'tsconfig.node.json'),
   (Join-Path $frontendRoot 'index.html')
 )
 $backendSourcePaths = @(
@@ -127,6 +132,13 @@ Assert-Command -Name 'mvn' -Hint 'Please install Maven 3.9+ and ensure mvn is in
 Assert-Command -Name 'java' -Hint 'Please install Java 17+ and ensure java is in PATH.'
 
 Stop-PortProcess -Port 28637
+
+if (-not (Test-Path $runtimeDataRoot)) {
+  New-Item -ItemType Directory -Path $runtimeDataRoot -Force | Out-Null
+}
+if ((-not (Test-Path $runtimeDbFile)) -and (Test-Path $demoDbFile)) {
+  Copy-Item -LiteralPath $demoDbFile -Destination $runtimeDbFile -Force
+}
 
 Push-Location $frontendRoot
 try {
@@ -202,13 +214,27 @@ try {
     Remove-Item -LiteralPath $stderrLog -Force
   }
 
-  $process = Start-Process java `
-    -ArgumentList '-jar', $runtimeJar `
-    -WorkingDirectory $backendRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $stdoutLog `
-    -RedirectStandardError $stderrLog `
-    -PassThru
+  $previousDbUrl = $env:BI_DB_URL
+  if (-not $previousDbUrl) {
+    $env:BI_DB_URL = $defaultDbUrl
+  }
+  try {
+    $process = Start-Process java `
+      -ArgumentList '-jar', $runtimeJar `
+      -WorkingDirectory $backendRoot `
+      -WindowStyle Hidden `
+      -RedirectStandardOutput $stdoutLog `
+      -RedirectStandardError $stderrLog `
+      -PassThru
+  }
+  finally {
+    if ($previousDbUrl) {
+      $env:BI_DB_URL = $previousDbUrl
+    }
+    else {
+      Remove-Item Env:\BI_DB_URL -ErrorAction SilentlyContinue
+    }
+  }
   Set-Content -LiteralPath $pidFile -Value $process.Id
 }
 finally {

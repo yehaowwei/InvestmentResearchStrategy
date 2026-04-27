@@ -1,5 +1,23 @@
 # 投研 BI 看板系统
 
+## 目录结构
+
+```text
+frontend/                 前端源码
+backend/                  后端源码
+seed-data/                可提交的演示数据种子
+.cache/                   本机依赖缓存，自动生成，不提交
+.runtime/                 本机运行目录，自动生成，不提交
+```
+
+生成物和缓存不放在源码目录里：
+
+- `frontend/node_modules/`：前端依赖目录，由 `npm ci` 生成，不提交。
+- `frontend/dist/`：前端构建产物，由 `npm run build` 生成，不提交。
+- `backend/target/`：后端 Maven 构建产物，不提交。
+- `.cache/maven/`：Maven 依赖缓存，不提交。
+- `.runtime/`：运行时 jar、日志、H2 运行数据库，不提交。
+
 ## 一键启动
 
 Windows 环境下，拉取代码后在仓库根目录运行下面任一命令即可：
@@ -18,9 +36,11 @@ start-all.bat
 
 1. 首次启动时安装前端依赖。
 2. 仅在前端源码变化时重新构建前端。
-3. 将前端构建产物复制到后端静态资源目录。
-4. 仅在后端源码或静态资源变化时重新打包后端。
-5. 启动 Spring Boot 服务。
+3. 将前端构建产物复制到后端构建输出目录 `backend/target/classes/static`。
+4. 首次启动时从 `seed-data/bi-demo.mv.db` 初始化 `.runtime/data/bi-demo.mv.db`。
+5. 使用 `.cache/maven` 作为 Maven 依赖缓存。
+6. 仅在后端源码或静态资源变化时重新打包后端。
+7. 启动 Spring Boot 服务。
 
 启动成功后访问：
 
@@ -38,9 +58,10 @@ start-all.bat
 
 ## 数据说明
 
-- 演示数据直接保存在仓库内的 `backend/data/bi-demo.mv.db`。
+- `seed-data/bi-demo.mv.db` 是演示数据种子，会提交到 Git。
+- `.runtime/data/bi-demo.mv.db` 是本机运行数据库，不提交。
+- 如果想恢复到默认演示数据，停止服务后删除 `.runtime/data/bi-demo.mv.db`，再重新运行 `start-all.ps1`。
 - 当前配置为 `spring.sql.init.mode: never`，启动时不会额外执行 SQL 初始化。
-- 另一台设备 `git pull` 后可以直接启动并看到同一套演示数据。
 
 ## TKF 智能体说明
 

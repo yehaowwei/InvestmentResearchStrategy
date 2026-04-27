@@ -11,26 +11,24 @@ Thumbs.db
 frontend/node_modules/
 frontend/dist/
 
-# Backend build / runtime
+# Build / runtime / dependency caches
 backend/target/
 backend/runtime/
+backend/.m2/
 backend/src/main/resources/static/
+.cache/
+.runtime/
 .m2/
 
 backend/data-template/
 
 # Local databases
-backend/data/*.mv.db
-backend/data/*.trace.db
-backend/data/*.lock.db
-!backend/data/bi-demo.mv.db
-data/*.mv.db
-data/*.trace.db
-data/*.lock.db
+backend/data/
+data/
 
 # Temp payloads
 tmp-*.json
 
 # Local database inspection helpers
-Query*.java
-Query*.class
+/Query*.java
+/Query*.class
