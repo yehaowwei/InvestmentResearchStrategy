@@ -6,7 +6,7 @@ spring:
   application:
     name: bi-dashboard-engine
   datasource:
-    url: ${BI_DB_URL:jdbc:h2:file:./data/bi-demo;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}
+    url: ${BI_DB_URL:jdbc:h2:file:./runtime/data/bi-demo;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}
     username: ${BI_DB_USERNAME:sa}
     password: ${BI_DB_PASSWORD:}
     driver-class-name: ${BI_DB_DRIVER:org.h2.Driver}
