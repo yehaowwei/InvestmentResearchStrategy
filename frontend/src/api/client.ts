@@ -140,6 +140,10 @@ export const api = {
   loadRuntimeChart: async (chartCode: string) => toRuntimeChartResponse(await unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode: chartCode } }))),
   previewComponent: (component: { modelCode: string; dslConfig: ComponentDslConfig }) =>
     unwrap<ChartPreview>(client.post('/chart/preview', buildPreviewPayload(component))),
+  getSharedState: (stateKey: string) =>
+    unwrap<unknown>(client.get(`/shared-state/${encodeURIComponent(stateKey)}`)),
+  saveSharedState: (stateKey: string, state: unknown) =>
+    unwrap<unknown>(client.put(`/shared-state/${encodeURIComponent(stateKey)}`, { state })),
   tkfAgentChat: (payload: { messages: TkfAgentMessage[]; availableCharts: TkfChartCandidate[] }) =>
     unwrap<TkfAgentResponse>(client.post('/agent/tkf/chat', payload))
 };

@@ -1,6 +1,8 @@
+import { api } from '../api/client';
 import type { ChartCatalogItem, DashboardCategoryKey, DashboardMeta, DashboardSummary } from '../types/dashboard';
 
 const STORAGE_KEY = 'bi-dashboard-category-meta';
+const CHANGE_EVENT = 'bi-dashboard-category-meta-changed';
 
 const BUILTIN_META: Record<string, DashboardMeta> = {
   margin_financing_dashboard: {
@@ -62,7 +64,10 @@ function writeMetaMap(metaMap: Map<string, DashboardMeta>) {
   if (typeof window === 'undefined') {
     return;
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...metaMap.values()]));
+  const serialized = JSON.stringify([...metaMap.values()]);
+  window.localStorage.setItem(STORAGE_KEY, serialized);
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  void api.saveSharedState(STORAGE_KEY, [...metaMap.values()]).catch(() => undefined);
 }
 
 export function normalizeCategoryKey(value?: string): DashboardCategoryKey {
@@ -95,6 +100,46 @@ export function removeDashboardMeta(dashboardCode: string) {
   const metaMap = readMetaMap();
   metaMap.delete(dashboardCode);
   writeMetaMap(metaMap);
+}
+
+export function dashboardMetaChangeEventName() {
+  return CHANGE_EVENT;
+}
+
+export async function syncDashboardMetaFromServer() {
+  if (typeof window === 'undefined') {
+    return [...readMetaMap().values()];
+  }
+
+  const localValues = [...readMetaMap().values()];
+  try {
+    const remote = await api.getSharedState(STORAGE_KEY);
+    if (Array.isArray(remote)) {
+      const nextMap = new Map(
+        remote
+          .filter((item): item is DashboardMeta => Boolean(item && typeof item === 'object' && 'dashboardCode' in item))
+          .map(item => [item.dashboardCode, {
+            dashboardCode: item.dashboardCode,
+            category: normalizeCategoryKey(item.category),
+            order: Number(item.order ?? 0)
+          }])
+      );
+      const remoteValues = [...nextMap.values()];
+      if (JSON.stringify(remoteValues) !== JSON.stringify(localValues)) {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteValues));
+        window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+      }
+      return remoteValues;
+    }
+
+    if (localValues.length > 0) {
+      await api.saveSharedState(STORAGE_KEY, localValues);
+    }
+  } catch {
+    return localValues;
+  }
+
+  return localValues;
 }
 
 export function filterDashboardsByCategory(dashboards: DashboardSummary[], category: DashboardCategoryKey, publishedOnly = false) {

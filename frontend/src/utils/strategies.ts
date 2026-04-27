@@ -1,3 +1,4 @@
+import { api } from '../api/client';
 import type { ComponentDslConfig } from '../types/dashboard';
 import type { ChartRuntimeCard } from './chartLibrary';
 import { deepClone, normalizeDisplayText, normalizeDslConfig } from './dashboard';
@@ -83,12 +84,16 @@ function sortStrategies(strategies: StrategyRecord[]) {
   });
 }
 
-function writeStrategies(scope: StrategyScope, strategies: StrategyRecord[]) {
+function writeStrategies(scope: StrategyScope, strategies: StrategyRecord[], syncRemote = true) {
   if (typeof window === 'undefined') {
     return;
   }
-  window.localStorage.setItem(STORAGE_KEYS[scope], JSON.stringify(sortStrategies(strategies)));
+  const nextStrategies = sortStrategies(strategies);
+  window.localStorage.setItem(STORAGE_KEYS[scope], JSON.stringify(nextStrategies));
   window.dispatchEvent(new CustomEvent(CHANGE_EVENTS[scope]));
+  if (syncRemote) {
+    void api.saveSharedState(STORAGE_KEYS[scope], nextStrategies).catch(() => undefined);
+  }
 }
 
 function updateStrategies(scope: StrategyScope, updater: (strategies: StrategyRecord[]) => StrategyRecord[]) {
@@ -215,4 +220,30 @@ export function favoriteStrategy(strategyId: string) {
     charts: strategy.charts.map(normalizeChartSnapshot),
     sourceStrategyId: strategy.strategyId
   });
+}
+
+export async function syncStrategiesFromServer(scope: StrategyScope) {
+  if (typeof window === 'undefined') {
+    return [] as StrategyRecord[];
+  }
+
+  const localStrategies = sortStrategies(readStrategies(scope));
+  try {
+    const remote = await api.getSharedState(STORAGE_KEYS[scope]);
+    if (Array.isArray(remote)) {
+      const remoteStrategies = sortStrategies(remote.map((item, index) => normalizeStrategy(item as StrategyRecord, index + 1)));
+      if (JSON.stringify(remoteStrategies) !== JSON.stringify(localStrategies)) {
+        writeStrategies(scope, remoteStrategies, false);
+      }
+      return remoteStrategies;
+    }
+
+    if (localStrategies.length > 0) {
+      await api.saveSharedState(STORAGE_KEYS[scope], localStrategies);
+    }
+  } catch {
+    return localStrategies;
+  }
+
+  return localStrategies;
 }

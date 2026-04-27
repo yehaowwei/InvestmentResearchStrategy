@@ -1,3 +1,4 @@
+import { api } from '../api/client';
 import type { ComponentDslConfig, DashboardCategoryKey, DashboardComponent, DashboardDraft, FavoriteChart, PersonalBoard } from '../types/dashboard';
 import { deepClone, normalizeDisplayText, normalizeDslConfig } from './dashboard';
 import { getCategoryLabel } from './dashboardCatalog';
@@ -60,12 +61,15 @@ function readLegacyFavorites(): FavoriteChart[] {
   }
 }
 
-function writeBoards(boards: PersonalBoard[]) {
+function writeBoards(boards: PersonalBoard[], syncRemote = true) {
   if (typeof window === 'undefined') {
     return;
   }
   window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(boards));
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  if (syncRemote) {
+    void api.saveSharedState(BOARD_STORAGE_KEY, boards).catch(() => undefined);
+  }
 }
 
 function migrateLegacyFavorites(legacyFavorites: FavoriteChart[]) {
@@ -314,4 +318,30 @@ export function saveFavoriteLayouts(boardId: string, components: DashboardCompon
       }]
     };
   }));
+}
+
+export async function syncFavoritesFromServer() {
+  if (typeof window === 'undefined') {
+    return [] as PersonalBoard[];
+  }
+
+  const localBoards = sortBoards(readBoards());
+  try {
+    const remote = await api.getSharedState(BOARD_STORAGE_KEY);
+    if (Array.isArray(remote)) {
+      const remoteBoards = sortBoards(remote.map((board, index) => normalizeBoard(board as PersonalBoard, index + 1)));
+      if (JSON.stringify(remoteBoards) !== JSON.stringify(localBoards)) {
+        writeBoards(remoteBoards, false);
+      }
+      return remoteBoards;
+    }
+
+    if (localBoards.length > 0) {
+      await api.saveSharedState(BOARD_STORAGE_KEY, localBoards);
+    }
+  } catch {
+    return localBoards;
+  }
+
+  return localBoards;
 }

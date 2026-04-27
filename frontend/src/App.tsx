@@ -9,6 +9,7 @@ import {
   StarOutlined
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
+import { useEffect, useState } from 'react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import DashboardDesigner from './pages/DashboardDesigner';
 import PersonalDashboard from './pages/PersonalDashboard';
@@ -16,7 +17,9 @@ import DashboardRuntime from './pages/DashboardRuntime';
 import MyStrategy from './pages/MyStrategy';
 import StrategyCenter from './pages/StrategyCenter';
 import StrategyConfig from './pages/StrategyConfig';
-import { DASHBOARD_CATEGORIES } from './utils/dashboardCatalog';
+import { DASHBOARD_CATEGORIES, syncDashboardMetaFromServer } from './utils/dashboardCatalog';
+import { syncFavoritesFromServer } from './utils/favorites';
+import { syncStrategiesFromServer } from './utils/strategies';
 
 const TEXT = {
   myFavorites: '\u6211\u7684\u6307\u6807',
@@ -92,7 +95,51 @@ function resolveSelectedKey(pathname: string) {
 
 export default function App() {
   const location = useLocation();
+  const [, setSyncVersion] = useState(0);
+  const [sharedReady, setSharedReady] = useState(false);
   const selectedKey = resolveSelectedKey(location.pathname);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncSharedState = async () => {
+      await Promise.all([
+        syncDashboardMetaFromServer(),
+        syncFavoritesFromServer(),
+        syncStrategiesFromServer('public'),
+        syncStrategiesFromServer('personal')
+      ]);
+      if (!cancelled) {
+        setSharedReady(true);
+        setSyncVersion(value => value + 1);
+      }
+    };
+
+    void syncSharedState();
+    const timer = window.setInterval(() => {
+      void syncSharedState();
+    }, 5000);
+    const handleFocus = () => {
+      void syncSharedState();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
+  if (!sharedReady) {
+    return (
+      <Layout className="app-shell app-shell-sidebar">
+        <Layout.Content className="app-content app-content-sidebar">
+          <div className="panel-card canvas-card canvas-empty">正在同步共享配置...</div>
+        </Layout.Content>
+      </Layout>
+    );
+  }
 
   return (
     <Layout className="app-shell app-shell-sidebar">
