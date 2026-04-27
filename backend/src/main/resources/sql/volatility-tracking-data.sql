@@ -1,2 +1,0 @@
--- Runtime data is persisted in data/bi-demo.mv.db.
--- Historical seed rows are intentionally not stored in SQL.

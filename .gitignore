@@ -10,11 +10,11 @@ Thumbs.db
 # Frontend
 frontend/node_modules/
 frontend/dist/
-QueryH2.class
 
 # Backend build / runtime
 backend/target/
 backend/runtime/
+backend/src/main/resources/static/
 .m2/
 
 backend/data-template/
@@ -30,3 +30,7 @@ data/*.lock.db
 
 # Temp payloads
 tmp-*.json
+
+# Local database inspection helpers
+Query*.java
+Query*.class

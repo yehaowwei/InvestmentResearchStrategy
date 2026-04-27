@@ -2,7 +2,7 @@
 
 ## 一键启动
 
-Windows 环境下，拉取代码后直接运行仓库根目录的以下任一命令即可：
+Windows 环境下，拉取代码后在仓库根目录运行下面任一命令即可：
 
 ```powershell
 .\start-all.ps1
@@ -16,10 +16,11 @@ start-all.bat
 
 脚本会自动完成这些事情：
 
-1. 安装前端依赖（首次启动时）
-2. 仅在前端源码变更时构建前端
-3. 仅在后端源码或静态资源变更时打包后端
-4. 启动 Spring Boot 服务
+1. 首次启动时安装前端依赖。
+2. 仅在前端源码变化时重新构建前端。
+3. 将前端构建产物复制到后端静态资源目录。
+4. 仅在后端源码或静态资源变化时重新打包后端。
+5. 启动 Spring Boot 服务。
 
 启动成功后访问：
 
@@ -29,7 +30,7 @@ start-all.bat
 
 ## 运行前准备
 
-请确保本机已安装并加入 `PATH`：
+请确保本机已经安装并加入 `PATH`：
 
 - Node.js 18+
 - Maven 3.9+
@@ -37,15 +38,15 @@ start-all.bat
 
 ## 数据说明
 
-- 演示数据直接保存在仓库内的 `backend/data/bi-demo.mv.db`
-- 不依赖额外 SQL 导入
-- 另一台设备 `git pull` 后可直接启动
+- 演示数据直接保存在仓库内的 `backend/data/bi-demo.mv.db`。
+- 当前配置为 `spring.sql.init.mode: never`，启动时不会额外执行 SQL 初始化。
+- 另一台设备 `git pull` 后可以直接启动并看到同一套演示数据。
 
 ## TKF 智能体说明
 
-- 默认读取环境变量 `DEEPSEEK_API_KEY`
-- 如果没有配置 API Key，系统仍可正常启动
-- 未配置 Key 时，TKF 智能体会自动走本地 fallback 演示逻辑，不影响演示
+- 默认读取环境变量 `DEEPSEEK_API_KEY`。
+- 如果没有配置 API Key，系统仍可正常启动。
+- 未配置 Key 时，TKF 智能体会自动使用本地 fallback 演示逻辑，不影响演示。
 
 如需启用 DeepSeek，可在启动前设置：
 

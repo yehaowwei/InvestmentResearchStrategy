@@ -1,2 +1,0 @@
--- Runtime data is persisted in data/bi-demo.mv.db.
--- SQL bootstrap is intentionally disabled in application.yml.
