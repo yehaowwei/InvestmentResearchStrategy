@@ -6,7 +6,7 @@ import { normalizeDisplayText } from '../../utils/dashboard';
 import type { AvailableChartCard } from './helpers';
 
 const TEXT = {
-  title: '\u589e\u52a0\u56fe\u8868',
+  title: '\u65b0\u589e\u6307\u6807',
   all: '\u5168\u90e8',
   searchPlaceholder: '\u641c\u7d22\u672a\u6536\u85cf\u56fe\u8868\u540d\u79f0',
   addButton: '\u52a0\u5165\u6211\u7684\u6307\u6807',

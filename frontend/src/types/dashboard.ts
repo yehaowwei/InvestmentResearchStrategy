@@ -405,7 +405,7 @@ export interface FavoriteChart {
   addedAt: string;
 }
 
-export type DashboardCategoryKey = 'valuation' | 'liquidity' | 'sentiment' | 'cycle';
+export type DashboardCategoryKey = 'valuation' | 'liquidity' | 'sentiment' | 'cycle' | 'fixed_income';
 
 export interface DashboardMeta {
   dashboardCode: string;
@@ -464,6 +464,7 @@ export interface TkfChartCandidate {
   componentTitle: string;
   category?: string;
   indicatorTag?: string;
+  recentSummary?: string;
 }
 
 export interface TkfChartReason {

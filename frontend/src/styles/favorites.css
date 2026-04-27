@@ -76,6 +76,19 @@
   margin-bottom: 16px;
 }
 
+.page-toc-width-search {
+  width: 280px;
+}
+
+.designer-library-toolbar {
+  align-items: center;
+}
+
+.designer-library-toolbar .favorites-filter-nav {
+  margin-bottom: 0;
+  align-items: center;
+}
+
 .favorites-board-card-head {
   display: flex;
   align-items: center;
@@ -470,6 +483,11 @@
   display: grid;
   gap: 14px;
   padding-right: 2px;
+}
+
+.strategy-agent-topbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .strategy-agent-compose-panel {

@@ -3,9 +3,9 @@ import {
   ClusterOutlined,
   DatabaseOutlined,
   FolderViewOutlined,
+  LineChartOutlined,
   OrderedListOutlined,
   MenuFoldOutlined,
-  SettingOutlined,
   StarOutlined
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
@@ -102,7 +102,7 @@ export default function App() {
         onMouseLeave={event => event.currentTarget.classList.remove('expanded')}
       >
         <div className="app-sidebar-brand">
-          <SettingOutlined />
+          <LineChartOutlined />
           <span className="app-sidebar-brand-text">{TEXT.brand}</span>
           <MenuFoldOutlined className="app-sidebar-fold" />
         </div>

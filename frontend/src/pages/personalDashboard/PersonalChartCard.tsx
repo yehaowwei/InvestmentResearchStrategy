@@ -8,7 +8,6 @@ import type { PersonalChartEntry } from '../../utils/favorites';
 import { toComponent } from './helpers';
 
 const TEXT = {
-  order: '\u6392\u5e8f',
   enlarge: '\u653e\u5927\u67e5\u770b',
   delete: '\u5220\u9664',
   deleteConfirm: '\u786e\u8ba4\u5220\u9664\u5f53\u524d\u56fe\u8868\u5417\uff1f',
@@ -22,7 +21,6 @@ export default function PersonalChartCard(props: {
   preview?: ChartPreview;
   dragging: boolean;
   dragOver: boolean;
-  sortMode: 'manual' | 'time_asc' | 'time_desc';
   onExpand: () => void;
   onSortStart: (event: ReactMouseEvent<HTMLElement>, boardId: string) => void;
   onRemove: () => void;
@@ -41,7 +39,7 @@ export default function PersonalChartCard(props: {
     <article
       id={`personal-chart-card-${item.chart.componentCode}`}
       data-sort-id={item.boardId}
-      className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card${props.dragging ? ' personal-chart-card-dragging' : ''}${props.dragOver ? ' drag-preview-target' : ''}${props.sortMode === 'manual' ? ' personal-chart-card-sortable' : ''}`}
+      className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card personal-chart-card-sortable${props.dragging ? ' personal-chart-card-dragging' : ''}${props.dragOver ? ' drag-preview-target' : ''}`}
       onMouseDown={handleMouseDown}
     >
       <div className="favorites-board-card-head">
@@ -52,7 +50,6 @@ export default function PersonalChartCard(props: {
           <div className="favorites-board-meta">
             <span>{item.primaryLabel}</span>
             <span>{item.secondaryLabel}</span>
-            <span>{TEXT.order} {item.order}</span>
           </div>
         </div>
         <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">

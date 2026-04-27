@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
-import type { ChartCatalogItem, ChartDefinition, DashboardComponent } from '../types/dashboard';
+import type { ChartCatalogItem, ChartDefinition, DashboardCategoryKey, DashboardComponent } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
 import { buildChartRuntimeCards, matchCatalogChartKeyword, type ChartRuntimeCard } from '../utils/chartLibrary';
 import { createFavoriteFromComponent, isFavorite, removeComponentFromAllBoards } from '../utils/favorites';
@@ -18,7 +18,7 @@ import {
 } from '../utils/dashboardCatalog';
 import { normalizeSearchKeyword, resolveActiveRowCodes, scrollContainerItemToCenter } from './dashboardPageUtils';
 
-type RuntimeCategoryKey = 'all' | import('../types/dashboard').DashboardCategoryKey;
+type RuntimeCategoryKey = 'all' | DashboardCategoryKey;
 
 export default function DashboardRuntime() {
   const navigate = useNavigate();
@@ -197,13 +197,10 @@ export default function DashboardRuntime() {
           <Input.Search
             allowClear
             placeholder="搜索图表名称"
-            style={{ width: 220 }}
+            className="page-toc-width-search"
             value={searchKeyword}
             onChange={event => setSearchKeyword(event.target.value)}
           />
-          <div>
-            <h2 className="page-title">{category === 'all' ? '指标中心' : getCategoryLabel(category)}</h2>
-          </div>
         </Space>
       </div>
 
@@ -308,7 +305,7 @@ export default function DashboardRuntime() {
         </div>
 
         <aside className="panel-card runtime-toc-card">
-          <div className="runtime-toc-title">目录导航</div>
+          <div className="runtime-toc-title">导航</div>
           <div className="runtime-toc-scroll" ref={tocScrollRef}>
             {category === 'all' ? (
               categoryNavGroups.map(group => (
@@ -386,6 +383,7 @@ export default function DashboardRuntime() {
           </div>
         ) : null}
       </Modal>
+
     </div>
   );
 }

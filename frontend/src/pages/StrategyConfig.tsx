@@ -31,7 +31,6 @@ const TEXT = {
   saveFailed: '\u4fdd\u5b58\u5931\u8d25',
   chartRequired: '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u56fe\u8868',
   title: '\u7b56\u7565\u914d\u7f6e',
-  subtitle: '\u8fd9\u91cc\u5c55\u793a IT \u4eba\u5458\u7ef4\u62a4\u7684\u7b56\u7565\u914d\u7f6e\u8349\u7a3f\uff0c\u7f29\u7565\u56fe\u4e2d\u53ef\u4ee5\u5207\u6362\u67e5\u770b\u5f53\u524d\u7b56\u7565\u5185\u7684\u4e0d\u540c\u56fe\u8868\u3002',
   backCenter: '\u8fd4\u56de\u7b56\u7565\u4e2d\u5fc3',
   backMine: '\u8fd4\u56de\u6211\u7684\u7b56\u7565',
   save: '\u4fdd\u5b58',
@@ -57,7 +56,7 @@ const TEXT = {
   detailFallback: '\u8fd9\u91cc\u662f IT \u7ef4\u62a4\u89c6\u89d2\uff0c\u53ef\u4ee5\u5bf9\u5355\u4e2a\u7b56\u7565\u8fdb\u884c\u547d\u540d\u3001\u65b0\u589e\u3001\u79fb\u9664\u548c\u76f4\u63a5\u62d6\u62fd\u6392\u5e8f\u3002',
   notFound: '\u672a\u627e\u5230\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e\u53ef\u80fd\u5df2\u88ab\u5220\u9664\u3002',
-  toc: '\u9875\u5185\u5bfc\u822a',
+  toc: '\u5bfc\u822a',
   draftLabel: '\u914d\u7f6e\u8349\u7a3f',
   cancel: '\u53d6\u6d88',
   completeSelect: '\u9009\u62e9\u5b8c\u6210',
@@ -346,12 +345,8 @@ function StrategyConfigOverview(props: {
       <div className="page-header">
         <div>
           <h2 className="page-title">{TEXT.title}</h2>
-          <div className="page-subtitle">{TEXT.subtitle}</div>
         </div>
         <Space wrap size={12}>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(props.backPath)}>
-            {props.scope === 'personal' ? TEXT.backMine : TEXT.backCenter}
-          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
             {TEXT.createDraft}
           </Button>
@@ -362,7 +357,8 @@ function StrategyConfigOverview(props: {
         <Input.Search
           allowClear
           placeholder={TEXT.searchDraftPlaceholder}
-          style={{ width: 280, marginLeft: 'auto' }}
+          className="page-toc-width-search"
+          style={{ marginLeft: 'auto' }}
           value={searchKeyword}
           onChange={event => setSearchKeyword(event.target.value)}
         />

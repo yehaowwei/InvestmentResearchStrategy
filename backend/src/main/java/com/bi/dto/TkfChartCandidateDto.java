@@ -17,4 +17,5 @@ public class TkfChartCandidateDto {
     private String componentTitle;
     private String category;
     private String indicatorTag;
+    private String recentSummary;
 }

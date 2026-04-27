@@ -7,7 +7,7 @@ export function normalizeComponentForTransport(
   model?: DatasetModel
 ): DashboardComponent {
   const normalizedDsl = normalizeDslConfig(component.dslConfig, model);
-  const normalizedModelCode = normalizedDsl.queryDsl.modelCode || component.modelCode;
+  const normalizedModelCode = component.modelCode || normalizedDsl.queryDsl.modelCode || '';
   return {
     ...component,
     modelCode: normalizedModelCode,

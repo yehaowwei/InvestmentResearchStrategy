@@ -1,4 +1,4 @@
-import {
+﻿import {
   ArrowLeftOutlined,
   DeleteOutlined,
   ExpandOutlined,
@@ -43,7 +43,6 @@ const TEXT = {
   updated: '\u6211\u7684\u7b56\u7565\u5df2\u66f4\u65b0',
   created: '\u6211\u7684\u7b56\u7565\u5df2\u521b\u5efa',
   title: '\u6211\u7684\u7b56\u7565',
-  subtitle: '\u8fd9\u91cc\u7edf\u4e00\u7ba1\u7406\u4f60\u6536\u85cf\u7684\u7b56\u7565\u548c\u4ece\u6307\u6807\u5e93\u81ea\u5b9a\u4e49\u521b\u5efa\u7684\u7b56\u7565\u3002',
   create: '\u65b0\u589e\u7b56\u7565',
   createTitle: '\u65b0\u5efa\u7b56\u7565',
   saveInfo: '\u4fdd\u5b58\u4fe1\u606f',
@@ -60,7 +59,7 @@ const TEXT = {
   countSuffix: '\u4e2a\u56fe\u8868',
   noPreview: '\u5f53\u524d\u7b56\u7565\u6682\u65e0\u9884\u89c8',
   noStrategy: '\u8fd8\u6ca1\u6709\u6211\u7684\u7b56\u7565',
-  toc: '\u9875\u5185\u5bfc\u822a',
+  toc: '\u5bfc\u822a',
   notFound: '\u672a\u627e\u5230\u6211\u7684\u7b56\u7565',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u53ef\u80fd\u5df2\u7ecf\u88ab\u5220\u9664\u3002',
   back: '\u8fd4\u56de\u6211\u7684\u7b56\u7565',
@@ -77,23 +76,23 @@ const TEXT = {
   completeSelect: '\u9009\u62e9\u5b8c\u6210',
   tkfAgent: 'TKF智能体',
   tkfTitle: 'TKF智能体策略助手',
-  tkfPlaceholder: '例如：请给我配置一个偏流动性观察的策略，并解释这些图分别反映什么',
+  tkfPlaceholder: '例如：请给我构建一个流动性相关的策略，然后给我图表中两个流动性相关的指标构建出来的图表',
   tkfSend: '发送',
   tkfOpenStrategy: '打开策略',
-  tkfWelcome: '你可以直接输入“请给我配置一个什么策略”，我会自动挑选已发布图表，生成一个演示型策略并解释这些图在说明什么。',
   tkfEmptyCharts: '当前没有可用图表，暂时不能生成策略',
   tkfCreated: 'TKF 已生成策略',
-  tkfModeExplain: '解释策略',
+  tkfModeExplain: '策略解读',
   tkfModeBuild: '构建策略',
   tkfModeTitle: '功能选择',
+  tkfNewChat: '新建对话',
   tkfDraftTitle: '待保存策略',
   tkfDraftName: '策略名称',
   tkfDraftDescription: '策略说明',
   tkfSaveDraft: '保存到我的策略',
   tkfRemoveChart: '移除图表',
   tkfDraftReady: '策略草稿已生成，请先预览后再保存',
-  tkfExplainPlaceholder: '例如：请解释一下流动性观察策略一般看什么，以及这些图分别在说明什么',
-  tkfBuildPlaceholder: '例如：请给我配置一个偏流动性观察的策略，并解释这些图分别反映什么',
+  tkfExplainPlaceholder: '例如：请做一下流动性策略解读，重点说明这两个指标最近的变化',
+  tkfBuildPlaceholder: '例如：请给我构建一个流动性相关的策略，然后给我图表中两个流动性相关的指标构建出来的图表',
   tkfDraftSaved: '策略已保存到我的策略',
   tkfDraftMissing: '当前没有待保存的策略草稿',
   tkfDraftNoCharts: '请至少保留一张图表后再保存'
@@ -117,6 +116,109 @@ interface PendingAgentStrategyDraft {
   charts: ChartRuntimeCard[];
   chartReasons: Array<{ chartId: string; reason: string }>;
   sourceReply: string;
+}
+
+function toFiniteNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.replace(/,/g, '').trim();
+    if (!normalized) {
+      return undefined;
+    }
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function formatSummaryNumber(value: number) {
+  return new Intl.NumberFormat('zh-CN', {
+    maximumFractionDigits: Math.abs(value) >= 100 ? 0 : 2
+  }).format(value);
+}
+
+function buildRecentSummary(card: ChartRuntimeCard) {
+  const preview = card.preview;
+  const metrics = card.component.dslConfig.queryDsl.metrics ?? [];
+  const dimensions = card.component.dslConfig.queryDsl.dimensionFields ?? [];
+  const metric = metrics[0];
+  if (!preview || !metric) {
+    return '';
+  }
+
+  const metricFieldCode = metric.fieldCode;
+  const dimensionFieldCode = dimensions[0];
+  const points = (preview.rows ?? [])
+    .map((row, index) => {
+      const value = toFiniteNumber(row[metricFieldCode]);
+      if (value == null) {
+        return undefined;
+      }
+      const labelRaw = dimensionFieldCode ? row[dimensionFieldCode] : undefined;
+      return {
+        label: String(labelRaw ?? `第${index + 1}期`),
+        value
+      };
+    })
+    .filter((item): item is { label: string; value: number } => Boolean(item));
+
+  if (points.length < 2) {
+    return '';
+  }
+
+  const last = points[points.length - 1];
+  const prev = points[points.length - 2];
+  const latestDelta = last.value - prev.value;
+  const latestTrend = latestDelta > 0
+    ? '较上一期回升'
+    : latestDelta < 0
+      ? '较上一期回落'
+      : '与上一期基本持平';
+
+  let continuity = '';
+  if (points.length >= 3) {
+    const prev2 = points[points.length - 3];
+    const prevDelta = prev.value - prev2.value;
+    if (latestDelta > 0 && prevDelta > 0) {
+      continuity = '最近两期连续回升';
+    } else if (latestDelta < 0 && prevDelta < 0) {
+      continuity = '最近两期连续回落';
+    } else if ((latestDelta > 0 && prevDelta < 0) || (latestDelta < 0 && prevDelta > 0)) {
+      continuity = '最近两期有一定反复';
+    }
+  }
+
+  const latestValue = `${last.label}为${formatSummaryNumber(last.value)}`;
+  return continuity
+    ? `${latestValue}，${latestTrend}，${continuity}。`
+    : `${latestValue}，${latestTrend}。`;
+}
+
+function isLiquidityDemoChart(card: ChartRuntimeCard) {
+  const chartId = `${card.chartCode}:${card.component.componentCode}`;
+  const title = normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode);
+  const chartName = normalizeDisplayText(card.chartName, card.chartCode);
+  return card.chartCode === 'chart_10'
+    || card.chartCode === 'chart_11'
+    || title.includes('市场融资余额变化(亿元)')
+    || title.includes('分板块融资余额周度变化(亿元)')
+    || chartName.includes('市场融资余额变化(亿元)')
+    || chartName.includes('分板块融资余额周度变化(亿元)')
+    || chartId.startsWith('chart_10:')
+    || chartId.startsWith('chart_11:');
+}
+
+function buildTkfBuildReason(card: ChartRuntimeCard) {
+  const title = normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode);
+  if (title.includes('市场融资余额变化')) {
+    return '用“市场融资余额变化(亿元)”来观察整体融资资金的增减节奏，反映市场层面的流动性变化方向。';
+  }
+  if (title.includes('分板块融资余额周度变化')) {
+    return '用“分板块融资余额周度变化(亿元)”来观察不同板块之间融资资金流向的分化，反映结构层面的强弱切换。';
+  }
+  return `用“${title}”来说明这个策略关注的指标主要反映什么市场状态。`;
 }
 
 function buildComponent(snapshot: StrategyChartSnapshot) {
@@ -165,6 +267,7 @@ function TkfAgentModal(props: {
   onInputChange: (value: string) => void;
   onSend: () => void;
   onCancel: () => void;
+  onNewChat: () => void;
   onOpenStrategy: (strategyId: string) => void;
   onPendingDraftNameChange: (value: string) => void;
   onRemovePendingChart: (chartId: string) => void;
@@ -181,6 +284,11 @@ function TkfAgentModal(props: {
       styles={{ body: { padding: 16, maxHeight: '82vh', overflowY: 'auto' } }}
     >
       <div className="strategy-agent-shell">
+        <div className="strategy-agent-topbar">
+          <Button onClick={props.onNewChat}>
+            {TEXT.tkfNewChat}
+          </Button>
+        </div>
         <div className="strategy-agent-messages">
           {props.messages.map(item => (
             <div key={item.id} className={`strategy-agent-message strategy-agent-message-${item.role}`}>
@@ -332,9 +440,7 @@ function MyStrategyOverview() {
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentMode, setAgentMode] = useState<TkfAgentMode>('build');
   const [agentInput, setAgentInput] = useState('');
-  const [agentMessages, setAgentMessages] = useState<AgentChatEntry[]>([
-    { id: 'welcome', role: 'assistant', content: TEXT.tkfWelcome }
-  ]);
+  const [agentMessages, setAgentMessages] = useState<AgentChatEntry[]>([]);
   const [pendingAgentDraft, setPendingAgentDraft] = useState<PendingAgentStrategyDraft>();
   const [expandedAgentChart, setExpandedAgentChart] = useState<ChartRuntimeCard>();
   const [draggingStrategyId, setDraggingStrategyId] = useState<string>();
@@ -365,8 +471,16 @@ function MyStrategyOverview() {
     componentCode: card.component.componentCode,
     componentTitle: normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode),
     category: getCategoryLabel(getDashboardMeta(card.chartCode).category),
-    indicatorTag: normalizeDisplayText(card.component.dslConfig.visualDsl.indicatorTag)
+    indicatorTag: normalizeDisplayText(card.component.dslConfig.visualDsl.indicatorTag),
+    recentSummary: buildRecentSummary(card)
   })), [selectableCharts]);
+
+  const resetAgentConversation = () => {
+    setAgentMessages([]);
+    setAgentInput('');
+    setPendingAgentDraft(undefined);
+    setExpandedAgentChart(undefined);
+  };
 
   useEffect(() => {
     const syncStrategies = () => setStrategies(listMyStrategies());
@@ -690,8 +804,8 @@ function MyStrategyOverview() {
 
     try {
       const modeInstruction = agentMode === 'build'
-        ? '当前功能：构建策略。请生成一套可演示的策略草稿，给出要看的图和中性解释。'
-        : '当前功能：解释策略。请优先解释策略含义和应关注的图，不要给决策性结论。';
+        ? '当前功能：构建策略。请基于“市场融资余额变化(亿元)”和“分板块融资余额周度变化(亿元)”生成一套流动性相关策略草稿，只保留这两张图，并简要说明这两个指标各自反映什么，不要展开最近变化解读。'
+        : '当前功能：策略解读。请围绕已选策略中的两个指标，解释它们最近的数值变化情况，不要给决策性结论。';
       const response = await api.tkfAgentChat({
         messages: [
           { role: 'user', content: modeInstruction },
@@ -761,8 +875,8 @@ function MyStrategyOverview() {
 
     try {
       const modeInstruction = agentMode === 'build'
-        ? '当前功能：构建策略。请生成一套可演示的策略草稿，给出要看的图和中性解释。'
-        : '当前功能：解释策略。请优先解释策略含义和应关注的图，不要给决策性结论。';
+        ? '当前功能：构建策略。请基于“市场融资余额变化(亿元)”和“分板块融资余额周度变化(亿元)”生成一套流动性相关策略草稿，只保留这两张图，并简要说明这两个指标各自反映什么，不要展开最近变化解读。'
+        : '当前功能：策略解读。请围绕已选策略中的两个指标，解释它们最近的数值变化情况，不要给决策性结论。';
       const response = await api.tkfAgentChat({
         messages: [
           { role: 'user', content: modeInstruction },
@@ -774,15 +888,36 @@ function MyStrategyOverview() {
         availableCharts: tkfChartCandidates
       });
 
-      const selectedCards = selectableCharts.filter(card => response.selectedChartIds.includes(`${card.chartCode}:${card.component.componentCode}`));
+      const selectedIds = agentMode === 'build'
+        ? response.selectedChartIds.filter(chartId => chartId.startsWith('chart_10:') || chartId.startsWith('chart_11:')).slice(0, 2)
+        : response.selectedChartIds;
+      const selectedCards = selectableCharts
+        .filter(card => selectedIds.includes(`${card.chartCode}:${card.component.componentCode}`))
+        .filter(card => agentMode !== 'build' || isLiquidityDemoChart(card))
+        .slice(0, 2);
       const nextStrategyName = response.strategyName || 'TKF策略演示';
+      const nextChartReasons = agentMode === 'build'
+        ? selectedCards.map(card => ({
+          chartId: `${card.chartCode}:${card.component.componentCode}`,
+          reason: buildTkfBuildReason(card)
+        }))
+        : response.chartReasons
+          .filter(item => selectedCards.some(card => `${card.chartCode}:${card.component.componentCode}` === item.chartId))
+          .slice(0, 2);
+      const assistantContent = response.reply.trim();
+      const reasonText = agentMode === 'explain'
+        ? nextChartReasons.map(item => item.reason.trim()).filter(Boolean).join('\n')
+        : '';
+      const mergedContent = reasonText && !assistantContent.includes(reasonText)
+        ? `${assistantContent}\n${reasonText}`
+        : assistantContent;
 
       if (agentMode === 'build' && selectedCards.length > 0) {
         setPendingAgentDraft({
           strategyName: nextStrategyName,
           description: response.strategyDescription || response.reply,
           charts: selectedCards,
-          chartReasons: response.chartReasons,
+          chartReasons: nextChartReasons,
           sourceReply: response.reply
         });
         message.success(TEXT.tkfDraftReady);
@@ -793,9 +928,9 @@ function MyStrategyOverview() {
       setAgentMessages(current => [...current, {
         id: `assistant-v2-${Date.now()}`,
         role: 'assistant',
-        content: response.reply,
+        content: mergedContent,
         strategyName: agentMode === 'build' ? nextStrategyName : undefined,
-        chartReasons: response.chartReasons,
+        chartReasons: nextChartReasons,
         fallback: response.fallback
       }]);
     } catch (error) {
@@ -811,7 +946,6 @@ function MyStrategyOverview() {
       <div className="page-header">
         <div>
           <h2 className="page-title">{TEXT.title}</h2>
-          <div className="page-subtitle">{TEXT.subtitle}</div>
         </div>
         <Space wrap size={12}>
           <Button icon={<RobotOutlined />} onClick={() => setAgentOpen(true)}>
@@ -827,7 +961,8 @@ function MyStrategyOverview() {
         <Input.Search
           allowClear
           placeholder={TEXT.searchPlaceholder}
-          style={{ width: 280, marginLeft: 'auto' }}
+          className="page-toc-width-search"
+          style={{ marginLeft: 'auto' }}
           value={searchKeyword}
           onChange={event => setSearchKeyword(event.target.value)}
         />
@@ -978,6 +1113,7 @@ function MyStrategyOverview() {
         onInputChange={setAgentInput}
         onSend={() => void submitAgentPromptV2()}
         onCancel={() => setAgentOpen(false)}
+        onNewChat={resetAgentConversation}
         onOpenStrategy={openAgentStrategy}
         onPendingDraftNameChange={value => setPendingAgentDraft(current => (current ? { ...current, strategyName: value } : current))}
         onRemovePendingChart={chartId => setPendingAgentDraft(current => current ? {

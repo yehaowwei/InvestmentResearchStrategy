@@ -546,10 +546,19 @@ export default function DashboardDesigner() {
         <div className="page-header designer-library-header">
           <div>
             <h2 className="page-title">指标配置（面向 IT 人员使用）</h2>
-            <div className="page-subtitle">这里以图库方式展示当前分类下的图表，可直接预览、修改、删除、拖拽排序，也可以新建图表。</div>
           </div>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              form.setFieldsValue({ name: '', category: routeCategory });
+              setCreateOpen(true);
+            }}
+          >
+            新建指标
+          </Button>
         </div>
-        <div className="page-header compact">
+        <div className="page-header compact designer-library-toolbar">
           <div className="favorites-filter-nav">
             {DASHBOARD_CATEGORIES.map(item => (
               <Button
@@ -561,25 +570,13 @@ export default function DashboardDesigner() {
               </Button>
             ))}
           </div>
-          <Space wrap size={12}>
-            <Input.Search
-              allowClear
-              placeholder="搜索图表名称"
-              style={{ width: 220 }}
-              value={searchKeyword}
-              onChange={event => setSearchKeyword(event.target.value)}
-            />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                form.setFieldsValue({ name: '', category: routeCategory });
-                setCreateOpen(true);
-              }}
-            >
-              新建图表
-            </Button>
-          </Space>
+          <Input.Search
+            allowClear
+            placeholder="搜索图表名称"
+            className="page-toc-width-search"
+            value={searchKeyword}
+            onChange={event => setSearchKeyword(event.target.value)}
+          />
         </div>
 
         <div className="page-shell runtime-library-shell">
@@ -660,7 +657,7 @@ export default function DashboardDesigner() {
           </div>
 
           <aside className="panel-card runtime-toc-card">
-            <div className="runtime-toc-title">目录导航</div>
+            <div className="runtime-toc-title">导航</div>
             <div className="runtime-toc-scroll" ref={tocScrollRef}>
               <div className="runtime-toc-group">
                 <button type="button" className="runtime-toc-group-button active">{getCategoryLabel(routeCategory)}</button>

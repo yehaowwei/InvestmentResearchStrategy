@@ -4,15 +4,7 @@ import { normalizeSearchKeyword } from '../dashboardPageUtils';
 import type { PersonalChartEntry } from '../../utils/favorites';
 import type { DashboardComponent } from '../../types/dashboard';
 
-export type SortMode = 'manual' | 'time_asc' | 'time_desc';
 export type AvailableChartCard = ChartRuntimeCard;
-
-export function parseSortTime(value?: string) {
-  if (!value) return Number.NEGATIVE_INFINITY;
-  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
-  const timestamp = new Date(normalized).getTime();
-  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
-}
 
 export function matchChartKeyword(entry: PersonalChartEntry, keyword: string) {
   if (!keyword) return true;

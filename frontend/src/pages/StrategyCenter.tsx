@@ -24,7 +24,6 @@ const TEXT = {
   detailLoadFailed: '\u7b56\u7565\u8be6\u60c5\u52a0\u8f7d\u5931\u8d25',
   deleted: '\u7b56\u7565\u5df2\u5220\u9664',
   title: '\u7b56\u7565\u4e2d\u5fc3',
-  subtitle: '\u8fd9\u91cc\u5c55\u793a\u5df2\u7ecf\u914d\u7f6e\u597d\u7684\u7b56\u7565\u5361\u7247\uff0c\u70b9\u51fb\u5361\u7247\u91cc\u7684\u6307\u6807\u540d\u79f0\u53ef\u4ee5\u5207\u6362\u7f29\u7565\u56fe\u3002',
   searchPlaceholder: '\u641c\u7d22\u7b56\u7565\u540d\u79f0\u6216\u6307\u6807\u540d\u79f0',
   chartCountSuffix: '\u4e2a\u56fe\u8868',
   openStrategy: '\u8fdb\u5165\u7b56\u7565',
@@ -37,7 +36,7 @@ const TEXT = {
   cancel: '\u53d6\u6d88',
   noPreview: '\u5f53\u524d\u7b56\u7565\u6682\u65e0\u9884\u89c8',
   noStrategy: '\u8fd8\u6ca1\u6709\u914d\u7f6e\u597d\u7684\u7b56\u7565',
-  toc: '\u9875\u5185\u5bfc\u822a',
+  toc: '\u5bfc\u822a',
   notFound: '\u672a\u627e\u5230\u7b56\u7565',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u53ef\u80fd\u5df2\u7ecf\u88ab\u5220\u9664\u3002',
   back: '\u8fd4\u56de\u7b56\u7565\u4e2d\u5fc3',
@@ -222,7 +221,6 @@ function StrategyOverview() {
       <div className="page-header">
         <div>
           <h2 className="page-title">{TEXT.title}</h2>
-          <div className="page-subtitle">{TEXT.subtitle}</div>
         </div>
       </div>
 
@@ -230,7 +228,8 @@ function StrategyOverview() {
         <Input.Search
           allowClear
           placeholder={TEXT.searchPlaceholder}
-          style={{ width: 280, marginLeft: 'auto' }}
+          className="page-toc-width-search"
+          style={{ marginLeft: 'auto' }}
           value={searchKeyword}
           onChange={event => setSearchKeyword(event.target.value)}
         />
@@ -358,6 +357,7 @@ function StrategyOverview() {
           </div>
         </aside>
       </div>
+
     </div>
   );
 }

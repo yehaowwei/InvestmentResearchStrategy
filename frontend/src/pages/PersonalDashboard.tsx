@@ -1,5 +1,5 @@
-import { ExpandOutlined } from '@ant-design/icons';
-import { Button, Empty, Input, Modal, Select, Space, message } from 'antd';
+import { ExpandOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Empty, Input, Modal, Space, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { api } from '../api/client';
 import ChartContainer from '../components/ChartContainer';
@@ -27,27 +27,22 @@ import PersonalChartCard from './personalDashboard/PersonalChartCard';
 import {
   matchAvailableChartKeyword,
   matchChartKeyword,
-  parseSortTime,
   toComponent,
-  type AvailableChartCard,
-  type SortMode
+  type AvailableChartCard
 } from './personalDashboard/helpers';
 
 const TEXT = {
   title: '\u6211\u7684\u6307\u6807',
-  addChart: '\u589e\u52a0\u56fe\u8868',
+  addChart: '\u65b0\u589e\u6307\u6807',
   all: '\u5168\u90e8',
   currentCategory: '\u5f53\u524d\u5206\u7c7b',
   searchChart: '\u641c\u7d22\u56fe\u8868\u540d\u79f0',
-  manualSort: '\u81ea\u5b9a\u4e49\u6392\u5e8f',
-  timeAsc: '\u65f6\u95f4\u5347\u5e8f',
-  timeDesc: '\u65f6\u95f4\u964d\u5e8f',
   loadFailed: '\u6211\u7684\u6307\u6807\u52a0\u8f7d\u5931\u8d25',
   loadAddableFailed: '\u53ef\u6dfb\u52a0\u56fe\u8868\u52a0\u8f7d\u5931\u8d25',
   removed: '\u56fe\u8868\u5df2\u4ece\u6211\u7684\u6307\u6807\u79fb\u9664',
   added: '\u56fe\u8868\u5df2\u52a0\u5165\u6211\u7684\u6307\u6807',
   emptyCategory: '\u5f53\u524d\u5206\u7c7b\u4e0b\u8fd8\u6ca1\u6709\u56fe\u8868',
-  toc: '\u76ee\u5f55\u5bfc\u822a',
+  toc: '\u5bfc\u822a',
   chartDetail: '\u56fe\u8868\u8be6\u60c5'
 };
 
@@ -57,7 +52,6 @@ export default function PersonalDashboard() {
   const [catalogCharts, setCatalogCharts] = useState<ChartCatalogItem[]>([]);
   const [availableCharts, setAvailableCharts] = useState<AvailableChartCard[]>([]);
   const [activeCategory, setActiveCategory] = useState<'all' | DashboardCategoryKey>('all');
-  const [sortMode, setSortMode] = useState<SortMode>('manual');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [addChartKeyword, setAddChartKeyword] = useState('');
   const [addChartCategory, setAddChartCategory] = useState<'all' | DashboardCategoryKey>('all');
@@ -65,11 +59,13 @@ export default function PersonalDashboard() {
   const [addChartLoading, setAddChartLoading] = useState(false);
   const [draggingChartId, setDraggingChartId] = useState<string>();
   const [dragOverChartId, setDragOverChartId] = useState<string>();
+  const [dragPreviewIds, setDragPreviewIds] = useState<string[]>([]);
   const [expandedChart, setExpandedChart] = useState<PersonalChartEntry>();
   const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
   const draggingChartIdRef = useRef<string>();
   const dragOverChartIdRef = useRef<string>();
+  const dragPreviewIdsRef = useRef<string[]>([]);
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
   const filteredCharts = useMemo(() => {
@@ -78,24 +74,19 @@ export default function PersonalDashboard() {
       : charts.filter(item => item.primaryLabel === DASHBOARD_CATEGORIES.find(option => option.key === activeCategory)?.label);
 
     const next = base.filter(item => matchChartKeyword(item, searchKeyword));
-    if (sortMode === 'time_asc') {
-      next.sort((a, b) => parseSortTime(a.updatedAt ?? a.createdAt) - parseSortTime(b.updatedAt ?? b.createdAt));
-    } else if (sortMode === 'time_desc') {
-      next.sort((a, b) => parseSortTime(b.updatedAt ?? b.createdAt) - parseSortTime(a.updatedAt ?? a.createdAt));
-    } else {
-      next.sort((a, b) => a.order - b.order);
-    }
+    next.sort((a, b) => a.order - b.order);
     return next;
-  }, [activeCategory, charts, searchKeyword, sortMode]);
+  }, [activeCategory, charts, searchKeyword]);
 
   const renderedCharts = useMemo(() => {
-    if (!draggingChartId || !dragOverChartId || sortMode !== 'manual') {
+    if (!draggingChartId || dragPreviewIds.length === 0) {
       return filteredCharts;
     }
-    const fromIndex = filteredCharts.findIndex(item => item.boardId === draggingChartId);
-    const toIndex = filteredCharts.findIndex(item => item.boardId === dragOverChartId);
-    return reorderItemsPreview(filteredCharts, fromIndex, toIndex);
-  }, [dragOverChartId, draggingChartId, filteredCharts, sortMode]);
+    const chartMap = new Map(filteredCharts.map(item => [item.boardId, item]));
+    return dragPreviewIds
+      .map(id => chartMap.get(id))
+      .filter((item): item is PersonalChartEntry => Boolean(item));
+  }, [dragPreviewIds, draggingChartId, filteredCharts]);
 
   const navGroups = useMemo(() => {
     if (activeCategory === 'all') {
@@ -277,24 +268,13 @@ export default function PersonalDashboard() {
     message.success(TEXT.removed);
   };
 
-  const moveChart = (sourceId: string, targetId: string) => {
-    if (sortMode !== 'manual' || sourceId === targetId) {
+  const persistVisibleOrder = (visibleIds: string[]) => {
+    if (visibleIds.length === 0) {
       return;
     }
 
-    const visibleIds = filteredCharts.map(item => item.boardId);
-    const sourceIndex = visibleIds.findIndex(id => id === sourceId);
-    const targetIndex = visibleIds.findIndex(id => id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) {
-      return;
-    }
-
-    const nextVisibleIds = [...visibleIds];
-    const [movedId] = nextVisibleIds.splice(sourceIndex, 1);
-    nextVisibleIds.splice(targetIndex, 0, movedId);
-
-    const visibleSet = new Set(nextVisibleIds);
-    const reorderedVisible = nextVisibleIds
+    const visibleSet = new Set(visibleIds);
+    const reorderedVisible = visibleIds
       .map(id => charts.find(item => item.boardId === id))
       .filter((item): item is PersonalChartEntry => Boolean(item));
     const hiddenCharts = charts.filter(item => !visibleSet.has(item.boardId));
@@ -305,15 +285,15 @@ export default function PersonalDashboard() {
   };
 
   const resetPersonalPointerSort = () => {
-    const sourceId = draggingChartIdRef.current;
-    const targetId = dragOverChartIdRef.current;
-    if (sortMode === 'manual' && sourceId && targetId && sourceId !== targetId) {
-      moveChart(sourceId, targetId);
+    if (draggingChartIdRef.current && dragPreviewIdsRef.current.length > 0) {
+      persistVisibleOrder(dragPreviewIdsRef.current);
     }
     setDraggingChartId(undefined);
     setDragOverChartId(undefined);
+    setDragPreviewIds([]);
     draggingChartIdRef.current = undefined;
     dragOverChartIdRef.current = undefined;
+    dragPreviewIdsRef.current = [];
     dragCleanupRef.current?.();
     dragCleanupRef.current = null;
     document.body.style.userSelect = '';
@@ -321,10 +301,6 @@ export default function PersonalDashboard() {
   };
 
   const handlePersonalSortStart = (event: ReactMouseEvent<HTMLElement>, sourceId: string) => {
-    if (sortMode !== 'manual') {
-      event.preventDefault();
-      return;
-    }
     if (event.button !== 0) {
       return;
     }
@@ -336,6 +312,8 @@ export default function PersonalDashboard() {
     draggingChartIdRef.current = sourceId;
     setDragOverChartId(undefined);
     dragOverChartIdRef.current = undefined;
+    dragPreviewIdsRef.current = filteredCharts.map(item => item.boardId);
+    setDragPreviewIds(dragPreviewIdsRef.current);
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'grabbing';
 
@@ -347,6 +325,14 @@ export default function PersonalDashboard() {
       if (dragOverChartIdRef.current !== targetId) {
         dragOverChartIdRef.current = targetId;
         setDragOverChartId(targetId);
+        setDragPreviewIds(current => {
+          const ids = current.length > 0 ? current : filteredCharts.map(item => item.boardId);
+          const sourceIndex = ids.findIndex(id => id === draggingChartIdRef.current);
+          const targetIndex = ids.findIndex(id => id === targetId);
+          const nextIds = reorderItemsPreview(ids, sourceIndex, targetIndex);
+          dragPreviewIdsRef.current = nextIds;
+          return nextIds;
+        });
       }
     };
 
@@ -364,6 +350,7 @@ export default function PersonalDashboard() {
 
   useEffect(() => () => {
     dragCleanupRef.current?.();
+    dragPreviewIdsRef.current = [];
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
   }, []);
@@ -399,7 +386,7 @@ export default function PersonalDashboard() {
           <h2 className="page-title">{TEXT.title}</h2>
         </div>
         <Space wrap size={12}>
-          <Button type="primary" onClick={() => setAddChartOpen(true)}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddChartOpen(true)}>
             {TEXT.addChart}
           </Button>
         </Space>
@@ -421,19 +408,10 @@ export default function PersonalDashboard() {
         <Input.Search
           allowClear
           placeholder={TEXT.searchChart}
-          style={{ width: 220, marginLeft: 'auto' }}
+          className="page-toc-width-search"
+          style={{ marginLeft: 'auto' }}
           value={searchKeyword}
           onChange={event => setSearchKeyword(event.target.value)}
-        />
-        <Select
-          style={{ width: 160 }}
-          value={sortMode}
-          options={[
-            { label: TEXT.manualSort, value: 'manual' },
-            { label: TEXT.timeAsc, value: 'time_asc' },
-            { label: TEXT.timeDesc, value: 'time_desc' }
-          ]}
-          onChange={value => setSortMode(value)}
         />
       </div>
 
@@ -448,7 +426,6 @@ export default function PersonalDashboard() {
                   preview={previews[item.chart.componentCode]}
                   dragging={draggingChartId === item.boardId}
                   dragOver={dragOverChartId === item.boardId && draggingChartId !== item.boardId}
-                  sortMode={sortMode}
                   onExpand={() => setExpandedChart(item)}
                   onSortStart={handlePersonalSortStart}
                   onRemove={() => removeChart(item)}

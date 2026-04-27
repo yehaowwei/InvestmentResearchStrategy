@@ -382,7 +382,17 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                     props.preview?.rows ?? []
                   );
                 })} /></div>
-                <div><FieldLabel>数据模型</FieldLabel><Select style={{ width: '100%' }} value={component.modelCode} options={modelOptions} onChange={value => applyComponent(current => ({ ...current, modelCode: value }))} /></div>
+                <div><FieldLabel>数据模型</FieldLabel><Select style={{ width: '100%' }} value={component.modelCode} options={modelOptions} onChange={value => applyComponent(current => ({
+                  ...current,
+                  modelCode: value,
+                  dslConfig: {
+                    ...current.dslConfig,
+                    queryDsl: {
+                      ...current.dslConfig.queryDsl,
+                      modelCode: value
+                    }
+                  }
+                }))} /></div>
               </Space>
             </div>
           ) : null}
