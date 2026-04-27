@@ -49,7 +49,6 @@ export default function PersonalChartCard(props: {
           </h3>
           <div className="favorites-board-meta">
             <span>{item.primaryLabel}</span>
-            <span>{item.secondaryLabel}</span>
           </div>
         </div>
         <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">

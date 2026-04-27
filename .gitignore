@@ -10,11 +10,14 @@ Thumbs.db
 # Frontend
 frontend/node_modules/
 frontend/dist/
+QueryH2.class
 
 # Backend build / runtime
 backend/target/
 backend/runtime/
 .m2/
+
+backend/data-template/
 
 # Local databases
 backend/data/*.mv.db

@@ -31,6 +31,65 @@ function Assert-Command {
   }
 }
 
+function Get-LatestFileWriteTimeUtc {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$Paths
+  )
+
+  $latest = [datetime]::MinValue
+  foreach ($path in $Paths) {
+    if (-not (Test-Path $path)) {
+      continue
+    }
+
+    $item = Get-Item -LiteralPath $path -ErrorAction SilentlyContinue
+    if (-not $item) {
+      continue
+    }
+
+    $candidates = if ($item.PSIsContainer) {
+      Get-ChildItem -LiteralPath $path -Recurse -File -ErrorAction SilentlyContinue
+    }
+    else {
+      @($item)
+    }
+
+    foreach ($candidate in $candidates) {
+      if ($candidate.LastWriteTimeUtc -gt $latest) {
+        $latest = $candidate.LastWriteTimeUtc
+      }
+    }
+  }
+
+  return $latest
+}
+
+function Test-NeedsRefresh {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$SourcePaths,
+    [Parameter(Mandatory = $true)]
+    [string]$TargetPath
+  )
+
+  if (-not (Test-Path $TargetPath)) {
+    return $true
+  }
+
+  $latestSourceTime = Get-LatestFileWriteTimeUtc -Paths $SourcePaths
+  if ($latestSourceTime -eq [datetime]::MinValue) {
+    return $false
+  }
+
+  $targetItem = Get-Item -LiteralPath $TargetPath -ErrorAction SilentlyContinue
+  if (-not $targetItem) {
+    return $true
+  }
+
+  return $latestSourceTime -gt $targetItem.LastWriteTimeUtc
+}
+
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendRoot = Join-Path $repoRoot 'backend'
 $frontendRoot = Join-Path $repoRoot 'frontend'
@@ -45,6 +104,23 @@ $stderrLog = Join-Path $logsRoot 'backend.err.log'
 $pidFile = Join-Path $runtimeRoot 'backend.pid'
 $frontendNodeModules = Join-Path $frontendRoot 'node_modules'
 $frontendPackageLock = Join-Path $frontendRoot 'package-lock.json'
+$frontendDistRoot = Join-Path $frontendRoot 'dist'
+$frontendDistIndex = Join-Path $frontendDistRoot 'index.html'
+$staticIndex = Join-Path $staticRoot 'index.html'
+$frontendSourcePaths = @(
+  (Join-Path $frontendRoot 'src'),
+  (Join-Path $frontendRoot 'package.json'),
+  (Join-Path $frontendRoot 'package-lock.json'),
+  (Join-Path $frontendRoot 'vite.config.js'),
+  (Join-Path $frontendRoot 'tsconfig.json'),
+  (Join-Path $frontendRoot 'tsconfig.node.json'),
+  (Join-Path $frontendRoot 'index.html')
+)
+$backendSourcePaths = @(
+  (Join-Path $backendRoot 'src'),
+  (Join-Path $backendRoot 'pom.xml'),
+  $staticRoot
+)
 
 Assert-Command -Name 'npm' -Hint 'Please install Node.js 18+ and ensure npm is in PATH.'
 Assert-Command -Name 'mvn' -Hint 'Please install Maven 3.9+ and ensure mvn is in PATH.'
@@ -67,28 +143,46 @@ try {
     }
   }
 
-  Write-Host 'Building frontend...'
-  npm run build
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Frontend build failed.'
+  $needsFrontendBuild = Test-NeedsRefresh -SourcePaths $frontendSourcePaths -TargetPath $frontendDistIndex
+  if ($needsFrontendBuild) {
+    Write-Host 'Building frontend...'
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+      throw 'Frontend build failed.'
+    }
+  }
+  else {
+    Write-Host 'Skipping frontend build (no source changes detected).'
   }
 }
 finally {
   Pop-Location
 }
 
-if (Test-Path $staticRoot) {
-  Remove-Item -LiteralPath $staticRoot -Recurse -Force
+$needsStaticCopy = Test-NeedsRefresh -SourcePaths @($frontendDistRoot) -TargetPath $staticIndex
+if ($needsStaticCopy) {
+  if (Test-Path $staticRoot) {
+    Remove-Item -LiteralPath $staticRoot -Recurse -Force
+  }
+  New-Item -ItemType Directory -Path $staticRoot -Force | Out-Null
+  Copy-Item -Path (Join-Path $frontendRoot 'dist\*') -Destination $staticRoot -Recurse -Force
 }
-New-Item -ItemType Directory -Path $staticRoot -Force | Out-Null
-Copy-Item -Path (Join-Path $frontendRoot 'dist\*') -Destination $staticRoot -Recurse -Force
+else {
+  Write-Host 'Skipping static asset copy (no frontend build changes detected).'
+}
 
 Push-Location $backendRoot
 try {
-  Write-Host 'Packaging backend...'
-  mvn "-Dmaven.repo.local=$mavenRepo" package
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Backend package failed.'
+  $needsBackendPackage = Test-NeedsRefresh -SourcePaths $backendSourcePaths -TargetPath $packagedJar
+  if ($needsBackendPackage) {
+    Write-Host 'Packaging backend...'
+    mvn "-Dmaven.repo.local=$mavenRepo" package
+    if ($LASTEXITCODE -ne 0) {
+      throw 'Backend package failed.'
+    }
+  }
+  else {
+    Write-Host 'Skipping backend package (no source changes detected).'
   }
 
   if (-not (Test-Path $runtimeRoot)) {
@@ -98,7 +192,9 @@ try {
     New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
   }
 
-  Copy-Item -LiteralPath $packagedJar -Destination $runtimeJar -Force
+  if ((-not (Test-Path $runtimeJar)) -or ((Get-Item -LiteralPath $packagedJar).LastWriteTimeUtc -gt (Get-Item -LiteralPath $runtimeJar -ErrorAction SilentlyContinue).LastWriteTimeUtc)) {
+    Copy-Item -LiteralPath $packagedJar -Destination $runtimeJar -Force
+  }
   if (Test-Path $stdoutLog) {
     Remove-Item -LiteralPath $stdoutLog -Force
   }

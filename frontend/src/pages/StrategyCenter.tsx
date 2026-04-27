@@ -1,5 +1,5 @@
-import { ArrowLeftOutlined, DeleteOutlined, ExpandOutlined, FolderOpenOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
-import { Alert, Button, Empty, Input, Modal, Popconfirm, Space, message } from 'antd';
+import { ArrowLeftOutlined, ExpandOutlined, FolderOpenOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
+import { Alert, Button, Empty, Input, Modal, Space, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -8,7 +8,6 @@ import ChartRendererCore from '../components/ChartRendererCore';
 import type { ChartPreview } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
 import {
-  deleteStrategy,
   favoriteStrategy,
   getStrategy,
   isStrategyFavorited,
@@ -22,18 +21,13 @@ import { normalizeSearchKeyword, resolveActiveRowCodes, scrollContainerItemToCen
 const TEXT = {
   previewLoadFailed: '\u7b56\u7565\u9884\u89c8\u52a0\u8f7d\u5931\u8d25',
   detailLoadFailed: '\u7b56\u7565\u8be6\u60c5\u52a0\u8f7d\u5931\u8d25',
-  deleted: '\u7b56\u7565\u5df2\u5220\u9664',
   title: '\u7b56\u7565\u4e2d\u5fc3',
   searchPlaceholder: '\u641c\u7d22\u7b56\u7565\u540d\u79f0\u6216\u6307\u6807\u540d\u79f0',
   chartCountSuffix: '\u4e2a\u56fe\u8868',
   openStrategy: '\u8fdb\u5165\u7b56\u7565',
-  delete: '\u5220\u9664',
   favorite: '\u6536\u85cf\u7b56\u7565',
   favorited: '\u5df2\u6536\u85cf',
   favoritedMessage: '\u7b56\u7565\u5df2\u6536\u85cf\u5230\u6211\u7684\u7b56\u7565',
-  deleteConfirm: '\u786e\u8ba4\u5220\u9664\u5f53\u524d\u7b56\u7565\u5417\uff1f',
-  confirm: '\u786e\u8ba4',
-  cancel: '\u53d6\u6d88',
   noPreview: '\u5f53\u524d\u7b56\u7565\u6682\u65e0\u9884\u89c8',
   noStrategy: '\u8fd8\u6ca1\u6709\u914d\u7f6e\u597d\u7684\u7b56\u7565',
   toc: '\u5bfc\u822a',
@@ -196,12 +190,6 @@ function StrategyOverview() {
     document.getElementById(`strategy-card-${strategyId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const removeStrategy = (strategyId: string) => {
-    deleteStrategy(strategyId);
-    setStrategies(listStrategies());
-    message.success(TEXT.deleted);
-  };
-
   const activateStrategyChart = (
     event: ReactMouseEvent<HTMLButtonElement>,
     strategyId: string,
@@ -272,16 +260,6 @@ function StrategyOverview() {
                         >
                           {isStrategyFavorited(strategy.strategyId) ? TEXT.favorited : TEXT.favorite}
                         </Button>
-                        <Popconfirm
-                          title={TEXT.deleteConfirm}
-                          okText={TEXT.confirm}
-                          cancelText={TEXT.cancel}
-                          onConfirm={() => removeStrategy(strategy.strategyId)}
-                        >
-                          <Button icon={<DeleteOutlined />} danger>
-                            {TEXT.delete}
-                          </Button>
-                        </Popconfirm>
                       </div>
                     </div>
 
