@@ -121,7 +121,7 @@ export default function TableDesignerPanel(props: {
             <h3 className="panel-title">基础配置</h3>
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <div>
-                <div className="metric-field-label">图表标题</div>
+                <div className="metric-field-label">指标标题</div>
                 <Input
                   value={props.component.dslConfig.visualDsl.title}
                   onChange={event => applyComponent(component => ({
@@ -137,7 +137,7 @@ export default function TableDesignerPanel(props: {
                 />
               </div>
               <div>
-                <div className="metric-field-label">图表类型</div>
+                <div className="metric-field-label">指标类型</div>
                 <Select
                   style={{ width: '100%' }}
                   value={props.component.templateCode}

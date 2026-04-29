@@ -2,12 +2,12 @@ package com.bi.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
-public class TkfChartReasonVo {
-    private String chartId;
+public class StrategyAiChatResponseVo {
+    private String reply;
+    private boolean fallback;
+    private String provider;
     private String reason;
 }

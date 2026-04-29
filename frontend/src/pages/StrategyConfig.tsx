@@ -2,6 +2,7 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
+  HolderOutlined,
   PlusOutlined
 } from '@ant-design/icons';
 import { Alert, Button, Empty, Input, Popconfirm, Space, message } from 'antd';
@@ -36,7 +37,7 @@ const TEXT = {
   draftSaved: '\u914d\u7f6e\u8349\u7a3f\u5df2\u4fdd\u5b58',
   publishFailed: '\u53d1\u5e03\u5931\u8d25',
   saveFailed: '\u4fdd\u5b58\u5931\u8d25',
-  chartRequired: '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u56fe\u8868',
+  chartRequired: '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u6307\u6807',
   title: '\u7b56\u7565\u914d\u7f6e',
   backCenter: '\u8fd4\u56de\u7b56\u7565\u4e2d\u5fc3',
   backMine: '\u8fd4\u56de\u6211\u7684\u7b56\u7565',
@@ -44,13 +45,13 @@ const TEXT = {
   publish: '\u53d1\u5e03',
   strategyName: '\u7b56\u7565\u540d\u79f0',
   namePlaceholder: '\u8f93\u5165\u7b56\u7565\u540d\u79f0',
-  selectedCharts: '\u5df2\u9009\u56fe\u8868',
-  countSuffix: '\u4e2a\u56fe\u8868',
-  searchDraftPlaceholder: '\u641c\u7d22\u7b56\u7565\u540d\u79f0\u6216\u56fe\u8868\u540d\u79f0',
+  selectedCharts: '\u5df2\u9009\u6307\u6807',
+  countSuffix: '\u4e2a\u6307\u6807',
+  searchDraftPlaceholder: '\u641c\u7d22\u7b56\u7565\u540d\u79f0\u6216\u6307\u6807\u540d\u79f0',
   removeFromStrategy: '\u79fb\u51fa',
-  loadingCharts: '\u56fe\u8868\u52a0\u8f7d\u4e2d',
-  noPreview: '\u5f53\u524d\u56fe\u8868\u6682\u65e0\u9884\u89c8',
-  noSelectedChart: '\u8fd8\u6ca1\u6709\u9009\u62e9\u56fe\u8868',
+  loadingCharts: '\u6307\u6807\u52a0\u8f7d\u4e2d',
+  noPreview: '\u5f53\u524d\u6307\u6807\u6682\u65e0\u9884\u89c8',
+  noSelectedChart: '\u8fd8\u6ca1\u6709\u9009\u62e9\u6307\u6807',
   unsaved: '\u672a\u8bb0\u5f55',
   unpublished: '\u672a\u53d1\u5e03',
   saveTime: '\u4fdd\u5b58\u65f6\u95f4',
@@ -67,8 +68,8 @@ const TEXT = {
   draftLabel: '\u914d\u7f6e\u8349\u7a3f',
   cancel: '\u53d6\u6d88',
   completeSelect: '\u9009\u62e9\u5b8c\u6210',
-  addChart: '\u65b0\u589e\u56fe\u8868',
-  addChartTitle: '\u9009\u62e9\u8981\u52a0\u5165\u7684\u56fe\u8868'
+  addChart: '\u65b0\u589e\u6307\u6807',
+  addChartTitle: '\u9009\u62e9\u8981\u52a0\u5165\u7684\u6307\u6807'
 } as const;
 
 type StrategyConfigScope = 'personal' | 'public';
@@ -621,13 +622,7 @@ function StrategyConfigEditor(props: {
     .map(chartId => props.availableCharts.find(item => `${item.chartCode}:${item.component.componentCode}` === chartId))
     .filter((item): item is ChartRuntimeCard => Boolean(item));
 
-  const orderedSelectedCharts = draggingChartId && dragOverChartId
-    ? (() => {
-      const fromIndex = selectedCharts.findIndex(item => `${item.chartCode}:${item.component.componentCode}` === draggingChartId);
-      const toIndex = selectedCharts.findIndex(item => `${item.chartCode}:${item.component.componentCode}` === dragOverChartId);
-      return reorderItemsPreview(selectedCharts, fromIndex, toIndex);
-    })()
-    : selectedCharts;
+  const orderedSelectedCharts = selectedCharts;
 
   const addableCharts = props.availableCharts.filter(item => !draft.selectedChartIds.includes(`${item.chartCode}:${item.component.componentCode}`));
 
@@ -766,6 +761,10 @@ function StrategyConfigEditor(props: {
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const targetId = resolveClosestSortIdFromPoint(moveEvent.clientX, moveEvent.clientY, 'data-selected-sort-id');
       if (!targetId || targetId === draggingChartIdRef.current) {
+        if (dragOverChartIdRef.current !== undefined) {
+          dragOverChartIdRef.current = undefined;
+          setDragOverChartId(undefined);
+        }
         return;
       }
       if (dragOverChartIdRef.current !== targetId) {
@@ -782,14 +781,6 @@ function StrategyConfigEditor(props: {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  };
-
-  const handleSortCardMouseDown = (event: ReactMouseEvent<HTMLElement>, chartId: string) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button')) {
-      return;
-    }
-    startChartDrag(event, chartId);
   };
 
   useEffect(() => {
@@ -848,7 +839,7 @@ function StrategyConfigEditor(props: {
       <div className="page-shell runtime-library-shell">
         <div>
           {orderedSelectedCharts.length > 0 ? (
-            <div className="favorites-board-grid public-chart-grid">
+            <div className="favorites-board-grid public-chart-grid drag-sort-grid">
               {orderedSelectedCharts.map(item => {
                 const chartId = `${item.chartCode}:${item.component.componentCode}`;
                 return (
@@ -857,7 +848,6 @@ function StrategyConfigEditor(props: {
                     id={`strategy-config-selected-${chartId}`}
                     data-selected-sort-id={chartId}
                     className={`panel-card favorites-board-card public-board-card strategy-sort-card${draggingChartId === chartId ? ' strategy-sort-card-dragging' : ''}${dragOverChartId === chartId && draggingChartId !== chartId ? ' strategy-sort-card-drop-target' : ''}`}
-                    onMouseDown={event => handleSortCardMouseDown(event, chartId)}
                   >
                     <div className="favorites-board-card-head">
                       <div>
@@ -870,6 +860,15 @@ function StrategyConfigEditor(props: {
                         </div>
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
+                          <Button
+                            className="thumbnail-drag-button"
+                            icon={<HolderOutlined />}
+                            title="拖拽排序"
+                            aria-label="拖拽排序"
+                            onMouseDown={event => startChartDrag(event, chartId)}
+                        >
+                          拖拽
+                        </Button>
                         <Button danger onClick={() => removeChart(chartId)}>
                           {TEXT.removeFromStrategy}
                         </Button>

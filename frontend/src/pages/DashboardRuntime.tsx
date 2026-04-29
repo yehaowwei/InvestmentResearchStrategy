@@ -153,13 +153,13 @@ export default function DashboardRuntime() {
       ),
       secondaryLabel: normalizeDisplayText(component.dslConfig.visualDsl.title || component.title, component.componentCode)
     });
-    message.success(existed ? '该图表已在我的指标中' : '图表已加入我的指标');
+    message.success(existed ? '该指标已在我的指标中' : '指标已加入我的指标');
   };
 
   const unfavoriteChart = (component: DashboardComponent) => {
     removeComponentFromAllBoards(component.componentCode);
     setFavoriteVersion(value => value + 1);
-    message.success('图表已取消收藏');
+    message.success('指标已取消收藏');
   };
 
   const scrollToChartCard = (chartCode: string) => {
@@ -196,7 +196,7 @@ export default function DashboardRuntime() {
         <Space wrap size={12}>
           <Input.Search
             allowClear
-            placeholder="搜索图表名称"
+            placeholder="搜索指标名称"
             className="page-toc-width-search"
             value={searchKeyword}
             onChange={event => setSearchKeyword(event.target.value)}
@@ -232,7 +232,7 @@ export default function DashboardRuntime() {
                         </Button>
                         {favored ? (
                           <Popconfirm
-                            title="确认取消收藏当前图表吗？"
+                            title="确认取消收藏当前指标吗？"
                             okText="确认"
                             cancelText="取消"
                             onConfirm={() => unfavoriteChart(item.component)}
@@ -260,7 +260,7 @@ export default function DashboardRuntime() {
                               setFavoriteVersion(value => value + 1);
                             }}
                           >
-                            收藏图表
+                            收藏指标
                           </Button>
                         )}
                       </div>
@@ -288,7 +288,7 @@ export default function DashboardRuntime() {
                               dense
                             />
                           ) : (
-                            <Empty description="当前图表暂无预览" />
+                            <Empty description="当前指标暂无预览" />
                           )}
                         </div>
                       </div>
@@ -299,7 +299,7 @@ export default function DashboardRuntime() {
             </div>
           ) : (
             <div className="panel-card canvas-card canvas-empty">
-              <Empty description="当前分类下暂无已发布图表" />
+              <Empty description="当前分类下暂无已发布指标" />
             </div>
           )}
         </div>
@@ -355,7 +355,7 @@ export default function DashboardRuntime() {
         title={expandedChart ? normalizeDisplayText(
           expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title,
           expandedChart.component.componentCode
-        ) : '图表详情'}
+        ) : '指标详情'}
         open={Boolean(expandedChart)}
         footer={null}
         onCancel={() => setExpandedChart(undefined)}

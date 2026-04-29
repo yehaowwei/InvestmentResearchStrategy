@@ -2,20 +2,21 @@
   ArrowLeftOutlined,
   DeleteOutlined,
   ExpandOutlined,
+  FolderOpenOutlined,
+  HolderOutlined,
   PlusOutlined,
   RobotOutlined,
   SendOutlined
 } from '@ant-design/icons';
-import { Alert, Button, Empty, Input, Modal, Popconfirm, Space, message } from 'antd';
+import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Space, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
 import StrategyChartSelectorModal from './strategy/StrategyChartSelectorModal';
-import type { ChartCatalogItem, ChartPreview, TkfAgentMessage, TkfAgentResponse, TkfChartCandidate } from '../types/dashboard';
+import type { ChartCatalogItem, ChartPreview } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
-import { getCategoryLabel, getDashboardMeta } from '../utils/dashboardCatalog';
 import {
   createStrategy,
   deleteStrategy,
@@ -47,8 +48,8 @@ const TEXT = {
   createTitle: '\u65b0\u5efa\u7b56\u7565',
   saveInfo: '\u4fdd\u5b58\u4fe1\u606f',
   strategyName: '\u7b56\u7565\u540d\u79f0',
-  availableCharts: '\u53ef\u9009\u56fe\u8868',
-  selectedCharts: '\u5df2\u9009\u56fe\u8868',
+  availableCharts: '\u53ef\u9009\u6307\u6807',
+  selectedCharts: '\u5df2\u9009\u6307\u6807',
   namePlaceholder: '\u8f93\u5165\u7b56\u7565\u540d\u79f0',
   searchPlaceholder: '\u641c\u7d22\u6211\u7684\u7b56\u7565\u6216\u6307\u6807\u540d\u79f0',
   open: '\u8fdb\u5165\u7b56\u7565',
@@ -56,66 +57,125 @@ const TEXT = {
   deleteConfirm: '\u786e\u8ba4\u5220\u9664\u5f53\u524d\u6211\u7684\u7b56\u7565\u5417\uff1f',
   confirm: '\u786e\u8ba4',
   cancel: '\u53d6\u6d88',
-  countSuffix: '\u4e2a\u56fe\u8868',
+  countSuffix: '\u4e2a\u6307\u6807',
   noPreview: '\u5f53\u524d\u7b56\u7565\u6682\u65e0\u9884\u89c8',
   noStrategy: '\u8fd8\u6ca1\u6709\u6211\u7684\u7b56\u7565',
   toc: '\u5bfc\u822a',
   notFound: '\u672a\u627e\u5230\u6211\u7684\u7b56\u7565',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u53ef\u80fd\u5df2\u7ecf\u88ab\u5220\u9664\u3002',
   back: '\u8fd4\u56de\u6211\u7684\u7b56\u7565',
-  detailFallback: '\u8fd9\u91cc\u5c55\u793a\u4e2a\u4eba\u7b56\u7565\u4e0b\u7684\u6240\u6709\u56fe\u8868\uff0c\u53ef\u4ee5\u9010\u4e00\u653e\u5927\u67e5\u770b\u3002',
   enlarge: '\u653e\u5927\u67e5\u770b',
-  chartDetail: '\u56fe\u8868\u8be6\u60c5',
-  noChartPreview: '\u5f53\u524d\u56fe\u8868\u6682\u65e0\u9884\u89c8',
-  noCharts: '\u5f53\u524d\u7b56\u7565\u8fd8\u6ca1\u6709\u56fe\u8868',
-  removeFromStrategy: '\u79fb\u51fa',
+  chartDetail: '\u6307\u6807\u8be6\u60c5',
+  noChartPreview: '\u5f53\u524d\u6307\u6807\u6682\u65e0\u9884\u89c8',
+  noCharts: '\u5f53\u524d\u7b56\u7565\u8fd8\u6ca1\u6709\u6307\u6807',
+  deleteFromStrategy: '\u5220\u9664',
+  deleteChartConfirm: '\u786e\u8ba4\u5220\u9664\u5f53\u524d\u6307\u6807\u5417\uff1f',
   addToStrategy: '\u52a0\u5165',
-  chartRequired: '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u56fe\u8868',
-  addChart: '\u65b0\u589e\u56fe\u8868',
-  addChartTitle: '\u9009\u62e9\u8981\u52a0\u5165\u7684\u56fe\u8868',
+  chartRequired: '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u6307\u6807',
+  addChart: '\u65b0\u589e\u6307\u6807',
+  addChartTitle: '\u9009\u62e9\u8981\u52a0\u5165\u7684\u6307\u6807',
   completeSelect: '\u9009\u62e9\u5b8c\u6210',
-  tkfAgent: 'TKF智能体',
-  tkfTitle: 'TKF智能体策略助手',
-  tkfPlaceholder: '例如：请给我构建一个流动性相关的策略，然后给我图表中两个流动性相关的指标构建出来的图表',
-  tkfSend: '发送',
-  tkfOpenStrategy: '打开策略',
-  tkfEmptyCharts: '当前没有可用图表，暂时不能生成策略',
-  tkfCreated: 'TKF 已生成策略',
-  tkfModeExplain: '策略解读',
-  tkfModeBuild: '构建策略',
-  tkfModeTitle: '功能选择',
-  tkfNewChat: '新建对话',
-  tkfDraftTitle: '待保存策略',
-  tkfDraftName: '策略名称',
-  tkfDraftDescription: '策略说明',
-  tkfSaveDraft: '保存到我的策略',
-  tkfRemoveChart: '移除图表',
-  tkfDraftReady: '策略草稿已生成，请先预览后再保存',
-  tkfExplainPlaceholder: '例如：请做一下流动性策略解读，重点说明这两个指标最近的变化',
-  tkfBuildPlaceholder: '例如：请给我构建一个流动性相关的策略，然后给我图表中两个流动性相关的指标构建出来的图表',
-  tkfDraftSaved: '策略已保存到我的策略',
-  tkfDraftMissing: '当前没有待保存的策略草稿',
-  tkfDraftNoCharts: '请至少保留一张图表后再保存'
+  aiTitle: 'AI\u7b56\u7565\u52a9\u624b',
+  aiPlaceholder: '\u4f8b\u5982\uff1a\u5e2e\u6211\u603b\u7ed3\u8fd9\u4e24\u4e2a\u6307\u6807\u6700\u8fd1\u53d8\u5316\uff0c\u6216\u8005\u8fd9\u4e2a\u7b56\u7565\u4e3b\u8981\u5728\u770b\u4ec0\u4e48\uff1f',
+  aiSend: '\u53d1\u9001',
+  aiReset: '\u65b0\u5efa\u5bf9\u8bdd',
+  aiHistory: '\u5386\u53f2\u5bf9\u8bdd',
+  aiNoHistory: '\u6682\u65e0\u5386\u53f2\u5bf9\u8bdd',
+  aiHistoryTitle: '\u5386\u53f2\u5bf9\u8bdd',
+  aiDeleteHistory: '\u5220\u9664\u5bf9\u8bdd',
+  aiDeleteHistoryConfirm: '\u786e\u8ba4\u5220\u9664\u8fd9\u6761\u5386\u53f2\u5bf9\u8bdd\u5417\uff1f',
+  aiUntitled: '\u7b56\u7565\u89e3\u8bfb\u5bf9\u8bdd',
+  aiGreeting: '\u6211\u4f1a\u7ed3\u5408\u5f53\u524d\u7b56\u7565\u91cc\u7684\u6307\u6807\uff0c\u5e2e\u4f60\u505a\u7b80\u6d01\u7684\u7b56\u7565\u89e3\u8bfb\u548c\u6307\u6807\u8bf4\u660e\u3002',
 };
 
-interface AgentChatEntry {
+interface StrategyAiMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  strategyId?: string;
-  strategyName?: string;
-  chartReasons?: Array<{ chartId: string; reason: string }>;
-  fallback?: boolean;
 }
 
-type TkfAgentMode = 'explain' | 'build';
+interface StrategyAiConversation {
+  id: string;
+  title: string;
+  messages: StrategyAiMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
 
-interface PendingAgentStrategyDraft {
-  strategyName: string;
-  description: string;
-  charts: ChartRuntimeCard[];
-  chartReasons: Array<{ chartId: string; reason: string }>;
-  sourceReply: string;
+const STRATEGY_AI_HISTORY_STORAGE_KEY = 'bi-strategy-ai-history-v1';
+
+function createInitialAiMessages(seed: string): StrategyAiMessage[] {
+  return [{ id: `assistant-${seed}`, role: 'assistant', content: TEXT.aiGreeting }];
+}
+
+function createAiConversation(): StrategyAiConversation {
+  const now = new Date().toISOString();
+  const id = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id,
+    title: TEXT.aiReset,
+    messages: createInitialAiMessages(id),
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function resolveAiConversationTitle(messages: StrategyAiMessage[]) {
+  const firstUserMessage = messages.find(item => item.role === 'user' && item.content.trim());
+  if (!firstUserMessage) {
+    return TEXT.aiReset;
+  }
+  const normalized = firstUserMessage.content
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/^(请|帮我|麻烦|你好|您好)[，,。.\s]*/u, '')
+    .replace(/[？?。.!！]+$/u, '');
+  const title = normalized || TEXT.aiUntitled;
+  return title.length > 18 ? `${title.slice(0, 18)}...` : title;
+}
+
+function readAiHistoryMap(): Record<string, StrategyAiConversation[]> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(STRATEGY_AI_HISTORY_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, StrategyAiConversation[]>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAiHistoryMap(historyMap: Record<string, StrategyAiConversation[]>) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.localStorage.setItem(STRATEGY_AI_HISTORY_STORAGE_KEY, JSON.stringify(historyMap));
+}
+
+function readStrategyAiConversations(strategyId?: string) {
+  if (!strategyId) {
+    return [];
+  }
+  return (readAiHistoryMap()[strategyId] ?? [])
+    .filter(item => Array.isArray(item.messages) && item.messages.length > 0)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 20);
+}
+
+function writeStrategyAiConversations(strategyId: string | undefined, conversations: StrategyAiConversation[]) {
+  if (!strategyId) {
+    return;
+  }
+  const historyMap = readAiHistoryMap();
+  historyMap[strategyId] = conversations
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 20);
+  writeAiHistoryMap(historyMap);
 }
 
 function toFiniteNumber(value: unknown) {
@@ -139,13 +199,12 @@ function formatSummaryNumber(value: number) {
   }).format(value);
 }
 
-function buildRecentSummary(card: ChartRuntimeCard) {
-  const preview = card.preview;
-  const metrics = card.component.dslConfig.queryDsl.metrics ?? [];
-  const dimensions = card.component.dslConfig.queryDsl.dimensionFields ?? [];
+function buildRecentSummaryFromPreview(chart: StrategyChartSnapshot, preview?: ChartPreview) {
+  const metrics = chart.dslConfig.queryDsl.metrics ?? [];
+  const dimensions = chart.dslConfig.queryDsl.dimensionFields ?? [];
   const metric = metrics[0];
   if (!preview || !metric) {
-    return '';
+    return `${chart.componentTitle}\u5f53\u524d\u53ef\u7528\u4e8e\u89c2\u5bdf\u8be5\u6307\u6807\u7684\u9636\u6bb5\u53d8\u5316\u3002`;
   }
 
   const metricFieldCode = metric.fieldCode;
@@ -158,67 +217,77 @@ function buildRecentSummary(card: ChartRuntimeCard) {
       }
       const labelRaw = dimensionFieldCode ? row[dimensionFieldCode] : undefined;
       return {
-        label: String(labelRaw ?? `第${index + 1}期`),
+        label: String(labelRaw ?? `\u7b2c${index + 1}\u671f`),
         value
       };
     })
     .filter((item): item is { label: string; value: number } => Boolean(item));
 
   if (points.length < 2) {
-    return '';
+    return `${chart.componentTitle}\u5f53\u524d\u6837\u672c\u8f83\u5c11\uff0c\u9002\u5408\u7ed3\u5408\u540e\u7eed\u66f4\u65b0\u7ee7\u7eed\u89c2\u5bdf\u3002`;
   }
 
   const last = points[points.length - 1];
   const prev = points[points.length - 2];
   const latestDelta = last.value - prev.value;
   const latestTrend = latestDelta > 0
-    ? '较上一期回升'
+    ? '\u8f83\u4e0a\u4e00\u671f\u56de\u5347'
     : latestDelta < 0
-      ? '较上一期回落'
-      : '与上一期基本持平';
+      ? '\u8f83\u4e0a\u4e00\u671f\u56de\u843d'
+      : '\u4e0e\u4e0a\u4e00\u671f\u57fa\u672c\u6301\u5e73';
 
   let continuity = '';
   if (points.length >= 3) {
     const prev2 = points[points.length - 3];
     const prevDelta = prev.value - prev2.value;
     if (latestDelta > 0 && prevDelta > 0) {
-      continuity = '最近两期连续回升';
+      continuity = '\u6700\u8fd1\u4e24\u671f\u8fde\u7eed\u56de\u5347';
     } else if (latestDelta < 0 && prevDelta < 0) {
-      continuity = '最近两期连续回落';
+      continuity = '\u6700\u8fd1\u4e24\u671f\u8fde\u7eed\u56de\u843d';
     } else if ((latestDelta > 0 && prevDelta < 0) || (latestDelta < 0 && prevDelta > 0)) {
-      continuity = '最近两期有一定反复';
+      continuity = '\u6700\u8fd1\u4e24\u671f\u6709\u4e00\u5b9a\u53cd\u590d';
     }
   }
 
-  const latestValue = `${last.label}为${formatSummaryNumber(last.value)}`;
-  return continuity
-    ? `${latestValue}，${latestTrend}，${continuity}。`
-    : `${latestValue}，${latestTrend}。`;
+  const latestValue = `${last.label}\u4e3a${formatSummaryNumber(last.value)}`;
+  const body = continuity
+    ? `${latestValue}\uff0c${latestTrend}\uff0c${continuity}\u3002`
+    : `${latestValue}\uff0c${latestTrend}\u3002`;
+  return `${chart.componentTitle}\uff1a${body}`;
 }
 
-function isLiquidityDemoChart(card: ChartRuntimeCard) {
-  const chartId = `${card.chartCode}:${card.component.componentCode}`;
-  const title = normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode);
-  const chartName = normalizeDisplayText(card.chartName, card.chartCode);
-  return card.chartCode === 'chart_10'
-    || card.chartCode === 'chart_11'
-    || title.includes('市场融资余额变化(亿元)')
-    || title.includes('分板块融资余额周度变化(亿元)')
-    || chartName.includes('市场融资余额变化(亿元)')
-    || chartName.includes('分板块融资余额周度变化(亿元)')
-    || chartId.startsWith('chart_10:')
-    || chartId.startsWith('chart_11:');
+function buildIndicatorMeaning(title: string) {
+  if (title.includes('\u5e02\u573a\u878d\u8d44\u4f59\u989d\u53d8\u5316')) {
+    return '\u8fd9\u4e2a\u6307\u6807\u4e3b\u8981\u770b\u5e02\u573a\u6574\u4f53\u878d\u8d44\u8d44\u91d1\u7684\u589e\u51cf\u8282\u594f\uff0c\u9002\u5408\u89c2\u5bdf\u6d41\u52a8\u6027\u53d8\u5316\u662f\u5426\u5728\u52a0\u901f\u6216\u653e\u7f13\u3002';
+  }
+  if (title.includes('\u5206\u677f\u5757\u878d\u8d44\u4f59\u989d\u5468\u5ea6\u53d8\u5316')) {
+    return '\u8fd9\u4e2a\u6307\u6807\u4e3b\u8981\u770b\u878d\u8d44\u8d44\u91d1\u5728\u4e0d\u540c\u677f\u5757\u4e4b\u95f4\u7684\u5206\u5e03\u548c\u5207\u6362\uff0c\u9002\u5408\u89c2\u5bdf\u7ed3\u6784\u5206\u5316\u3002';
+  }
+  if (title.includes('\u80a1\u6743\u98ce\u9669\u6ea2\u4ef7')) {
+    return '\u8fd9\u4e2a\u6307\u6807\u4e3b\u8981\u7528\u6765\u89c2\u5bdf\u6743\u76ca\u8d44\u4ea7\u76f8\u5bf9\u65e0\u98ce\u9669\u5229\u7387\u7684\u5438\u5f15\u529b\u53d8\u5316\u3002';
+  }
+  return '\u8fd9\u4e2a\u6307\u6807\u4e3b\u8981\u53cd\u6620\u8be5\u7b56\u7565\u6240\u5173\u6ce8\u5e02\u573a\u72b6\u6001\u7684\u9636\u6bb5\u6027\u53d8\u5316\u3002';
 }
 
-function buildTkfBuildReason(card: ChartRuntimeCard) {
-  const title = normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode);
-  if (title.includes('市场融资余额变化')) {
-    return '用“市场融资余额变化(亿元)”来观察整体融资资金的增减节奏，反映市场层面的流动性变化方向。';
+function buildAiReply(
+  strategyName: string,
+  prompt: string,
+  charts: StrategyChartSnapshot[],
+  previewMap: Record<string, ChartPreview>
+) {
+  const normalizedPrompt = prompt.trim().toLowerCase();
+  const summaries = charts.slice(0, 4).map(chart => buildRecentSummaryFromPreview(chart, previewMap[chart.chartId]));
+  const meanings = charts.slice(0, 4).map(chart => `${chart.componentTitle}\uff1a${buildIndicatorMeaning(chart.componentTitle)}`);
+
+  if (normalizedPrompt.includes('\u770b\u4ec0\u4e48') || normalizedPrompt.includes('\u6307\u6807') || normalizedPrompt.includes('\u4f5c\u7528')) {
+    return `\u8fd9\u4e2a\u7b56\u7565\u5f53\u524d\u4e3b\u8981\u56f4\u7ed5\u4ee5\u4e0b\u6307\u6807\u5c55\u5f00\uff1a\n${meanings.join('\n')}`;
   }
-  if (title.includes('分板块融资余额周度变化')) {
-    return '用“分板块融资余额周度变化(亿元)”来观察不同板块之间融资资金流向的分化，反映结构层面的强弱切换。';
+
+  if (normalizedPrompt.includes('\u603b\u7ed3') || normalizedPrompt.includes('\u53d8\u5316') || normalizedPrompt.includes('\u89e3\u8bfb') || normalizedPrompt.includes('\u6700\u8fd1')) {
+    return `\u6211\u7ed3\u5408\u201c${strategyName}\u201d\u91cc\u7684\u6307\u6807\uff0c\u7ed9\u4f60\u505a\u4e00\u4e2a\u7b80\u6d01\u89e3\u8bfb\uff1a\n${summaries.join('\n')}`;
   }
-  return `用“${title}”来说明这个策略关注的指标主要反映什么市场状态。`;
+
+  return `\u5f53\u524d\u8fd9\u4e2a\u7b56\u7565\u662f\u201c${strategyName}\u201d\u3002\n${meanings.join('\n')}\n\n\u5982\u679c\u4f60\u60f3\u770b\u6700\u8fd1\u53d8\u5316\uff0c\u6211\u4e5f\u53ef\u4ee5\u7ee7\u7eed\u6839\u636e\u6307\u6807\u6570\u636e\u505a\u9010\u9879\u89e3\u8bfb\u3002`;
 }
 
 function buildComponent(snapshot: StrategyChartSnapshot) {
@@ -256,173 +325,6 @@ function matchAvailableChart(card: ChartRuntimeCard, keyword: string) {
   ].some(value => value.toLowerCase().includes(normalizedKeyword));
 }
 
-function TkfAgentModal(props: {
-  open: boolean;
-  loading: boolean;
-  mode: TkfAgentMode;
-  messages: AgentChatEntry[];
-  pendingDraft?: PendingAgentStrategyDraft;
-  inputValue: string;
-  onModeChange: (mode: TkfAgentMode) => void;
-  onInputChange: (value: string) => void;
-  onSend: () => void;
-  onCancel: () => void;
-  onNewChat: () => void;
-  onOpenStrategy: (strategyId: string) => void;
-  onPendingDraftNameChange: (value: string) => void;
-  onRemovePendingChart: (chartId: string) => void;
-  onExpandDraftChart: (chart: ChartRuntimeCard) => void;
-  onSaveDraft: () => void;
-}) {
-  return (
-    <Modal
-      title={TEXT.tkfTitle}
-      open={props.open}
-      onCancel={props.onCancel}
-      footer={null}
-      width={920}
-      styles={{ body: { padding: 16, maxHeight: '82vh', overflowY: 'auto' } }}
-    >
-      <div className="strategy-agent-shell">
-        <div className="strategy-agent-topbar">
-          <Button onClick={props.onNewChat}>
-            {TEXT.tkfNewChat}
-          </Button>
-        </div>
-        <div className="strategy-agent-messages">
-          {props.messages.map(item => (
-            <div key={item.id} className={`strategy-agent-message strategy-agent-message-${item.role}`}>
-              <div className="strategy-agent-bubble">
-                <div className="strategy-agent-text">{item.content}</div>
-                {item.chartReasons && item.chartReasons.length > 0 ? (
-                  <div className="strategy-agent-reasons">
-                    {item.chartReasons.map(reason => (
-                      <div key={`${item.id}:${reason.chartId}`} className="strategy-agent-reason-item">
-                        {reason.reason}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {item.strategyId ? (
-                  <div className="strategy-agent-actions">
-                    <Button size="small" type="primary" onClick={() => props.onOpenStrategy(item.strategyId!)}>
-                      {TEXT.tkfOpenStrategy}
-                    </Button>
-                    {item.strategyName ? <span className="strategy-agent-created-name">{TEXT.tkfCreated}：{item.strategyName}</span> : null}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
-        {props.pendingDraft ? (
-          <div className="panel-card strategy-agent-draft">
-            <div className="strategy-manage-header">
-              <span className="strategy-selection-title">{TEXT.tkfDraftTitle}</span>
-              <Button type="primary" onClick={props.onSaveDraft}>
-                {TEXT.tkfSaveDraft}
-              </Button>
-            </div>
-            <div className="strategy-agent-draft-form">
-              <div className="strategy-info-row">
-                <span className="strategy-selection-title">{TEXT.tkfDraftName}</span>
-                <Input value={props.pendingDraft.strategyName} onChange={event => props.onPendingDraftNameChange(event.target.value)} />
-              </div>
-              <div className="strategy-info-row">
-                <span className="strategy-selection-title">{TEXT.tkfDraftDescription}</span>
-                <div className="strategy-agent-draft-description">{props.pendingDraft.description}</div>
-              </div>
-            </div>
-            <div className="favorites-board-grid strategy-config-grid">
-              {props.pendingDraft.charts.map(card => (
-                <article key={`${card.chartCode}:${card.component.componentCode}`} className="panel-card favorites-board-card public-board-card strategy-picker-card">
-                  <div className="favorites-board-card-head">
-                    <div>
-                      <h3 className="favorites-board-title">
-                        {normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode)}
-                      </h3>
-                      <div className="favorites-board-meta">
-                        <span>{getCategoryLabel(getDashboardMeta(card.chartCode).category)}</span>
-                        <span>{normalizeDisplayText(card.chartName, card.chartCode)}</span>
-                      </div>
-                    </div>
-                    <div className="favorites-card-actions public-chart-card-actions">
-                      <Button icon={<ExpandOutlined />} onClick={() => props.onExpandDraftChart(card)}>
-                        {TEXT.enlarge}
-                      </Button>
-                      <Button danger onClick={() => props.onRemovePendingChart(`${card.chartCode}:${card.component.componentCode}`)}>
-                        {TEXT.tkfRemoveChart}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="favorites-board-thumb">
-                    <div className="library-chart-preview">
-                      <div className="library-chart-preview-head">
-                        {normalizeDisplayText(card.component.dslConfig.visualDsl.indicatorTag) ? (
-                          <span className="chart-card-tag">{normalizeDisplayText(card.component.dslConfig.visualDsl.indicatorTag)}</span>
-                        ) : null}
-                      </div>
-                      <div className="library-chart-preview-body">
-                        {card.preview ? (
-                          <ChartRendererCore
-                            component={card.component}
-                            preview={card.preview}
-                            templateCode={card.component.templateCode}
-                            viewMode="chart"
-                            editable={false}
-                            selected={false}
-                            thumbnail
-                            compact={false}
-                            dense
-                          />
-                        ) : (
-                          <Empty description={TEXT.noPreview} />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        <div className="strategy-agent-compose-panel">
-          <div className="strategy-agent-mode-bar">
-            <span className="strategy-selection-title">{TEXT.tkfModeTitle}</span>
-            <Space size={8}>
-              <Button type={props.mode === 'explain' ? 'primary' : 'default'} onClick={() => props.onModeChange('explain')}>
-                {TEXT.tkfModeExplain}
-              </Button>
-              <Button type={props.mode === 'build' ? 'primary' : 'default'} onClick={() => props.onModeChange('build')}>
-                {TEXT.tkfModeBuild}
-              </Button>
-            </Space>
-          </div>
-          <div className="strategy-agent-compose">
-            <Input.TextArea
-              value={props.inputValue}
-              placeholder={props.mode === 'build' ? TEXT.tkfBuildPlaceholder : TEXT.tkfExplainPlaceholder}
-              autoSize={{ minRows: 3, maxRows: 5 }}
-              onChange={event => props.onInputChange(event.target.value)}
-              onPressEnter={event => {
-                if (!event.shiftKey) {
-                  event.preventDefault();
-                  props.onSend();
-                }
-              }}
-            />
-            <div className="strategy-agent-compose-actions">
-              <Button onClick={props.onCancel}>{TEXT.cancel}</Button>
-              <Button type="primary" icon={<SendOutlined />} loading={props.loading} onClick={props.onSend}>
-                {TEXT.tkfSend}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
 
 function MyStrategyOverview() {
   const navigate = useNavigate();
@@ -431,18 +333,12 @@ function MyStrategyOverview() {
   const [previewMap, setPreviewMap] = useState<Record<string, ChartPreview>>({});
   const [activeChartMap, setActiveChartMap] = useState<Record<string, string>>({});
   const [activeStrategyIds, setActiveStrategyIds] = useState<string[]>([]);
+  const [expandedChart, setExpandedChart] = useState<StrategyChartSnapshot>();
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createSelectedChartIds, setCreateSelectedChartIds] = useState<string[]>([]);
   const [catalogCharts, setCatalogCharts] = useState<ChartCatalogItem[]>([]);
   const [availableCharts, setAvailableCharts] = useState<ChartRuntimeCard[]>([]);
-  const [agentOpen, setAgentOpen] = useState(false);
-  const [agentLoading, setAgentLoading] = useState(false);
-  const [agentMode, setAgentMode] = useState<TkfAgentMode>('build');
-  const [agentInput, setAgentInput] = useState('');
-  const [agentMessages, setAgentMessages] = useState<AgentChatEntry[]>([]);
-  const [pendingAgentDraft, setPendingAgentDraft] = useState<PendingAgentStrategyDraft>();
-  const [expandedAgentChart, setExpandedAgentChart] = useState<ChartRuntimeCard>();
   const [draggingStrategyId, setDraggingStrategyId] = useState<string>();
   const [dragOverStrategyId, setDragOverStrategyId] = useState<string>();
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
@@ -455,32 +351,9 @@ function MyStrategyOverview() {
     [searchKeyword, strategies]
   );
 
-  const orderedStrategies = draggingStrategyId && dragOverStrategyId
-    ? (() => {
-      const fromIndex = filteredStrategies.findIndex(item => item.strategyId === draggingStrategyId);
-      const toIndex = filteredStrategies.findIndex(item => item.strategyId === dragOverStrategyId);
-      return reorderItemsPreview(filteredStrategies, fromIndex, toIndex);
-    })()
-    : filteredStrategies;
+  const orderedStrategies = filteredStrategies;
 
   const selectableCharts = useMemo(() => availableCharts, [availableCharts]);
-  const tkfChartCandidates = useMemo<TkfChartCandidate[]>(() => selectableCharts.map(card => ({
-    chartId: `${card.chartCode}:${card.component.componentCode}`,
-    chartCode: card.chartCode,
-    chartName: normalizeDisplayText(card.chartName, card.chartCode),
-    componentCode: card.component.componentCode,
-    componentTitle: normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode),
-    category: getCategoryLabel(getDashboardMeta(card.chartCode).category),
-    indicatorTag: normalizeDisplayText(card.component.dslConfig.visualDsl.indicatorTag),
-    recentSummary: buildRecentSummary(card)
-  })), [selectableCharts]);
-
-  const resetAgentConversation = () => {
-    setAgentMessages([]);
-    setAgentInput('');
-    setPendingAgentDraft(undefined);
-    setExpandedAgentChart(undefined);
-  };
 
   useEffect(() => {
     const syncStrategies = () => setStrategies(listMyStrategies());
@@ -686,6 +559,10 @@ function MyStrategyOverview() {
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const targetId = resolveClosestSortIdFromPoint(moveEvent.clientX, moveEvent.clientY, 'data-my-strategy-sort-id');
       if (!targetId || targetId === draggingStrategyIdRef.current) {
+        if (dragOverStrategyIdRef.current !== undefined) {
+          dragOverStrategyIdRef.current = undefined;
+          setDragOverStrategyId(undefined);
+        }
         return;
       }
       if (dragOverStrategyIdRef.current !== targetId) {
@@ -702,14 +579,6 @@ function MyStrategyOverview() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  };
-
-  const handleStrategyCardMouseDown = (event: ReactMouseEvent<HTMLElement>, strategyId: string) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button')) {
-      return;
-    }
-    startStrategyDrag(event, strategyId);
   };
 
   const toggleCreateChart = (chartId: string) => {
@@ -744,203 +613,6 @@ function MyStrategyOverview() {
     navigate(`/my-strategy/${strategy.strategyId}`);
   };
 
-  const openAgentStrategy = (strategyId: string) => {
-    setAgentOpen(false);
-    navigate(`/my-strategy/${strategyId}`);
-  };
-
-  const savePendingAgentDraft = () => {
-    if (!pendingAgentDraft) {
-      message.warning(TEXT.tkfDraftMissing);
-      return;
-    }
-    const trimmedName = pendingAgentDraft.strategyName.trim();
-    if (!trimmedName) {
-      message.warning(TEXT.namePlaceholder);
-      return;
-    }
-    if (pendingAgentDraft.charts.length === 0) {
-      message.warning(TEXT.tkfDraftNoCharts);
-      return;
-    }
-
-    const strategy = createStrategy({
-      scope: 'personal',
-      strategyName: trimmedName,
-      description: pendingAgentDraft.description || pendingAgentDraft.sourceReply,
-      charts: pendingAgentDraft.charts.map(toStrategyChartSnapshot)
-    });
-    setPendingAgentDraft(undefined);
-    setStrategies(listMyStrategies());
-    setAgentMessages(current => [...current, {
-      id: `assistant-saved-${Date.now()}`,
-      role: 'assistant',
-      content: TEXT.tkfDraftSaved,
-      strategyId: strategy.strategyId,
-      strategyName: strategy.strategyName
-    }]);
-    message.success(TEXT.tkfDraftSaved);
-  };
-
-  const submitAgentPrompt = async () => {
-    const trimmedInput = agentInput.trim();
-    if (!trimmedInput) {
-      return;
-    }
-    if (tkfChartCandidates.length === 0) {
-      message.warning(TEXT.tkfEmptyCharts);
-      return;
-    }
-
-    const nextUserMessage: AgentChatEntry = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: trimmedInput
-    };
-    const nextMessages = [...agentMessages, nextUserMessage];
-    setAgentMessages(nextMessages);
-    setAgentInput('');
-    setAgentLoading(true);
-
-    try {
-      const modeInstruction = agentMode === 'build'
-        ? '当前功能：构建策略。请基于“市场融资余额变化(亿元)”和“分板块融资余额周度变化(亿元)”生成一套流动性相关策略草稿，只保留这两张图，并简要说明这两个指标各自反映什么，不要展开最近变化解读。'
-        : '当前功能：策略解读。请围绕已选策略中的两个指标，解释它们最近的数值变化情况，不要给决策性结论。';
-      const response = await api.tkfAgentChat({
-        messages: [
-          { role: 'user', content: modeInstruction },
-          ...nextMessages.map<TkfAgentMessage>(item => ({
-            role: item.role,
-            content: item.content
-          }))
-        ],
-        availableCharts: tkfChartCandidates
-      });
-
-      const selectedCards = selectableCharts.filter(card => response.selectedChartIds.includes(`${card.chartCode}:${card.component.componentCode}`));
-      let strategyId: string | undefined;
-      let strategyName: string | undefined;
-      if (selectedCards.length > 0) {
-        const strategy = createStrategy({
-          scope: 'personal',
-          strategyName: response.strategyName || 'TKF策略演示',
-          description: response.strategyDescription || response.reply,
-          charts: selectedCards.map(toStrategyChartSnapshot)
-        });
-        strategyId = strategy.strategyId;
-        strategyName = strategy.strategyName;
-        setStrategies(listMyStrategies());
-      }
-
-      const assistantMessage: AgentChatEntry = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: response.reply,
-        strategyId,
-        strategyName,
-        chartReasons: response.chartReasons,
-        fallback: response.fallback
-      };
-      setAgentMessages(current => [...current, assistantMessage]);
-      if (strategyId) {
-        message.success(TEXT.tkfCreated);
-      }
-    } catch (error) {
-      console.error(error);
-      message.error(error instanceof Error ? error.message : TEXT.loadFailed);
-    } finally {
-      setAgentLoading(false);
-    }
-  };
-
-  const submitAgentPromptV2 = async () => {
-    const trimmedInput = agentInput.trim();
-    if (!trimmedInput) {
-      return;
-    }
-    if (tkfChartCandidates.length === 0) {
-      message.warning(TEXT.tkfEmptyCharts);
-      return;
-    }
-
-    const nextUserMessage: AgentChatEntry = {
-      id: `user-v2-${Date.now()}`,
-      role: 'user',
-      content: trimmedInput
-    };
-    const nextMessages = [...agentMessages, nextUserMessage];
-    setAgentMessages(nextMessages);
-    setAgentInput('');
-    setAgentLoading(true);
-
-    try {
-      const modeInstruction = agentMode === 'build'
-        ? '当前功能：构建策略。请基于“市场融资余额变化(亿元)”和“分板块融资余额周度变化(亿元)”生成一套流动性相关策略草稿，只保留这两张图，并简要说明这两个指标各自反映什么，不要展开最近变化解读。'
-        : '当前功能：策略解读。请围绕已选策略中的两个指标，解释它们最近的数值变化情况，不要给决策性结论。';
-      const response = await api.tkfAgentChat({
-        messages: [
-          { role: 'user', content: modeInstruction },
-          ...nextMessages.map<TkfAgentMessage>(item => ({
-            role: item.role,
-            content: item.content
-          }))
-        ],
-        availableCharts: tkfChartCandidates
-      });
-
-      const selectedIds = agentMode === 'build'
-        ? response.selectedChartIds.filter(chartId => chartId.startsWith('chart_10:') || chartId.startsWith('chart_11:')).slice(0, 2)
-        : response.selectedChartIds;
-      const selectedCards = selectableCharts
-        .filter(card => selectedIds.includes(`${card.chartCode}:${card.component.componentCode}`))
-        .filter(card => agentMode !== 'build' || isLiquidityDemoChart(card))
-        .slice(0, 2);
-      const nextStrategyName = response.strategyName || 'TKF策略演示';
-      const nextChartReasons = agentMode === 'build'
-        ? selectedCards.map(card => ({
-          chartId: `${card.chartCode}:${card.component.componentCode}`,
-          reason: buildTkfBuildReason(card)
-        }))
-        : response.chartReasons
-          .filter(item => selectedCards.some(card => `${card.chartCode}:${card.component.componentCode}` === item.chartId))
-          .slice(0, 2);
-      const assistantContent = response.reply.trim();
-      const reasonText = agentMode === 'explain'
-        ? nextChartReasons.map(item => item.reason.trim()).filter(Boolean).join('\n')
-        : '';
-      const mergedContent = reasonText && !assistantContent.includes(reasonText)
-        ? `${assistantContent}\n${reasonText}`
-        : assistantContent;
-
-      if (agentMode === 'build' && selectedCards.length > 0) {
-        setPendingAgentDraft({
-          strategyName: nextStrategyName,
-          description: response.strategyDescription || response.reply,
-          charts: selectedCards,
-          chartReasons: nextChartReasons,
-          sourceReply: response.reply
-        });
-        message.success(TEXT.tkfDraftReady);
-      } else if (agentMode === 'explain') {
-        setPendingAgentDraft(undefined);
-      }
-
-      setAgentMessages(current => [...current, {
-        id: `assistant-v2-${Date.now()}`,
-        role: 'assistant',
-        content: mergedContent,
-        strategyName: agentMode === 'build' ? nextStrategyName : undefined,
-        chartReasons: nextChartReasons,
-        fallback: response.fallback
-      }]);
-    } catch (error) {
-      console.error(error);
-      message.error(error instanceof Error ? error.message : TEXT.loadFailed);
-    } finally {
-      setAgentLoading(false);
-    }
-  };
-
   return (
     <div>
       <div className="page-header">
@@ -948,9 +620,6 @@ function MyStrategyOverview() {
           <h2 className="page-title">{TEXT.title}</h2>
         </div>
         <Space wrap size={12}>
-          <Button icon={<RobotOutlined />} onClick={() => setAgentOpen(true)}>
-            {TEXT.tkfAgent}
-          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
             {TEXT.create}
           </Button>
@@ -971,7 +640,7 @@ function MyStrategyOverview() {
       <div className="page-shell runtime-library-shell">
         <div>
           {orderedStrategies.length > 0 ? (
-            <div className="favorites-board-grid strategy-center-grid">
+            <div className="favorites-board-grid strategy-center-grid drag-sort-grid">
               {orderedStrategies.map(strategy => {
                 const activeChartId = activeChartMap[strategy.strategyId];
                 const activeChart = strategy.charts.find(item => item.chartId === activeChartId) ?? strategy.charts[0];
@@ -982,7 +651,6 @@ function MyStrategyOverview() {
                     id={`my-strategy-card-${strategy.strategyId}`}
                     data-my-strategy-sort-id={strategy.strategyId}
                     className={`panel-card favorites-board-card strategy-overview-card${draggingStrategyId === strategy.strategyId ? ' strategy-sort-card-dragging' : ''}${dragOverStrategyId === strategy.strategyId && draggingStrategyId !== strategy.strategyId ? ' strategy-sort-card-drop-target' : ''}`}
-                    onMouseDown={event => handleStrategyCardMouseDown(event, strategy.strategyId)}
                   >
                     <div className="favorites-board-card-head strategy-overview-head">
                       <div>
@@ -992,7 +660,19 @@ function MyStrategyOverview() {
                         </div>
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
-                        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/my-strategy/${strategy.strategyId}`)}>
+                          <Button
+                            className="thumbnail-drag-button"
+                            icon={<HolderOutlined />}
+                            title="拖拽排序"
+                            aria-label="拖拽排序"
+                            onMouseDown={event => startStrategyDrag(event, strategy.strategyId)}
+                        >
+                          拖拽
+                        </Button>
+                        <Button icon={<ExpandOutlined />} onClick={() => activeChart && setExpandedChart(activeChart)}>
+                          {TEXT.enlarge}
+                        </Button>
+                        <Button icon={<FolderOpenOutlined />} onClick={() => navigate(`/my-strategy/${strategy.strategyId}`)}>
                           {TEXT.open}
                         </Button>
                         <Popconfirm
@@ -1098,51 +778,24 @@ function MyStrategyOverview() {
         namePlaceholder={TEXT.namePlaceholder}
         onNameChange={setCreateName}
       />
-
-      <TkfAgentModal
-        open={agentOpen}
-        loading={agentLoading}
-        mode={agentMode}
-        messages={agentMessages}
-        pendingDraft={pendingAgentDraft}
-        inputValue={agentInput}
-        onModeChange={mode => {
-          setAgentMode(mode);
-          setPendingAgentDraft(undefined);
-        }}
-        onInputChange={setAgentInput}
-        onSend={() => void submitAgentPromptV2()}
-        onCancel={() => setAgentOpen(false)}
-        onNewChat={resetAgentConversation}
-        onOpenStrategy={openAgentStrategy}
-        onPendingDraftNameChange={value => setPendingAgentDraft(current => (current ? { ...current, strategyName: value } : current))}
-        onRemovePendingChart={chartId => setPendingAgentDraft(current => current ? {
-          ...current,
-          charts: current.charts.filter(item => `${item.chartCode}:${item.component.componentCode}` !== chartId),
-          chartReasons: current.chartReasons.filter(item => item.chartId !== chartId)
-        } : current)}
-        onExpandDraftChart={setExpandedAgentChart}
-        onSaveDraft={savePendingAgentDraft}
-      />
-
       <Modal
-        title={normalizeDisplayText(expandedAgentChart?.component.dslConfig.visualDsl.title || expandedAgentChart?.component.title, TEXT.chartDetail)}
-        open={Boolean(expandedAgentChart)}
+        title={expandedChart?.componentTitle || TEXT.chartDetail}
+        open={Boolean(expandedChart)}
         footer={null}
-        onCancel={() => setExpandedAgentChart(undefined)}
+        onCancel={() => setExpandedChart(undefined)}
         width="90vw"
         styles={{ body: { height: '78vh', padding: 16 } }}
       >
-        {expandedAgentChart ? (
+        {expandedChart ? (
           <div className="runtime-chart-modal">
             <ChartContainer
-              title={normalizeDisplayText(expandedAgentChart.component.dslConfig.visualDsl.title || expandedAgentChart.component.title, expandedAgentChart.component.componentCode)}
-              tag={normalizeDisplayText(expandedAgentChart.component.dslConfig.visualDsl.indicatorTag)}
+              title={expandedChart.componentTitle}
+              tag={normalizeDisplayText(expandedChart.dslConfig.visualDsl.indicatorTag)}
             >
               <ChartRendererCore
-                component={expandedAgentChart.component}
-                preview={expandedAgentChart.preview}
-                templateCode={expandedAgentChart.component.templateCode}
+                component={buildComponent(expandedChart)}
+                preview={previewMap[expandedChart.chartId]}
+                templateCode={expandedChart.templateCode}
                 viewMode="chart"
                 editable={false}
                 selected={false}
@@ -1161,21 +814,36 @@ function MyStrategyDetail() {
   const [strategy, setStrategy] = useState<StrategyRecord | undefined>(() => getMyStrategy(params.strategyId));
   const [previewMap, setPreviewMap] = useState<Record<string, ChartPreview>>({});
   const [expandedChart, setExpandedChart] = useState<StrategyChartSnapshot>();
-  const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
   const [draftName, setDraftName] = useState('');
   const [catalogCharts, setCatalogCharts] = useState<ChartCatalogItem[]>([]);
   const [availableCharts, setAvailableCharts] = useState<ChartRuntimeCard[]>([]);
   const [addChartOpen, setAddChartOpen] = useState(false);
   const [addSelectedChartIds, setAddSelectedChartIds] = useState<string[]>([]);
+  const [aiMessages, setAiMessages] = useState<StrategyAiMessage[]>(createInitialAiMessages('initial'));
+  const [aiConversations, setAiConversations] = useState<StrategyAiConversation[]>([]);
+  const [activeAiConversationId, setActiveAiConversationId] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiInput, setAiInput] = useState('');
   const [draggingChartId, setDraggingChartId] = useState<string>();
   const [dragOverChartId, setDragOverChartId] = useState<string>();
-  const tocScrollRef = useRef<HTMLDivElement | null>(null);
+  const aiMessagesRef = useRef<HTMLDivElement | null>(null);
   const draggingChartIdRef = useRef<string>();
   const dragOverChartIdRef = useRef<string>();
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setStrategy(getMyStrategy(params.strategyId));
+  }, [params.strategyId]);
+
+  useEffect(() => {
+    const loadedConversations = readStrategyAiConversations(params.strategyId);
+    const activeConversation = loadedConversations[0] ?? createAiConversation();
+    const nextConversations = loadedConversations.length > 0 ? loadedConversations : [activeConversation];
+    setAiConversations(nextConversations);
+    setActiveAiConversationId(activeConversation.id);
+    setAiMessages(activeConversation.messages);
+    setAiInput('');
+    writeStrategyAiConversations(params.strategyId, nextConversations);
   }, [params.strategyId]);
 
   useEffect(() => {
@@ -1264,84 +932,26 @@ function MyStrategyDetail() {
     setDraftName(strategy.strategyName);
   }, [strategy]);
 
-  useEffect(() => {
-    if (!strategy || strategy.charts.length === 0) {
-      setActiveChartCodes([]);
-      return;
-    }
-    setActiveChartCodes(strategy.charts.slice(0, 3).map(item => item.chartId));
-  }, [strategy]);
-
-  useEffect(() => {
-    if (!strategy || strategy.charts.length === 0) {
-      return;
-    }
-
-    const updateActiveCharts = () => {
-      const cards = strategy.charts
-        .map(item => {
-          const element = document.getElementById(`my-strategy-detail-card-${item.chartId}`);
-          if (!element) {
-            return undefined;
-          }
-          const rect = element.getBoundingClientRect();
-          return { chartCode: item.chartId, top: rect.top, bottom: rect.bottom };
-        })
-        .filter((item): item is { chartCode: string; top: number; bottom: number } => Boolean(item));
-      const nextActiveCodes = resolveActiveRowCodes(cards);
-      if (nextActiveCodes.length > 0) {
-        setActiveChartCodes(current => (
-          current.length === nextActiveCodes.length && current.every((code, index) => code === nextActiveCodes[index])
-            ? current
-            : nextActiveCodes
-        ));
-      }
-    };
-
-    updateActiveCharts();
-    window.addEventListener('scroll', updateActiveCharts, { passive: true });
-    window.addEventListener('resize', updateActiveCharts);
-    return () => {
-      window.removeEventListener('scroll', updateActiveCharts);
-      window.removeEventListener('resize', updateActiveCharts);
-    };
-  }, [strategy]);
-
-  useEffect(() => {
-    if (activeChartCodes.length === 0 || !tocScrollRef.current) {
-      return;
-    }
-    scrollContainerItemToCenter(tocScrollRef.current, `[data-chart-code="${activeChartCodes[0]}"]`);
-  }, [activeChartCodes]);
-
   useEffect(() => () => {
     dragCleanupRef.current?.();
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
   }, []);
 
+  useEffect(() => {
+    if (!aiMessagesRef.current) {
+      return;
+    }
+    aiMessagesRef.current.scrollTop = aiMessagesRef.current.scrollHeight;
+  }, [aiMessages, aiLoading]);
+
   if (!strategy) {
     return <Alert type="warning" showIcon message={TEXT.notFound} description={TEXT.notFoundDescription} />;
   }
 
-  const orderedCharts = draggingChartId && dragOverChartId
-    ? (() => {
-      const fromIndex = strategy.charts.findIndex(item => item.chartId === draggingChartId);
-      const toIndex = strategy.charts.findIndex(item => item.chartId === dragOverChartId);
-      return reorderItemsPreview(strategy.charts, fromIndex, toIndex);
-    })()
-    : strategy.charts;
+  const orderedCharts = strategy.charts;
 
   const addableCharts = availableCharts.filter(item => !strategy.charts.some(chart => chart.chartId === `${item.chartCode}:${item.component.componentCode}`));
-
-  const scrollToChart = (chartId: string) => {
-    const targetIndex = strategy.charts.findIndex(item => item.chartId === chartId);
-    const nextActive = targetIndex >= 0
-      ? strategy.charts.slice(targetIndex, targetIndex + 3).map(item => item.chartId)
-      : [chartId];
-    setActiveChartCodes(nextActive);
-    document.getElementById(`my-strategy-detail-card-${chartId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   const persistStrategy = (patch: Partial<Pick<StrategyRecord, 'strategyName' | 'charts'>>) => {
     updateStrategy(strategy.strategyId, patch, 'personal');
@@ -1392,6 +1002,117 @@ function MyStrategyDetail() {
     message.success(TEXT.updated);
   };
 
+  const submitAiMessage = () => {
+    void submitAiMessageAsync();
+  };
+
+  const updateActiveAiMessages = (updater: (current: StrategyAiMessage[]) => StrategyAiMessage[]) => {
+    setAiMessages(currentMessages => {
+      const nextMessages = updater(currentMessages);
+      const now = new Date().toISOString();
+      setAiConversations(currentConversations => {
+        const activeId = activeAiConversationId || currentConversations[0]?.id || createAiConversation().id;
+        const existingConversation = currentConversations.find(item => item.id === activeId);
+        const nextConversation: StrategyAiConversation = {
+          id: activeId,
+          title: resolveAiConversationTitle(nextMessages),
+          messages: nextMessages,
+          createdAt: existingConversation?.createdAt ?? now,
+          updatedAt: now
+        };
+        const nextConversations = [
+          nextConversation,
+          ...currentConversations.filter(item => item.id !== activeId)
+        ];
+        writeStrategyAiConversations(params.strategyId, nextConversations);
+        return nextConversations;
+      });
+      return nextMessages;
+    });
+  };
+
+  const submitAiMessageAsync = async () => {
+    const trimmedInput = aiInput.trim();
+    if (!trimmedInput) {
+      return;
+    }
+
+    const userMessage: StrategyAiMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: trimmedInput
+    };
+
+    updateActiveAiMessages(current => [...current, userMessage]);
+    setAiInput('');
+
+    const chartContexts = strategy.charts.slice(0, 4).map(chart => ({
+      title: chart.componentTitle,
+      summary: buildRecentSummaryFromPreview(chart, previewMap[chart.chartId]),
+      meaning: buildIndicatorMeaning(chart.componentTitle)
+    }));
+
+    setAiLoading(true);
+    const assistantMessageId = `assistant-${Date.now()}`;
+    updateActiveAiMessages(current => [...current, {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: ''
+    }]);
+
+    try {
+      await api.strategyAiChatStream({
+        strategyName: strategy.strategyName,
+        prompt: trimmedInput,
+        charts: chartContexts
+      }, chunk => {
+        updateActiveAiMessages(current => current.map(item => (
+          item.id === assistantMessageId
+            ? { ...item, content: item.content + chunk }
+            : item
+        )));
+      });
+    } catch (error) {
+      console.error(error);
+      updateActiveAiMessages(current => current.map(item => (
+        item.id === assistantMessageId
+          ? { ...item, content: buildAiReply(strategy.strategyName, trimmedInput, strategy.charts, previewMap) }
+          : item
+      )));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const resetAiConversation = () => {
+    const nextConversation = createAiConversation();
+    const nextConversations = [nextConversation, ...aiConversations];
+    setAiConversations(nextConversations);
+    setActiveAiConversationId(nextConversation.id);
+    setAiMessages(nextConversation.messages);
+    setAiInput('');
+    writeStrategyAiConversations(params.strategyId, nextConversations);
+  };
+
+  const restoreAiConversation = (conversation: StrategyAiConversation) => {
+    setActiveAiConversationId(conversation.id);
+    setAiMessages(conversation.messages);
+    setAiInput('');
+  };
+
+  const deleteAiConversation = (conversationId: string) => {
+    const remainingConversations = aiConversations.filter(item => item.id !== conversationId);
+    const nextConversations = remainingConversations.length > 0 ? remainingConversations : [createAiConversation()];
+    const nextActiveConversation = conversationId === activeAiConversationId
+      ? nextConversations[0]
+      : nextConversations.find(item => item.id === activeAiConversationId) ?? nextConversations[0];
+    setAiConversations(nextConversations);
+    setActiveAiConversationId(nextActiveConversation.id);
+    setAiMessages(nextActiveConversation.messages);
+    setAiInput('');
+    writeStrategyAiConversations(params.strategyId, nextConversations);
+  };
+
   const finishChartDrag = () => {
     const sourceId = draggingChartIdRef.current;
     const targetId = dragOverChartIdRef.current;
@@ -1426,6 +1147,10 @@ function MyStrategyDetail() {
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const targetId = resolveClosestSortIdFromPoint(moveEvent.clientX, moveEvent.clientY, 'data-strategy-sort-id');
       if (!targetId || targetId === draggingChartIdRef.current) {
+        if (dragOverChartIdRef.current !== undefined) {
+          dragOverChartIdRef.current = undefined;
+          setDragOverChartId(undefined);
+        }
         return;
       }
       if (dragOverChartIdRef.current !== targetId) {
@@ -1444,14 +1169,6 @@ function MyStrategyDetail() {
     };
   };
 
-  const handleSortCardMouseDown = (event: ReactMouseEvent<HTMLElement>, chartId: string) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button')) {
-      return;
-    }
-    startChartDrag(event, chartId);
-  };
-
   return (
     <div>
       <div className="page-header">
@@ -1460,44 +1177,33 @@ function MyStrategyDetail() {
             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/my-strategy')}>
               {TEXT.back}
             </Button>
-            <h2 className="page-title" style={{ marginBottom: 0 }}>{TEXT.title}</h2>
+            <h2 className="page-title" style={{ marginBottom: 0 }}>{draftName || TEXT.title}</h2>
           </Space>
-          <div className="page-subtitle">{TEXT.detailFallback}</div>
         </div>
-        <Space wrap size={12}>
+        <div className="strategy-detail-header-actions">
+          <Input
+            className="strategy-header-name-input"
+            value={draftName}
+            placeholder={TEXT.namePlaceholder}
+            onChange={event => setDraftName(event.target.value)}
+          />
           <Button icon={<PlusOutlined />} onClick={() => setAddChartOpen(true)}>
             {TEXT.addChart}
           </Button>
           <Button onClick={saveInfo}>{TEXT.saveInfo}</Button>
-        </Space>
-      </div>
-
-      <div className="panel-card strategy-config-summary strategy-info-panel">
-        <div className="strategy-info-compact">
-          <div className="strategy-info-fields">
-            <div className="strategy-info-row">
-              <span className="strategy-selection-title">{TEXT.strategyName}</span>
-              <Input
-                value={draftName}
-                placeholder={TEXT.namePlaceholder}
-                onChange={event => setDraftName(event.target.value)}
-              />
-            </div>
-          </div>
         </div>
       </div>
 
-      <div className="page-shell runtime-library-shell">
-        <div>
+      <div className="strategy-detail-shell">
+        <div className="strategy-detail-main">
           {orderedCharts.length > 0 ? (
-            <div className="favorites-board-grid public-chart-grid">
+            <div className="favorites-board-grid strategy-detail-grid drag-sort-grid">
               {orderedCharts.map(chart => (
                 <article
                   key={chart.chartId}
                   id={`my-strategy-detail-card-${chart.chartId}`}
                   data-strategy-sort-id={chart.chartId}
-                  className={`panel-card favorites-board-card public-board-card strategy-sort-card${draggingChartId === chart.chartId ? ' strategy-sort-card-dragging' : ''}${dragOverChartId === chart.chartId && draggingChartId !== chart.chartId ? ' strategy-sort-card-drop-target' : ''}`}
-                  onMouseDown={event => handleSortCardMouseDown(event, chart.chartId)}
+                  className={`panel-card favorites-board-card strategy-indicator-card strategy-sort-card${draggingChartId === chart.chartId ? ' strategy-sort-card-dragging' : ''}${dragOverChartId === chart.chartId && draggingChartId !== chart.chartId ? ' strategy-sort-card-drop-target' : ''}`}
                 >
                   <div className="favorites-board-card-head">
                     <div>
@@ -1507,12 +1213,28 @@ function MyStrategyDetail() {
                       </div>
                     </div>
                     <div className="favorites-card-actions public-chart-card-actions">
+                      <Button
+                        className="thumbnail-drag-button"
+                        icon={<HolderOutlined />}
+                        title="拖拽排序"
+                        aria-label="拖拽排序"
+                        onMouseDown={event => startChartDrag(event, chart.chartId)}
+                      >
+                        拖拽
+                      </Button>
                       <Button icon={<ExpandOutlined />} onClick={() => setExpandedChart(chart)}>
                         {TEXT.enlarge}
                       </Button>
-                      <Button danger onClick={() => removeChartFromStrategy(chart.chartId)}>
-                        {TEXT.removeFromStrategy}
-                      </Button>
+                      <Popconfirm
+                        title={TEXT.deleteChartConfirm}
+                        okText={TEXT.confirm}
+                        cancelText={TEXT.cancel}
+                        onConfirm={() => removeChartFromStrategy(chart.chartId)}
+                      >
+                        <Button danger>
+                          {TEXT.deleteFromStrategy}
+                        </Button>
+                      </Popconfirm>
                     </div>
                   </div>
                   <div className="favorites-board-thumb">
@@ -1550,22 +1272,100 @@ function MyStrategyDetail() {
             </div>
           )}
         </div>
-
-        <aside className="panel-card runtime-toc-card">
-          <div className="runtime-toc-title">{TEXT.toc}</div>
-          <div className="runtime-toc-scroll" ref={tocScrollRef}>
-            <div className="runtime-toc-items">
-              {strategy.charts.map(chart => (
-                <button
-                  key={chart.chartId}
-                  type="button"
-                  data-chart-code={chart.chartId}
-                  className={`runtime-toc-item${activeChartCodes.includes(chart.chartId) ? ' active' : ''}`}
-                  onClick={() => scrollToChart(chart.chartId)}
-                >
-                  {chart.componentTitle}
-                </button>
-              ))}
+        <aside className="panel-card strategy-ai-panel">
+          <div className="strategy-ai-panel-head">
+            <div className="strategy-ai-panel-title">
+              <RobotOutlined />
+              <span>{TEXT.aiTitle}</span>
+            </div>
+            <div className="strategy-ai-panel-actions">
+              <Select
+                size="small"
+                className="strategy-ai-history-select"
+                value={activeAiConversationId || undefined}
+                placeholder={TEXT.aiHistory}
+                popupMatchSelectWidth={false}
+                optionLabelProp="title"
+                options={aiConversations.map(conversation => ({
+                  value: conversation.id,
+                  title: conversation.title,
+                  label: (
+                    <span className="strategy-ai-history-option">
+                      <span className="strategy-ai-history-option-main">
+                        <span className="strategy-ai-history-option-title">{conversation.title}</span>
+                        <span className="strategy-ai-history-option-time">
+                          {new Date(conversation.updatedAt).toLocaleString('zh-CN', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </span>
+                      <Popconfirm
+                        title={TEXT.aiDeleteHistoryConfirm}
+                        okText={TEXT.confirm}
+                        cancelText={TEXT.cancel}
+                        onConfirm={event => {
+                          event?.stopPropagation();
+                          deleteAiConversation(conversation.id);
+                        }}
+                      >
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          title={TEXT.aiDeleteHistory}
+                          aria-label={TEXT.aiDeleteHistory}
+                          disabled={aiLoading}
+                          onMouseDown={event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          onClick={event => {
+                            event.stopPropagation();
+                          }}
+                        />
+                      </Popconfirm>
+                    </span>
+                  )
+                }))}
+                onChange={value => {
+                  const conversation = aiConversations.find(item => item.id === value);
+                  if (conversation) {
+                    restoreAiConversation(conversation);
+                  }
+                }}
+              />
+              <Button size="small" onClick={resetAiConversation}>{TEXT.aiReset}</Button>
+            </div>
+          </div>
+          <div className="strategy-ai-messages" ref={aiMessagesRef}>
+            {aiMessages.map(item => (
+              <div key={item.id} className={`strategy-ai-message strategy-ai-message-${item.role}`}>
+                <div className="strategy-ai-bubble">{item.content}</div>
+              </div>
+            ))}
+          </div>
+          <div className="strategy-ai-compose">
+            <Input.TextArea
+              value={aiInput}
+              placeholder={TEXT.aiPlaceholder}
+              autoSize={{ minRows: 3, maxRows: 5 }}
+              disabled={aiLoading}
+              onChange={event => setAiInput(event.target.value)}
+              onPressEnter={event => {
+                if (!event.shiftKey) {
+                  event.preventDefault();
+                  submitAiMessage();
+                }
+              }}
+            />
+            <div className="strategy-ai-compose-actions">
+              <Button type="primary" icon={<SendOutlined />} loading={aiLoading} onClick={submitAiMessage}>
+                {TEXT.aiSend}
+              </Button>
             </div>
           </div>
         </aside>
@@ -1620,3 +1420,4 @@ export default function MyStrategy() {
   const params = useParams();
   return params.strategyId ? <MyStrategyDetail /> : <MyStrategyOverview />;
 }
+

@@ -2,6 +2,7 @@
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
+  HolderOutlined,
   PlusOutlined
 } from '@ant-design/icons';
 import { Button, Empty, Form, Input, Modal, Popconfirm, Select, Space, Spin, message } from 'antd';
@@ -102,14 +103,7 @@ export default function DashboardDesigner() {
     });
   }, [charts, routeCategory, searchKeyword]);
 
-  const renderedLibraryCharts = useMemo(() => {
-    if (!draggingChartCode || !dragOverChartCode) {
-      return libraryCharts;
-    }
-    const fromIndex = libraryCharts.findIndex(item => item.chartCode === draggingChartCode);
-    const toIndex = libraryCharts.findIndex(item => item.chartCode === dragOverChartCode);
-    return reorderItemsPreview(libraryCharts, fromIndex, toIndex);
-  }, [dragOverChartCode, draggingChartCode, libraryCharts]);
+  const renderedLibraryCharts = libraryCharts;
 
   const livePreviewKey = useMemo(() => {
     if (!selectedChart || selectedChart.templateCode === 'table' || selectedChart.componentType === 'table') {
@@ -293,7 +287,7 @@ export default function DashboardDesigner() {
         setDraftPreview(preview);
       })
       .catch(error => {
-        message.error(error instanceof Error ? error.message : '图表配置加载失败');
+        message.error(error instanceof Error ? error.message : '指标配置加载失败');
       })
       .finally(() => setLoadingDraft(false));
   }, [chartCode, dataPools, initializing, routeCategory]);
@@ -402,6 +396,10 @@ export default function DashboardDesigner() {
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const targetChartCode = resolveClosestSortIdFromPoint(moveEvent.clientX, moveEvent.clientY, 'data-sort-id');
       if (!targetChartCode || targetChartCode === draggingChartCodeRef.current) {
+        if (dragOverChartCodeRef.current !== undefined) {
+          dragOverChartCodeRef.current = undefined;
+          setDragOverChartCode(undefined);
+        }
         return;
       }
       if (dragOverChartCodeRef.current !== targetChartCode) {
@@ -420,14 +418,6 @@ export default function DashboardDesigner() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  };
-
-  const handleLibraryCardMouseDown = (event: ReactMouseEvent<HTMLElement>, sourceChartCode: string) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button')) {
-      return;
-    }
-    handleLibrarySortStart(event, sourceChartCode);
   };
 
   useEffect(() => () => {
@@ -474,7 +464,7 @@ export default function DashboardDesigner() {
   const createChart = async () => {
     const values = await form.validateFields();
     if (templates.length === 0 || dataPools.length === 0) {
-      message.warning('当前缺少模板或数据池，无法新建图表');
+      message.warning('当前缺少模板或数据池，无法新建指标');
       return;
     }
 
@@ -516,10 +506,10 @@ export default function DashboardDesigner() {
       updateChartDraftMeta(savedChartCode, { draftSavedAt: new Date().toISOString() });
       setCreateOpen(false);
       form.resetFields();
-      message.success('新图表已创建');
+      message.success('新指标已创建');
       navigate(`/designer/${values.category}/${savedChartCode}`);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '新建图表失败');
+      message.error(error instanceof Error ? error.message : '新建指标失败');
     } finally {
       setCreating(false);
     }
@@ -530,7 +520,7 @@ export default function DashboardDesigner() {
     removeDashboardMeta(targetChartCode);
     removeChartDraftMeta(targetChartCode);
     await refreshCharts();
-    message.success('图表已删除');
+    message.success('指标已删除');
     if (chartCode === targetChartCode) {
       navigate(`/designer/${routeCategory}`);
     }
@@ -572,7 +562,7 @@ export default function DashboardDesigner() {
           </div>
           <Input.Search
             allowClear
-            placeholder="搜索图表名称"
+            placeholder="搜索指标名称"
             className="page-toc-width-search"
             value={searchKeyword}
             onChange={event => setSearchKeyword(event.target.value)}
@@ -592,7 +582,6 @@ export default function DashboardDesigner() {
                       id={`designer-chart-card-${item.chartCode}`}
                       data-sort-id={item.chartCode}
                       className={`panel-card favorites-board-card public-board-card personal-chart-card personal-chart-card-sortable designer-library-card${draggingChartCode === item.chartCode ? ' personal-chart-card-dragging' : ''}${dragOverChartCode === item.chartCode && draggingChartCode !== item.chartCode ? ' drag-preview-target' : ''}`}
-                      onMouseDown={event => handleLibraryCardMouseDown(event, item.chartCode)}
                     >
                       <div className="favorites-board-card-head">
                         <div>
@@ -603,10 +592,19 @@ export default function DashboardDesigner() {
                           </div>
                         </div>
                         <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">
+                          <Button
+                            className="thumbnail-drag-button"
+                            icon={<HolderOutlined />}
+                            title="拖拽排序"
+                            aria-label="拖拽排序"
+                            onMouseDown={event => handleLibrarySortStart(event, item.chartCode)}
+                          >
+                            拖拽
+                          </Button>
                           <Button icon={<EditOutlined />} onClick={() => navigate(`/designer/${routeCategory}/${item.chartCode}`)}>
                             修改
                           </Button>
-                          <Popconfirm title="确认删除当前图表吗？" okText="删除" cancelText="取消" onConfirm={() => void deleteChart(item.chartCode)}>
+                          <Popconfirm title="确认删除当前指标吗？" okText="删除" cancelText="取消" onConfirm={() => void deleteChart(item.chartCode)}>
                             <Button danger icon={<DeleteOutlined />}>删除</Button>
                           </Popconfirm>
                         </div>
@@ -628,7 +626,7 @@ export default function DashboardDesigner() {
                                 dense
                               />
                             ) : (
-                              <Empty description="当前图表暂无预览" />
+                              <Empty description="当前指标暂无预览" />
                             )}
                           </div>
                         </div>
@@ -640,7 +638,7 @@ export default function DashboardDesigner() {
             ) : (
               <div className="panel-card canvas-card canvas-empty">
                 <div className="single-chart-empty">
-                  <div className="single-chart-empty-title">当前分类下还没有图表</div>
+                  <div className="single-chart-empty-title">当前分类下还没有指标</div>
                   <Button
                     type="primary"
                     icon={<PlusOutlined />}
@@ -649,7 +647,7 @@ export default function DashboardDesigner() {
                       setCreateOpen(true);
                     }}
                   >
-                    新建图表
+                    新建指标
                   </Button>
                 </div>
               </div>
@@ -680,7 +678,7 @@ export default function DashboardDesigner() {
         </div>
 
         <Modal
-          title="新建图表"
+          title="新建指标"
           open={createOpen}
           onOk={() => void createChart()}
           onCancel={() => setCreateOpen(false)}
@@ -689,7 +687,7 @@ export default function DashboardDesigner() {
           cancelText="取消"
         >
           <Form form={form} layout="vertical">
-            <Form.Item name="name" label="图表名称" rules={[{ required: true, message: '请输入图表名称' }]}>
+            <Form.Item name="name" label="指标名称" rules={[{ required: true, message: '请输入指标名称' }]}>
               <Input />
             </Form.Item>
             <Form.Item name="category" label="所属指标" rules={[{ required: true, message: '请选择所属指标' }]}>
@@ -706,7 +704,7 @@ export default function DashboardDesigner() {
       <div className="page-header">
         <div>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/designer/${currentMeta?.category ?? routeCategory}`)}>
-            返回图表库
+            返回指标库
           </Button>
         </div>
         <Space wrap size={12}>
@@ -744,12 +742,12 @@ export default function DashboardDesigner() {
           >
             发布
           </Button>
-          <Popconfirm title="确认删除当前图表吗？" okText="删除" cancelText="取消" onConfirm={() => draft && void deleteChart(draft.chartCode)}>
-            <Button danger icon={<DeleteOutlined />} disabled={!draft}>删除图表</Button>
+          <Popconfirm title="确认删除当前指标吗？" okText="删除" cancelText="取消" onConfirm={() => draft && void deleteChart(draft.chartCode)}>
+            <Button danger icon={<DeleteOutlined />} disabled={!draft}>删除指标</Button>
           </Popconfirm>
         </Space>
         <div>
-          <h2 className="page-title">图表配置</h2>
+          <h2 className="page-title">指标配置</h2>
           {draft ? (
             <div className="page-subtitle">
               当前标题：{resolveComponentChartName(selectedChart, draft.chartName)}
@@ -789,7 +787,7 @@ export default function DashboardDesigner() {
           ) : (
             <div className="canvas-empty single-chart-empty-shell">
               <div className="single-chart-empty">
-                <div className="single-chart-empty-title">当前还没有图表</div>
+                <div className="single-chart-empty-title">当前还没有指标</div>
               </div>
             </div>
           )}

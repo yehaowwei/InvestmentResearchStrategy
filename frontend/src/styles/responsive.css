@@ -47,7 +47,11 @@
   }
 
   .public-chart-grid,
-  .personal-chart-grid,
+  .personal-chart-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .drag-sort-grid,
   .strategy-config-grid,
   .strategy-center-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -75,6 +79,7 @@
   .favorites-board-grid,
   .public-chart-grid,
   .personal-chart-grid,
+  .drag-sort-grid,
   .strategy-config-grid,
   .strategy-center-grid {
     grid-template-columns: minmax(0, 1fr);

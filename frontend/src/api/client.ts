@@ -14,9 +14,7 @@ import type {
   RuntimeChartResponse,
   RuntimeDashboardResponse,
   SourceTable,
-  TkfAgentMessage,
-  TkfAgentResponse,
-  TkfChartCandidate,
+  StrategyAiChatResponse,
   TemplateDefinition
 } from '../types/dashboard';
 import { normalizeComponentForTransport, normalizeDashboardForTransport } from '../utils/dashboard';
@@ -91,7 +89,7 @@ function buildPreviewPayload(component: { modelCode: string; dslConfig: Componen
     componentType: 'chart',
     templateCode: 'line',
     modelCode: component.modelCode,
-    title: component.dslConfig.visualDsl?.title || '预览图表',
+    title: component.dslConfig.visualDsl?.title || '预览指标',
     dslConfig: component.dslConfig
   });
   return {
@@ -140,10 +138,59 @@ export const api = {
   loadRuntimeChart: async (chartCode: string) => toRuntimeChartResponse(await unwrap<RuntimeDashboardResponse>(client.post('/runtime/dashboard', [], { params: { dashboardCode: chartCode } }))),
   previewComponent: (component: { modelCode: string; dslConfig: ComponentDslConfig }) =>
     unwrap<ChartPreview>(client.post('/chart/preview', buildPreviewPayload(component))),
+  strategyAiChat: (payload: {
+    strategyName: string;
+    prompt: string;
+    charts: Array<{ title: string; summary: string; meaning: string }>;
+  }) => unwrap<StrategyAiChatResponse>(client.post('/strategy-ai/chat', payload)),
+  strategyAiChatStream: async (
+    payload: {
+      strategyName: string;
+      prompt: string;
+      charts: Array<{ title: string; summary: string; meaning: string }>;
+    },
+    onChunk: (chunk: string) => void
+  ) => {
+    const response = await fetch('/api/strategy-ai/chat-stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok || !response.body) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'AI stream request failed');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const chunk = decoder.decode(value, { stream: true });
+      if (!chunk) {
+        continue;
+      }
+      fullText += chunk;
+      onChunk(chunk);
+    }
+
+    const tail = decoder.decode();
+    if (tail) {
+      fullText += tail;
+      onChunk(tail);
+    }
+
+    return fullText;
+  },
   getSharedState: (stateKey: string) =>
     unwrap<unknown>(client.get(`/shared-state/${encodeURIComponent(stateKey)}`)),
   saveSharedState: (stateKey: string, state: unknown) =>
-    unwrap<unknown>(client.put(`/shared-state/${encodeURIComponent(stateKey)}`, { state })),
-  tkfAgentChat: (payload: { messages: TkfAgentMessage[]; availableCharts: TkfChartCandidate[] }) =>
-    unwrap<TkfAgentResponse>(client.post('/agent/tkf/chat', payload))
+    unwrap<unknown>(client.put(`/shared-state/${encodeURIComponent(stateKey)}`, { state }))
 };

@@ -52,6 +52,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
   const compact = Boolean(context?.compact);
   const dense = !compact && Boolean(context?.dense);
   const thumbnail = Boolean(context?.thumbnail);
+  const showThumbnailSlider = thumbnail && interactionDsl.dataZoom && interactionDsl.slider;
   const legendRightPadding = dense ? 112 : 140;
   const sliderBottom = 0;
   const gridBottom = interactionDsl.slider ? (compact ? 40 : dense ? 34 : 46) : (compact ? 38 : dense ? 28 : 40);
@@ -59,7 +60,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
     left: 40,
     right: hasRightAxis ? 44 : 20,
     top: 16,
-    bottom: 34,
+    bottom: showThumbnailSlider ? 54 : 34,
     containLabel: true
   };
 
@@ -95,22 +96,32 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
       : dense
         ? { left: 52, right: hasRightAxis ? 52 : 22, top: 38, bottom: gridBottom, containLabel: true }
         : { left: 64, right: hasRightAxis ? 64 : 28, top: 56, bottom: gridBottom, containLabel: true },
-    dataZoom: compact || thumbnail
+    dataZoom: compact
       ? []
       : interactionDsl.dataZoom
         ? [
-          ...(interactionDsl.slider ? [{
+          ...((interactionDsl.slider && !thumbnail) || showThumbnailSlider ? [{
             type: 'slider' as const,
             start: zoom.start,
             end: zoom.end,
-            height: dense ? 14 : 18,
+            height: thumbnail ? 12 : dense ? 14 : 18,
             bottom: sliderBottom,
             showDetail: false,
             brushSelect: false,
-            textStyle: { color: '#475569', fontSize: dense ? 9 : 11 },
+            fillerColor: thumbnail ? 'rgba(59, 130, 246, 0.16)' : undefined,
+            borderColor: thumbnail ? 'rgba(148, 163, 184, 0.55)' : undefined,
+            backgroundColor: thumbnail ? 'rgba(241, 245, 249, 0.92)' : undefined,
+            dataBackground: thumbnail
+              ? {
+                  lineStyle: { color: 'rgba(148, 163, 184, 0.8)' },
+                  areaStyle: { color: 'rgba(226, 232, 240, 0.9)' }
+                }
+              : undefined,
+            handleSize: thumbnail ? '80%' : undefined,
+            textStyle: { color: '#475569', fontSize: thumbnail ? 9 : dense ? 9 : 11 },
             labelFormatter: (value: string | number) => formatTimeLabel(value, xValues)
           }] : []),
-          { type: 'inside' as const, start: zoom.start, end: zoom.end }
+          { type: 'inside' as const, start: zoom.start, end: zoom.end, zoomOnMouseWheel: !thumbnail }
         ]
         : [],
     xAxis: {

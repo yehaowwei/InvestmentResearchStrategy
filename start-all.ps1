@@ -93,7 +93,7 @@ function Test-NeedsRefresh {
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendRoot = Join-Path $repoRoot 'backend'
 $frontendRoot = Join-Path $repoRoot 'frontend'
-$staticRoot = Join-Path $backendRoot 'target\classes\static'
+$staticRoot = Join-Path $backendRoot 'target\generated-resources\static'
 $cacheRoot = Join-Path $repoRoot '.cache'
 $runtimeRoot = Join-Path $repoRoot '.runtime'
 $runtimeDataRoot = Join-Path $runtimeRoot 'data'
@@ -108,6 +108,7 @@ $demoDbFile = Join-Path $repoRoot 'seed-data\bi-demo.mv.db'
 $runtimeDbFile = Join-Path $runtimeDataRoot 'bi-demo.mv.db'
 $runtimeDbBase = (Join-Path $runtimeDataRoot 'bi-demo') -replace '\\', '/'
 $defaultDbUrl = "jdbc:h2:file:$runtimeDbBase;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
+$defaultDeepSeekApiKey = 'sk-f48b1892f7e24fd09fca915cf8e35ec9'
 $frontendNodeModules = Join-Path $frontendRoot 'node_modules'
 $frontendPackageLock = Join-Path $frontendRoot 'package-lock.json'
 $frontendDistRoot = Join-Path $frontendRoot 'dist'
@@ -215,8 +216,12 @@ try {
   }
 
   $previousDbUrl = $env:BI_DB_URL
+  $previousDeepSeekApiKey = $env:DEEPSEEK_API_KEY
   if (-not $previousDbUrl) {
     $env:BI_DB_URL = $defaultDbUrl
+  }
+  if (-not $previousDeepSeekApiKey) {
+    $env:DEEPSEEK_API_KEY = $defaultDeepSeekApiKey
   }
   try {
     $process = Start-Process java `
@@ -233,6 +238,12 @@ try {
     }
     else {
       Remove-Item Env:\BI_DB_URL -ErrorAction SilentlyContinue
+    }
+    if ($previousDeepSeekApiKey) {
+      $env:DEEPSEEK_API_KEY = $previousDeepSeekApiKey
+    }
+    else {
+      Remove-Item Env:\DEEPSEEK_API_KEY -ErrorAction SilentlyContinue
     }
   }
   Set-Content -LiteralPath $pidFile -Value $process.Id

@@ -8,11 +8,11 @@ import type { AvailableChartCard } from './helpers';
 const TEXT = {
   title: '\u65b0\u589e\u6307\u6807',
   all: '\u5168\u90e8',
-  searchPlaceholder: '\u641c\u7d22\u672a\u6536\u85cf\u56fe\u8868\u540d\u79f0',
+  searchPlaceholder: '\u641c\u7d22\u672a\u6536\u85cf\u6307\u6807\u540d\u79f0',
   addButton: '\u52a0\u5165\u6211\u7684\u6307\u6807',
-  emptyPreview: '\u5f53\u524d\u56fe\u8868\u6682\u65e0\u9884\u89c8',
-  loading: '\u6b63\u5728\u52a0\u8f7d\u53ef\u6dfb\u52a0\u56fe\u8868',
-  emptyAvailable: '\u5f53\u524d\u6ca1\u6709\u53ef\u6dfb\u52a0\u7684\u672a\u6536\u85cf\u56fe\u8868'
+  emptyPreview: '\u5f53\u524d\u6307\u6807\u6682\u65e0\u9884\u89c8',
+  loading: '\u6b63\u5728\u52a0\u8f7d\u53ef\u6dfb\u52a0\u6307\u6807',
+  emptyAvailable: '\u5f53\u524d\u6ca1\u6709\u53ef\u6dfb\u52a0\u7684\u672a\u6536\u85cf\u6307\u6807'
 } as const;
 
 export default function AddChartModal(props: {

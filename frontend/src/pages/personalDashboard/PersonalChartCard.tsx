@@ -1,4 +1,4 @@
-import { DeleteOutlined, ExpandOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ExpandOutlined, HolderOutlined } from '@ant-design/icons';
 import { Button, Empty, Popconfirm } from 'antd';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { ChartPreview } from '../../types/dashboard';
@@ -10,10 +10,10 @@ import { toComponent } from './helpers';
 const TEXT = {
   enlarge: '\u653e\u5927\u67e5\u770b',
   delete: '\u5220\u9664',
-  deleteConfirm: '\u786e\u8ba4\u5220\u9664\u5f53\u524d\u56fe\u8868\u5417\uff1f',
+  deleteConfirm: '\u786e\u8ba4\u5220\u9664\u5f53\u524d\u6307\u6807\u5417\uff1f',
   confirm: '\u786e\u8ba4',
   cancel: '\u53d6\u6d88',
-  noPreview: '\u5f53\u524d\u56fe\u8868\u6682\u65e0\u9884\u89c8'
+  noPreview: '\u5f53\u524d\u6307\u6807\u6682\u65e0\u9884\u89c8'
 } as const;
 
 export default function PersonalChartCard(props: {
@@ -27,20 +27,11 @@ export default function PersonalChartCard(props: {
 }) {
   const { item } = props;
 
-  const handleMouseDown = (event: ReactMouseEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button')) {
-      return;
-    }
-    props.onSortStart(event, item.boardId);
-  };
-
   return (
     <article
       id={`personal-chart-card-${item.chart.componentCode}`}
       data-sort-id={item.boardId}
       className={`panel-card favorites-board-card public-board-card personal-board-card personal-chart-card personal-chart-card-sortable${props.dragging ? ' personal-chart-card-dragging' : ''}${props.dragOver ? ' drag-preview-target' : ''}`}
-      onMouseDown={handleMouseDown}
     >
       <div className="favorites-board-card-head">
         <div>
@@ -52,6 +43,15 @@ export default function PersonalChartCard(props: {
           </div>
         </div>
         <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">
+          <Button
+            className="thumbnail-drag-button"
+            icon={<HolderOutlined />}
+            title="拖拽排序"
+            aria-label="拖拽排序"
+            onMouseDown={event => props.onSortStart(event, item.boardId)}
+          >
+            拖拽
+          </Button>
           <Button icon={<ExpandOutlined />} onClick={props.onExpand}>
             {TEXT.enlarge}
           </Button>

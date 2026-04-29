@@ -266,7 +266,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
   }, [component?.componentCode]);
 
   if (!component) {
-    return <div className="config-panel-shell"><div className="panel-card property-panel property-panel-empty"><div className="panel-section"><Empty description="请选择一个图表" /></div></div></div>;
+    return <div className="config-panel-shell"><div className="panel-card property-panel property-panel-empty"><div className="panel-section"><Empty description="请选择一个指标" /></div></div></div>;
   }
 
   const activeTemplate = props.templates.find(template => template.templateCode === component.templateCode);
@@ -350,9 +350,9 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
             <div className="panel-section">
               <h3 className="panel-title">基础配置</h3>
               <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                <div><FieldLabel>图表标题</FieldLabel><Input value={component.dslConfig.visualDsl.title} onChange={event => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, visualDsl: { ...current.dslConfig.visualDsl, title: event.target.value } } }))} /></div>
+                <div><FieldLabel>指标标题</FieldLabel><Input value={component.dslConfig.visualDsl.title} onChange={event => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, visualDsl: { ...current.dslConfig.visualDsl, title: event.target.value } } }))} /></div>
                 <div><FieldLabel>指标标签</FieldLabel><Input value={component.dslConfig.visualDsl.indicatorTag} onChange={event => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, visualDsl: { ...current.dslConfig.visualDsl, indicatorTag: event.target.value } } }))} /></div>
-                <div><FieldLabel>图表模板</FieldLabel><Select style={{ width: '100%' }} value={component.templateCode} options={templateOptions} onChange={value => applyComponent(current => {
+                <div><FieldLabel>指标模板</FieldLabel><Select style={{ width: '100%' }} value={component.templateCode} options={templateOptions} onChange={value => applyComponent(current => {
                   if (value !== 'table') {
                     return {
                       ...current,

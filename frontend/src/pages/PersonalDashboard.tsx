@@ -36,14 +36,14 @@ const TEXT = {
   addChart: '\u65b0\u589e\u6307\u6807',
   all: '\u5168\u90e8',
   currentCategory: '\u5f53\u524d\u5206\u7c7b',
-  searchChart: '\u641c\u7d22\u56fe\u8868\u540d\u79f0',
+  searchChart: '\u641c\u7d22\u6307\u6807\u540d\u79f0',
   loadFailed: '\u6211\u7684\u6307\u6807\u52a0\u8f7d\u5931\u8d25',
-  loadAddableFailed: '\u53ef\u6dfb\u52a0\u56fe\u8868\u52a0\u8f7d\u5931\u8d25',
-  removed: '\u56fe\u8868\u5df2\u4ece\u6211\u7684\u6307\u6807\u79fb\u9664',
-  added: '\u56fe\u8868\u5df2\u52a0\u5165\u6211\u7684\u6307\u6807',
-  emptyCategory: '\u5f53\u524d\u5206\u7c7b\u4e0b\u8fd8\u6ca1\u6709\u56fe\u8868',
+  loadAddableFailed: '\u53ef\u6dfb\u52a0\u6307\u6807\u52a0\u8f7d\u5931\u8d25',
+  removed: '\u6307\u6807\u5df2\u4ece\u6211\u7684\u6307\u6807\u79fb\u9664',
+  added: '\u6307\u6807\u5df2\u52a0\u5165\u6211\u7684\u6307\u6807',
+  emptyCategory: '\u5f53\u524d\u5206\u7c7b\u4e0b\u8fd8\u6ca1\u6709\u6307\u6807',
   toc: '\u5bfc\u822a',
-  chartDetail: '\u56fe\u8868\u8be6\u60c5'
+  chartDetail: '\u6307\u6807\u8be6\u60c5'
 };
 
 export default function PersonalDashboard() {
@@ -59,13 +59,11 @@ export default function PersonalDashboard() {
   const [addChartLoading, setAddChartLoading] = useState(false);
   const [draggingChartId, setDraggingChartId] = useState<string>();
   const [dragOverChartId, setDragOverChartId] = useState<string>();
-  const [dragPreviewIds, setDragPreviewIds] = useState<string[]>([]);
   const [expandedChart, setExpandedChart] = useState<PersonalChartEntry>();
   const [activeChartCodes, setActiveChartCodes] = useState<string[]>([]);
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
   const draggingChartIdRef = useRef<string>();
   const dragOverChartIdRef = useRef<string>();
-  const dragPreviewIdsRef = useRef<string[]>([]);
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
   const filteredCharts = useMemo(() => {
@@ -78,15 +76,7 @@ export default function PersonalDashboard() {
     return next;
   }, [activeCategory, charts, searchKeyword]);
 
-  const renderedCharts = useMemo(() => {
-    if (!draggingChartId || dragPreviewIds.length === 0) {
-      return filteredCharts;
-    }
-    const chartMap = new Map(filteredCharts.map(item => [item.boardId, item]));
-    return dragPreviewIds
-      .map(id => chartMap.get(id))
-      .filter((item): item is PersonalChartEntry => Boolean(item));
-  }, [dragPreviewIds, draggingChartId, filteredCharts]);
+  const renderedCharts = filteredCharts;
 
   const navGroups = useMemo(() => {
     if (activeCategory === 'all') {
@@ -285,15 +275,18 @@ export default function PersonalDashboard() {
   };
 
   const resetPersonalPointerSort = () => {
-    if (draggingChartIdRef.current && dragPreviewIdsRef.current.length > 0) {
-      persistVisibleOrder(dragPreviewIdsRef.current);
+    const sourceId = draggingChartIdRef.current;
+    const targetId = dragOverChartIdRef.current;
+    if (sourceId && targetId && sourceId !== targetId) {
+      const visibleIds = filteredCharts.map(item => item.boardId);
+      const sourceIndex = visibleIds.findIndex(id => id === sourceId);
+      const targetIndex = visibleIds.findIndex(id => id === targetId);
+      persistVisibleOrder(reorderItemsPreview(visibleIds, sourceIndex, targetIndex));
     }
     setDraggingChartId(undefined);
     setDragOverChartId(undefined);
-    setDragPreviewIds([]);
     draggingChartIdRef.current = undefined;
     dragOverChartIdRef.current = undefined;
-    dragPreviewIdsRef.current = [];
     dragCleanupRef.current?.();
     dragCleanupRef.current = null;
     document.body.style.userSelect = '';
@@ -312,27 +305,21 @@ export default function PersonalDashboard() {
     draggingChartIdRef.current = sourceId;
     setDragOverChartId(undefined);
     dragOverChartIdRef.current = undefined;
-    dragPreviewIdsRef.current = filteredCharts.map(item => item.boardId);
-    setDragPreviewIds(dragPreviewIdsRef.current);
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'grabbing';
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const targetId = resolveClosestSortIdFromPoint(moveEvent.clientX, moveEvent.clientY, 'data-sort-id');
       if (!targetId || targetId === draggingChartIdRef.current) {
+        if (dragOverChartIdRef.current !== undefined) {
+          dragOverChartIdRef.current = undefined;
+          setDragOverChartId(undefined);
+        }
         return;
       }
       if (dragOverChartIdRef.current !== targetId) {
         dragOverChartIdRef.current = targetId;
         setDragOverChartId(targetId);
-        setDragPreviewIds(current => {
-          const ids = current.length > 0 ? current : filteredCharts.map(item => item.boardId);
-          const sourceIndex = ids.findIndex(id => id === draggingChartIdRef.current);
-          const targetIndex = ids.findIndex(id => id === targetId);
-          const nextIds = reorderItemsPreview(ids, sourceIndex, targetIndex);
-          dragPreviewIdsRef.current = nextIds;
-          return nextIds;
-        });
       }
     };
 
@@ -350,7 +337,6 @@ export default function PersonalDashboard() {
 
   useEffect(() => () => {
     dragCleanupRef.current?.();
-    dragPreviewIdsRef.current = [];
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
   }, []);

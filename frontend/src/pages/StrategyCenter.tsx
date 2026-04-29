@@ -23,7 +23,7 @@ const TEXT = {
   detailLoadFailed: '\u7b56\u7565\u8be6\u60c5\u52a0\u8f7d\u5931\u8d25',
   title: '\u7b56\u7565\u4e2d\u5fc3',
   searchPlaceholder: '\u641c\u7d22\u7b56\u7565\u540d\u79f0\u6216\u6307\u6807\u540d\u79f0',
-  chartCountSuffix: '\u4e2a\u56fe\u8868',
+  chartCountSuffix: '\u4e2a\u6307\u6807',
   openStrategy: '\u8fdb\u5165\u7b56\u7565',
   favorite: '\u6536\u85cf\u7b56\u7565',
   favorited: '\u5df2\u6536\u85cf',
@@ -34,11 +34,11 @@ const TEXT = {
   notFound: '\u672a\u627e\u5230\u7b56\u7565',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u53ef\u80fd\u5df2\u7ecf\u88ab\u5220\u9664\u3002',
   back: '\u8fd4\u56de\u7b56\u7565\u4e2d\u5fc3',
-  detailFallback: '\u6309\u6307\u6807\u4e2d\u5fc3\u7684\u7f29\u7565\u56fe\u5f62\u5f0f\u5c55\u793a\u5f53\u524d\u7b56\u7565\u4e0b\u7684\u6240\u6709\u56fe\u8868\u3002',
+  detailFallback: '\u6309\u6307\u6807\u4e2d\u5fc3\u7684\u7f29\u7565\u56fe\u5f62\u5f0f\u5c55\u793a\u5f53\u524d\u7b56\u7565\u4e0b\u7684\u6240\u6709\u6307\u6807\u3002',
   enlarge: '\u653e\u5927\u67e5\u770b',
-  chartDetail: '\u56fe\u8868\u8be6\u60c5',
-  noChartPreview: '\u5f53\u524d\u56fe\u8868\u6682\u65e0\u9884\u89c8',
-  noCharts: '\u5f53\u524d\u7b56\u7565\u8fd8\u6ca1\u6709\u56fe\u8868'
+  chartDetail: '\u6307\u6807\u8be6\u60c5',
+  noChartPreview: '\u5f53\u524d\u6307\u6807\u6682\u65e0\u9884\u89c8',
+  noCharts: '\u5f53\u524d\u7b56\u7565\u8fd8\u6ca1\u6709\u6307\u6807'
 };
 
 function buildComponent(snapshot: StrategyChartSnapshot) {
@@ -71,6 +71,7 @@ function StrategyOverview() {
   const [previewMap, setPreviewMap] = useState<Record<string, ChartPreview>>({});
   const [activeChartMap, setActiveChartMap] = useState<Record<string, string>>({});
   const [activeStrategyIds, setActiveStrategyIds] = useState<string[]>([]);
+  const [expandedChart, setExpandedChart] = useState<StrategyChartSnapshot>();
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
 
   const filteredStrategies = useMemo(
@@ -246,6 +247,9 @@ function StrategyOverview() {
                         </div>
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
+                        <Button icon={<ExpandOutlined />} onClick={() => activeChart && setExpandedChart(activeChart)}>
+                          {TEXT.enlarge}
+                        </Button>
                         <Button icon={<FolderOpenOutlined />} onClick={() => navigate(`/strategy-center/${strategy.strategyId}`)}>
                           {TEXT.openStrategy}
                         </Button>
@@ -335,6 +339,33 @@ function StrategyOverview() {
           </div>
         </aside>
       </div>
+
+      <Modal
+        title={expandedChart?.componentTitle || TEXT.chartDetail}
+        open={Boolean(expandedChart)}
+        footer={null}
+        onCancel={() => setExpandedChart(undefined)}
+        width="90vw"
+        styles={{ body: { height: '78vh', padding: 16 } }}
+      >
+        {expandedChart ? (
+          <div className="runtime-chart-modal">
+            <ChartContainer
+              title={expandedChart.componentTitle}
+              tag={normalizeDisplayText(expandedChart.dslConfig.visualDsl.indicatorTag)}
+            >
+              <ChartRendererCore
+                component={buildComponent(expandedChart)}
+                preview={previewMap[expandedChart.chartId]}
+                templateCode={expandedChart.templateCode}
+                viewMode="chart"
+                editable={false}
+                selected={false}
+              />
+            </ChartContainer>
+          </div>
+        ) : null}
+      </Modal>
 
     </div>
   );
@@ -480,12 +511,12 @@ function StrategyDetail() {
       <div className="page-shell runtime-library-shell">
         <div>
           {strategy.charts.length > 0 ? (
-            <div className="favorites-board-grid public-chart-grid">
+            <div className="favorites-board-grid strategy-detail-grid">
               {strategy.charts.map(chart => (
                 <article
                   key={chart.chartId}
                   id={`strategy-detail-card-${chart.chartId}`}
-                  className="panel-card favorites-board-card public-board-card"
+                  className="panel-card favorites-board-card strategy-indicator-card"
                 >
                   <div className="favorites-board-card-head">
                     <div>

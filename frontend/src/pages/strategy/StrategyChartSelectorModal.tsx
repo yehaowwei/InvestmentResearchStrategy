@@ -8,12 +8,12 @@ import type { ChartRuntimeCard } from '../../utils/chartLibrary';
 
 const TEXT = {
   all: '\u5168\u90e8',
-  search: '\u641c\u7d22\u56fe\u8868\u6216\u6307\u6807\u540d\u79f0',
+  search: '\u641c\u7d22\u6307\u6807\u6216\u7b56\u7565\u540d\u79f0',
   selected: '\u5df2\u9009',
-  available: '\u53ef\u9009\u56fe\u8868',
-  noPreview: '\u5f53\u524d\u56fe\u8868\u6682\u65e0\u9884\u89c8',
-  noCharts: '\u6ca1\u6709\u7b26\u5408\u6761\u4ef6\u7684\u56fe\u8868',
-  selectedCount: '\u5df2\u9009\u56fe\u8868',
+  available: '\u53ef\u9009\u6307\u6807',
+  noPreview: '\u5f53\u524d\u6307\u6807\u6682\u65e0\u9884\u89c8',
+  noCharts: '\u6ca1\u6709\u7b26\u5408\u6761\u4ef6\u7684\u6307\u6807',
+  selectedCount: '\u5df2\u9009\u6307\u6807',
   select: '\u9009\u62e9',
   selectedAction: '\u5df2\u9009\u4e2d',
   name: '\u7b56\u7565\u540d\u79f0',
