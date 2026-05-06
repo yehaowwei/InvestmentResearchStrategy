@@ -1,16 +1,17 @@
 import { api } from '../api/client';
 import type { ComponentDslConfig } from '../types/dashboard';
 import type { ChartRuntimeCard } from './chartLibrary';
+import { repairCycleStrategyDsl } from './cycleStrategy';
 import { deepClone, normalizeDisplayText, normalizeDslConfig } from './dashboard';
 
 const STORAGE_KEYS = {
-  public: 'bi-dashboard-strategies',
-  personal: 'bi-dashboard-my-strategies'
+  public: 'strategy-dashboard-strategies',
+  personal: 'strategy-dashboard-my-strategies'
 } as const;
 
 const CHANGE_EVENTS = {
-  public: 'bi-dashboard-strategies-changed',
-  personal: 'bi-dashboard-my-strategies-changed'
+  public: 'strategy-dashboard-strategies-changed',
+  personal: 'strategy-dashboard-my-strategies-changed'
 } as const;
 
 export type StrategyScope = 'public' | 'personal';
@@ -39,12 +40,13 @@ export interface StrategyRecord {
 }
 
 function normalizeChartSnapshot(chart: StrategyChartSnapshot): StrategyChartSnapshot {
+  const normalizedDsl = normalizeDslConfig(deepClone(chart.dslConfig));
   return {
     ...chart,
     chartId: normalizeDisplayText(chart.chartId, `${chart.chartCode}:${chart.componentCode}`),
     chartName: normalizeDisplayText(chart.chartName, chart.chartCode),
     componentTitle: normalizeDisplayText(chart.componentTitle, chart.componentCode),
-    dslConfig: normalizeDslConfig(deepClone(chart.dslConfig))
+    dslConfig: repairCycleStrategyDsl(normalizedDsl)
   };
 }
 
@@ -69,7 +71,8 @@ function readStrategies(scope: StrategyScope) {
       return [];
     }
     const parsed = JSON.parse(raw) as StrategyRecord[];
-    return Array.isArray(parsed) ? parsed.map((item, index) => normalizeStrategy(item, index + 1)) : [];
+    const strategies = Array.isArray(parsed) ? parsed.map((item, index) => normalizeStrategy(item, index + 1)) : [];
+    return strategies;
   } catch {
     return [];
   }

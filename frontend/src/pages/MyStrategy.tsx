@@ -12,8 +12,10 @@ import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Space, message 
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import AppSearchInput from '../components/AppSearchInput';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
+import { buildCycleStrategyAiReply } from '../utils/cycleStrategy';
 import StrategyChartSelectorModal from './strategy/StrategyChartSelectorModal';
 import type { ChartCatalogItem, ChartPreview } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
@@ -36,7 +38,7 @@ import {
   resolveActiveRowCodes,
   resolveClosestSortIdFromPoint,
   scrollContainerItemToCenter
-} from './dashboardPageUtils';
+} from './indicatorPageNavigation';
 
 const TEXT = {
   loadFailed: '\u6211\u7684\u7b56\u7565\u52a0\u8f7d\u5931\u8d25',
@@ -75,6 +77,14 @@ const TEXT = {
   addChart: '\u65b0\u589e\u6307\u6807',
   addChartTitle: '\u9009\u62e9\u8981\u52a0\u5165\u7684\u6307\u6807',
   completeSelect: '\u9009\u62e9\u5b8c\u6210',
+  skillApplied: '\u5df2\u4f7f\u7528 skill \u751f\u6210\u6a21\u578b\u8349\u6848',
+  skillDrafts: '\u6a21\u578b\u8349\u6848',
+  skillMatchedCharts: '\u53ef\u590d\u7528\u6307\u6807',
+  skillApplyCharts: '\u52a0\u5165\u63a8\u8350\u6307\u6807',
+  skillTaskCard: '\u751f\u6210 IT \u4efb\u52a1\u5361',
+  skillNoMatchedCharts: '\u6682\u672a\u5339\u914d\u5230\u53ef\u76f4\u63a5\u590d\u7528\u7684\u6307\u6807',
+  skillChartsAdded: '\u63a8\u8350\u6307\u6807\u5df2\u52a0\u5165\u5f53\u524d\u7b56\u7565',
+  skillChartsAlreadyAdded: '\u63a8\u8350\u6307\u6807\u5df2\u5728\u5f53\u524d\u7b56\u7565\u4e2d',
   aiTitle: 'AI\u7b56\u7565\u52a9\u624b',
   aiPlaceholder: '\u4f8b\u5982\uff1a\u5e2e\u6211\u603b\u7ed3\u8fd9\u4e24\u4e2a\u6307\u6807\u6700\u8fd1\u53d8\u5316\uff0c\u6216\u8005\u8fd9\u4e2a\u7b56\u7565\u4e3b\u8981\u5728\u770b\u4ec0\u4e48\uff1f',
   aiSend: '\u53d1\u9001',
@@ -102,7 +112,76 @@ interface StrategyAiConversation {
   updatedAt: string;
 }
 
-const STRATEGY_AI_HISTORY_STORAGE_KEY = 'bi-strategy-ai-history-v1';
+interface StrategySkillDefinition {
+  skillId: string;
+  skillName: string;
+  description: string;
+  triggers: string[];
+  hypothesis: string;
+  requiredData: string[];
+  defaultRules: string[];
+  outputs: string[];
+  questions: string[];
+  chartKeywords: string[];
+}
+
+interface StrategySkillDraft {
+  draftId: string;
+  skillId: string;
+  skillName: string;
+  modelName: string;
+  userIdea: string;
+  hypothesis: string;
+  requiredData: string[];
+  rules: string[];
+  outputs: string[];
+  questions: string[];
+  matchedChartIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+const STRATEGY_AI_HISTORY_STORAGE_KEY = 'strategy-dashboard-ai-history-v1';
+const STRATEGY_SKILL_DRAFT_STORAGE_KEY = 'strategy-dashboard-skill-drafts-v1';
+
+const STRATEGY_SKILLS: StrategySkillDefinition[] = [
+  {
+    skillId: 'capital-leading-signal',
+    skillName: '\u8d44\u91d1\u884c\u4e3a\u9886\u5148\u4fe1\u53f7',
+    description: '\u7528\u4e8e\u8bc6\u522b\u8d44\u91d1\u5148\u6d41\u5165\uff0c\u4ef7\u683c\u6216\u6210\u4ea4\u5c1a\u672a\u5145\u5206\u53cd\u5e94\u7684\u6f5c\u5728\u673a\u4f1a\u3002',
+    triggers: ['\u8d44\u91d1', '\u878d\u8d44', '\u63d0\u524d\u5e03\u5c40', '\u8fde\u7eed\u6d41\u5165', '\u6760\u6746', '\u5317\u5411', '\u51c0\u6d41\u5165'],
+    hypothesis: '\u5f53\u8d44\u91d1\u7c7b\u6307\u6807\u8fde\u7eed\u6539\u5584\uff0c\u4f46\u4ef7\u683c\u548c\u6210\u4ea4\u5c1a\u672a\u540c\u6b65\u653e\u5927\u65f6\uff0c\u53ef\u80fd\u8868\u793a\u8d44\u91d1\u6b63\u5728\u63d0\u524d\u5e03\u5c40\u3002',
+    requiredData: ['\u8d44\u91d1\u6307\u6807', '\u4ef7\u683c\u6216\u6da8\u8dcc\u5e45', '\u6210\u4ea4\u989d', '\u65e5\u671f', '\u677f\u5757/\u884c\u4e1a'],
+    defaultRules: ['\u8d44\u91d1\u6307\u6807\u8fde\u7eed N \u671f\u6539\u5584', '\u540c\u671f\u4ef7\u683c\u6da8\u5e45\u4f4e\u4e8e\u9608\u503c', '\u6210\u4ea4\u989d\u672a\u663e\u8457\u653e\u5927', '\u6309\u8d44\u91d1\u589e\u901f\u6216\u51c0\u6d41\u5165\u6392\u5e8f'],
+    outputs: ['\u5019\u9009\u677f\u5757\u5217\u8868', '\u8d44\u91d1\u53d8\u5316\u8d8b\u52bf\u56fe', '\u6a21\u578b\u89e3\u91ca', '\u7b56\u7565\u5185\u6307\u6807\u7ec4\u5408'],
+    questions: ['\u89c2\u5bdf\u7a97\u53e3\u4f7f\u7528\u51e0\u5929/\u51e0\u5468\uff1f', '\u4ef7\u683c\u672a\u53cd\u5e94\u7684\u9608\u503c\u662f\u591a\u5c11\uff1f', '\u6392\u5e8f\u4f7f\u7528\u8d44\u91d1\u589e\u901f\u8fd8\u662f\u51c0\u6d41\u5165\uff1f'],
+    chartKeywords: ['\u878d\u8d44', '\u8d44\u91d1', '\u4f59\u989d', '\u677f\u5757']
+  },
+  {
+    skillId: 'valuation-mean-reversion',
+    skillName: '\u4f30\u503c\u5747\u503c\u56de\u5f52',
+    description: '\u7528\u4e8e\u8bc6\u522b\u4f30\u503c\u6216\u98ce\u9669\u6ea2\u4ef7\u76f8\u5bf9\u5386\u53f2\u533a\u95f4\u7684\u504f\u79bb\u548c\u56de\u5f52\u673a\u4f1a\u3002',
+    triggers: ['\u4f30\u503c', '\u5747\u503c\u56de\u5f52', '\u98ce\u9669\u6ea2\u4ef7', '\u5206\u4f4d', '\u6807\u51c6\u5dee', '\u504f\u79bb'],
+    hypothesis: '\u5f53\u4f30\u503c\u6216\u98ce\u9669\u6ea2\u4ef7\u660e\u663e\u504f\u79bb\u5386\u53f2\u4e2d\u67a2\u65f6\uff0c\u540e\u7eed\u5b58\u5728\u5411\u5747\u503c\u56de\u5f52\u7684\u89c2\u5bdf\u4ef7\u503c\u3002',
+    requiredData: ['\u4f30\u503c\u6307\u6807', '\u57fa\u51c6\u6307\u6570', '\u65e5\u671f', '\u5386\u53f2\u5747\u503c/\u6807\u51c6\u5dee'],
+    defaultRules: ['\u8ba1\u7b97\u8fd1 3 \u5e74\u6eda\u52a8\u5747\u503c', '\u8ba1\u7b97\u00b11/\u00b12 \u500d\u6807\u51c6\u5dee\u533a\u95f4', '\u6807\u8bb0\u4f4e\u4f30\u6216\u9ad8\u4f30\u533a\u95f4', '\u7ed3\u5408\u57fa\u51c6\u6307\u6570\u89c2\u5bdf\u56de\u5f52\u8282\u594f'],
+    outputs: ['\u4f30\u503c\u533a\u95f4\u56fe', '\u504f\u79bb\u5ea6\u8bf4\u660e', '\u5386\u53f2\u5206\u4f4d\u89c2\u5bdf', '\u98ce\u9669\u63d0\u793a'],
+    questions: ['\u4f7f\u7528\u51e0\u5e74\u5386\u53f2\u7a97\u53e3\uff1f', '\u89e6\u53d1\u533a\u95f4\u7528\u6807\u51c6\u5dee\u8fd8\u662f\u5206\u4f4d\u70b9\uff1f', '\u9700\u8981\u548c\u54ea\u4e2a\u6307\u6570\u5bf9\u7167\uff1f'],
+    chartKeywords: ['\u98ce\u9669\u6ea2\u4ef7', '\u4f30\u503c', '\u5747\u503c', '\u6307\u6570']
+  },
+  {
+    skillId: 'trend-momentum-filter',
+    skillName: '\u8d8b\u52bf\u52a8\u91cf\u589e\u5f3a',
+    description: '\u7528\u4e8e\u8bc6\u522b\u8d8b\u52bf\u6301\u7eed\u6539\u5584\u7684\u6807\u7684\u6216\u677f\u5757\uff0c\u5e76\u52a0\u5165\u98ce\u9669\u8fc7\u6ee4\u3002',
+    triggers: ['\u52a8\u91cf', '\u8d8b\u52bf', '\u6301\u7eed\u4e0a\u884c', '\u7a81\u7834', '\u5f3a\u52bf', '\u6392\u540d'],
+    hypothesis: '\u5f53\u4ef7\u683c\u6216\u6838\u5fc3\u6307\u6807\u5728\u591a\u4e2a\u7a97\u53e3\u6301\u7eed\u8d70\u5f3a\uff0c\u4e14\u98ce\u9669\u6307\u6807\u672a\u6076\u5316\u65f6\uff0c\u8d8b\u52bf\u4fe1\u53f7\u66f4\u6709\u53ef\u6301\u7eed\u6027\u3002',
+    requiredData: ['\u4ef7\u683c\u6216\u6307\u6570', '\u6536\u76ca\u7387', '\u6ce2\u52a8\u7387', '\u65e5\u671f', '\u884c\u4e1a/\u677f\u5757'],
+    defaultRules: ['\u8ba1\u7b97\u77ed\u4e2d\u671f\u52a8\u91cf', '\u6392\u9664\u6ce2\u52a8\u660e\u663e\u653e\u5927\u7684\u6837\u672c', '\u6309\u7efc\u5408\u52a8\u91cf\u5f97\u5206\u6392\u5e8f', '\u4fdd\u7559\u524d N \u4e2a\u5019\u9009'],
+    outputs: ['\u52a8\u91cf\u6392\u540d\u8868', '\u8d8b\u52bf\u56fe', '\u98ce\u9669\u8fc7\u6ee4\u8bf4\u660e'],
+    questions: ['\u77ed\u671f\u548c\u4e2d\u671f\u7a97\u53e3\u5206\u522b\u7528\u591a\u957f\uff1f', '\u9700\u8981\u6392\u9664\u591a\u5927\u6ce2\u52a8\u7684\u6837\u672c\uff1f', '\u8f93\u51fa\u524d\u591a\u5c11\u4e2a\u5019\u9009\uff1f'],
+    chartKeywords: ['\u6307\u6570', '\u6da8\u8dcc', '\u52a8\u91cf', '\u8d8b\u52bf']
+  }
+];
 
 function createInitialAiMessages(seed: string): StrategyAiMessage[] {
   return [{ id: `assistant-${seed}`, role: 'assistant', content: TEXT.aiGreeting }];
@@ -176,6 +255,141 @@ function writeStrategyAiConversations(strategyId: string | undefined, conversati
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, 20);
   writeAiHistoryMap(historyMap);
+}
+
+function readSkillDraftMap(): Record<string, StrategySkillDraft[]> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(STRATEGY_SKILL_DRAFT_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, StrategySkillDraft[]>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSkillDraftMap(draftMap: Record<string, StrategySkillDraft[]>) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.localStorage.setItem(STRATEGY_SKILL_DRAFT_STORAGE_KEY, JSON.stringify(draftMap));
+}
+
+function readStrategySkillDrafts(strategyId?: string) {
+  if (!strategyId) {
+    return [] as StrategySkillDraft[];
+  }
+  return (readSkillDraftMap()[strategyId] ?? [])
+    .filter(item => item && item.draftId && item.skillId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+function writeStrategySkillDrafts(strategyId: string | undefined, drafts: StrategySkillDraft[]) {
+  if (!strategyId) {
+    return;
+  }
+  const draftMap = readSkillDraftMap();
+  draftMap[strategyId] = drafts
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 12);
+  writeSkillDraftMap(draftMap);
+}
+
+function normalizeSkillText(value: string) {
+  return value.toLowerCase().replace(/\s+/g, '');
+}
+
+function findSkillForPrompt(prompt: string) {
+  const normalizedPrompt = normalizeSkillText(prompt);
+  return STRATEGY_SKILLS
+    .map(skill => ({
+      skill,
+      score: skill.triggers.filter(trigger => normalizedPrompt.includes(normalizeSkillText(trigger))).length
+    }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.skill;
+}
+
+function buildSkillModelName(skill: StrategySkillDefinition, prompt: string) {
+  const normalizedPrompt = prompt.trim().replace(/\s+/g, '');
+  if (skill.skillId === 'capital-leading-signal' && normalizedPrompt.includes('\u878d\u8d44')) {
+    return '\u878d\u8d44\u8d44\u91d1\u63d0\u524d\u5e03\u5c40\u6a21\u578b';
+  }
+  if (skill.skillId === 'valuation-mean-reversion' && normalizedPrompt.includes('\u98ce\u9669\u6ea2\u4ef7')) {
+    return '\u80a1\u6743\u98ce\u9669\u6ea2\u4ef7\u5747\u503c\u56de\u5f52\u6a21\u578b';
+  }
+  return `${skill.skillName}\u6a21\u578b`;
+}
+
+function matchSkillCharts(skill: StrategySkillDefinition, availableCharts: ChartRuntimeCard[], strategy: StrategyRecord) {
+  const existingChartIds = new Set(strategy.charts.map(chart => chart.chartId));
+  return availableCharts
+    .filter(card => !existingChartIds.has(`${card.chartCode}:${card.component.componentCode}`))
+    .filter(card => {
+      const title = normalizeSkillText(`${card.chartName}${card.component.title}${card.component.dslConfig.visualDsl.title}${card.component.dslConfig.visualDsl.indicatorTag}`);
+      return skill.chartKeywords.some(keyword => title.includes(normalizeSkillText(keyword)));
+    })
+    .slice(0, 3);
+}
+
+function createSkillDraft(skill: StrategySkillDefinition, prompt: string, availableCharts: ChartRuntimeCard[], strategy: StrategyRecord): StrategySkillDraft {
+  const now = new Date().toISOString();
+  return {
+    draftId: `skill-draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    skillId: skill.skillId,
+    skillName: skill.skillName,
+    modelName: buildSkillModelName(skill, prompt),
+    userIdea: prompt,
+    hypothesis: skill.hypothesis,
+    requiredData: skill.requiredData,
+    rules: skill.defaultRules,
+    outputs: skill.outputs,
+    questions: skill.questions,
+    matchedChartIds: matchSkillCharts(skill, availableCharts, strategy).map(card => `${card.chartCode}:${card.component.componentCode}`),
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function buildSkillDraftReply(draft: StrategySkillDraft) {
+  return [
+    `${TEXT.skillApplied}\uff1a${draft.skillName}`,
+    '',
+    `\u6a21\u578b\u8349\u6848\uff1a${draft.modelName}`,
+    `\u7814\u7a76\u5047\u8bbe\uff1a${draft.hypothesis}`,
+    '',
+    '\u9ed8\u8ba4\u89c4\u5219\uff1a',
+    ...draft.rules.map((rule, index) => `${index + 1}. ${rule}`),
+    '',
+    '\u5efa\u8bae\u5148\u786e\u8ba4\uff1a',
+    ...draft.questions.map((question, index) => `${index + 1}. ${question}`)
+  ].join('\n');
+}
+
+function buildSkillTaskCard(draft: StrategySkillDraft) {
+  return [
+    `IT \u80fd\u529b\u5f00\u53d1\u5361\uff1a${draft.modelName}`,
+    '',
+    `\u6765\u6e90\u60f3\u6cd5\uff1a${draft.userIdea}`,
+    `\u9002\u7528 Skill\uff1a${draft.skillName}`,
+    `\u7814\u7a76\u5047\u8bbe\uff1a${draft.hypothesis}`,
+    '',
+    '\u9700\u8981\u6570\u636e\uff1a',
+    ...draft.requiredData.map(item => `- ${item}`),
+    '',
+    '\u9ed8\u8ba4\u89c4\u5219\uff1a',
+    ...draft.rules.map(item => `- ${item}`),
+    '',
+    '\u8f93\u51fa\u4ea7\u7269\uff1a',
+    ...draft.outputs.map(item => `- ${item}`),
+    '',
+    '\u9a8c\u6536\u8981\u70b9\uff1a\u5b57\u6bb5\u80fd\u5339\u914d\u3001\u89c4\u5219\u53ef\u9884\u89c8\u3001\u7ed3\u679c\u4e0d\u4e3a\u7a7a\u65f6\u80fd\u4fdd\u5b58\u5230\u5f53\u524d\u7b56\u7565\u3002'
+  ].join('\n');
 }
 
 function toFiniteNumber(value: unknown) {
@@ -275,6 +489,10 @@ function buildAiReply(
   charts: StrategyChartSnapshot[],
   previewMap: Record<string, ChartPreview>
 ) {
+  const cycleReply = buildCycleStrategyAiReply(strategyName, prompt, charts, previewMap);
+  if (cycleReply) {
+    return cycleReply;
+  }
   const normalizedPrompt = prompt.trim().toLowerCase();
   const summaries = charts.slice(0, 4).map(chart => buildRecentSummaryFromPreview(chart, previewMap[chart.chartId]));
   const meanings = charts.slice(0, 4).map(chart => `${chart.componentTitle}\uff1a${buildIndicatorMeaning(chart.componentTitle)}`);
@@ -627,7 +845,7 @@ function MyStrategyOverview() {
       </div>
 
       <div className="favorites-filter-nav">
-        <Input.Search
+        <AppSearchInput
           allowClear
           placeholder={TEXT.searchPlaceholder}
           className="page-toc-width-search"
@@ -799,6 +1017,7 @@ function MyStrategyOverview() {
                 viewMode="chart"
                 editable={false}
                 selected={false}
+                forceSlider
               />
             </ChartContainer>
           </div>
@@ -822,6 +1041,7 @@ function MyStrategyDetail() {
   const [aiMessages, setAiMessages] = useState<StrategyAiMessage[]>(createInitialAiMessages('initial'));
   const [aiConversations, setAiConversations] = useState<StrategyAiConversation[]>([]);
   const [activeAiConversationId, setActiveAiConversationId] = useState('');
+  const [skillDrafts, setSkillDrafts] = useState<StrategySkillDraft[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiInput, setAiInput] = useState('');
   const [draggingChartId, setDraggingChartId] = useState<string>();
@@ -833,6 +1053,10 @@ function MyStrategyDetail() {
 
   useEffect(() => {
     setStrategy(getMyStrategy(params.strategyId));
+  }, [params.strategyId]);
+
+  useEffect(() => {
+    setSkillDrafts(readStrategySkillDrafts(params.strategyId));
   }, [params.strategyId]);
 
   useEffect(() => {
@@ -1002,6 +1226,14 @@ function MyStrategyDetail() {
     message.success(TEXT.updated);
   };
 
+  const persistSkillDrafts = (updater: (current: StrategySkillDraft[]) => StrategySkillDraft[]) => {
+    setSkillDrafts(current => {
+      const nextDrafts = updater(current);
+      writeStrategySkillDrafts(params.strategyId, nextDrafts);
+      return nextDrafts;
+    });
+  };
+
   const submitAiMessage = () => {
     void submitAiMessageAsync();
   };
@@ -1045,6 +1277,28 @@ function MyStrategyDetail() {
 
     updateActiveAiMessages(current => [...current, userMessage]);
     setAiInput('');
+
+    const matchedSkill = findSkillForPrompt(trimmedInput);
+    if (matchedSkill) {
+      const draft = createSkillDraft(matchedSkill, trimmedInput, availableCharts, strategy);
+      persistSkillDrafts(current => [draft, ...current.filter(item => item.draftId !== draft.draftId)]);
+      updateActiveAiMessages(current => [...current, {
+        id: `assistant-skill-${Date.now()}`,
+        role: 'assistant',
+        content: buildSkillDraftReply(draft)
+      }]);
+      return;
+    }
+
+    const cycleReply = buildCycleStrategyAiReply(strategy.strategyName, trimmedInput, strategy.charts, previewMap);
+    if (cycleReply) {
+      updateActiveAiMessages(current => [...current, {
+        id: `assistant-local-${Date.now()}`,
+        role: 'assistant',
+        content: cycleReply
+      }]);
+      return;
+    }
 
     const chartContexts = strategy.charts.slice(0, 4).map(chart => ({
       title: chart.componentTitle,
@@ -1111,6 +1365,28 @@ function MyStrategyDetail() {
     setAiMessages(nextActiveConversation.messages);
     setAiInput('');
     writeStrategyAiConversations(params.strategyId, nextConversations);
+  };
+
+  const applySkillDraftCharts = (draft: StrategySkillDraft) => {
+    const existingChartIds = new Set(strategy.charts.map(chart => chart.chartId));
+    const cardsToAdd = availableCharts.filter(card => (
+      draft.matchedChartIds.includes(`${card.chartCode}:${card.component.componentCode}`)
+      && !existingChartIds.has(`${card.chartCode}:${card.component.componentCode}`)
+    ));
+    if (cardsToAdd.length === 0) {
+      message.info(TEXT.skillChartsAlreadyAdded);
+      return;
+    }
+    persistStrategy({ charts: [...strategy.charts, ...cardsToAdd.map(toStrategyChartSnapshot)] });
+    message.success(TEXT.skillChartsAdded);
+  };
+
+  const appendSkillTaskCard = (draft: StrategySkillDraft) => {
+    updateActiveAiMessages(current => [...current, {
+      id: `assistant-task-${Date.now()}`,
+      role: 'assistant',
+      content: buildSkillTaskCard(draft)
+    }]);
   };
 
   const finishChartDrag = () => {
@@ -1348,6 +1624,50 @@ function MyStrategyDetail() {
               </div>
             ))}
           </div>
+          {skillDrafts.length > 0 ? (
+            <div className="strategy-skill-drafts">
+              <div className="strategy-skill-drafts-title">{TEXT.skillDrafts}</div>
+              {skillDrafts.map(draft => {
+                const matchedTitles = draft.matchedChartIds
+                  .map(chartId => {
+                    const card = availableCharts.find(item => `${item.chartCode}:${item.component.componentCode}` === chartId);
+                    return card ? normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode) : chartId;
+                  });
+                return (
+                  <div key={draft.draftId} className="strategy-skill-draft-card">
+                    <div className="strategy-skill-draft-head">
+                      <div>
+                        <div className="strategy-skill-draft-name">{draft.modelName}</div>
+                        <div className="strategy-skill-draft-skill">{draft.skillName}</div>
+                      </div>
+                    </div>
+                    <div className="strategy-skill-draft-section">
+                      <strong>\u7814\u7a76\u5047\u8bbe</strong>
+                      <span>{draft.hypothesis}</span>
+                    </div>
+                    <div className="strategy-skill-draft-section">
+                      <strong>\u9ed8\u8ba4\u89c4\u5219</strong>
+                      <ul>
+                        {draft.rules.map(rule => <li key={rule}>{rule}</li>)}
+                      </ul>
+                    </div>
+                    <div className="strategy-skill-draft-section">
+                      <strong>{TEXT.skillMatchedCharts}</strong>
+                      <span>{matchedTitles.length > 0 ? matchedTitles.join('\uff0c') : TEXT.skillNoMatchedCharts}</span>
+                    </div>
+                    <div className="strategy-skill-draft-actions">
+                      <Button size="small" disabled={matchedTitles.length === 0} onClick={() => applySkillDraftCharts(draft)}>
+                        {TEXT.skillApplyCharts}
+                      </Button>
+                      <Button size="small" onClick={() => appendSkillTaskCard(draft)}>
+                        {TEXT.skillTaskCard}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           <div className="strategy-ai-compose">
             <Input.TextArea
               value={aiInput}
@@ -1392,6 +1712,7 @@ function MyStrategyDetail() {
                 viewMode="chart"
                 editable={false}
                 selected={false}
+                forceSlider
               />
             </ChartContainer>
           </div>

@@ -21,7 +21,7 @@ public class SharedStateServiceImpl implements SharedStateService {
     @Override
     public Object getState(String stateKey) {
         List<String> states = jdbcTemplate.query(
-                "SELECT state_json FROM bi_shared_state WHERE state_key = ?",
+                "SELECT state_json FROM shared_state WHERE state_key = ?",
                 (rs, rowNum) -> rs.getString("state_json"),
                 stateKey
         );
@@ -35,7 +35,13 @@ public class SharedStateServiceImpl implements SharedStateService {
     public Object saveState(String stateKey, Object state) {
         String stateJson = jsonSnapshotSupport.toJson(state);
         jdbcTemplate.update(
-                "MERGE INTO bi_shared_state(state_key, state_json, updated_at) KEY(state_key) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                """
+                        INSERT INTO shared_state(state_key, state_json, updated_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP(6))
+                        ON DUPLICATE KEY UPDATE
+                          state_json = VALUES(state_json),
+                          updated_at = CURRENT_TIMESTAMP(6)
+                        """,
                 stateKey,
                 stateJson
         );
@@ -44,11 +50,11 @@ public class SharedStateServiceImpl implements SharedStateService {
 
     private void ensureTable() {
         jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS bi_shared_state (
+                CREATE TABLE IF NOT EXISTS shared_state (
                   state_key VARCHAR(128) PRIMARY KEY,
-                  state_json CLOB NOT NULL,
-                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                  state_json LONGTEXT NOT NULL,
+                  updated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """);
     }
 }

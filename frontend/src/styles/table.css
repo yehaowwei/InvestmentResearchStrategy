@@ -164,6 +164,12 @@
 
 .chart-renderer-thumbnail .table-designer-preview {
   padding: 4px;
+  overflow: hidden;
+}
+
+.chart-renderer-thumbnail .designer-grid-table,
+.library-chart-preview .designer-grid-table {
+  height: 100%;
 }
 
 .chart-renderer-thumbnail .designer-grid-table th,

@@ -44,7 +44,7 @@ public class ChartPreviewSupport {
     @SuppressWarnings("unchecked")
     public Map<String, Object> loadModelConfig(String modelCode) {
         List<Map<String, Object>> configs = jdbcTemplate.query(
-                "SELECT model_config_json FROM bi_dataset_model WHERE model_code = ?",
+                "SELECT model_config_json FROM dataset_model WHERE model_code = ?",
                 (rs, rowNum) -> jsonSnapshotSupport.fromJson(rs.getString("model_config_json"), Map.class),
                 modelCode
         );
@@ -53,7 +53,7 @@ public class ChartPreviewSupport {
 
     public Map<String, FieldMetaVo> loadFieldMap(String modelCode) {
         return jdbcTemplate.query(
-                "SELECT field_code, field_name, data_type, field_role, agg_type, source_expr, calc_type, base_field_code FROM bi_dataset_field WHERE model_code = ? ORDER BY sort_no, id",
+                "SELECT field_code, field_name, data_type, field_role, agg_type, source_expr, calc_type, base_field_code FROM dataset_field WHERE model_code = ? ORDER BY sort_no, id",
                 (rs, rowNum) -> FieldMetaVo.builder()
                         .fieldCode(rs.getString("field_code"))
                         .fieldName(rs.getString("field_name"))

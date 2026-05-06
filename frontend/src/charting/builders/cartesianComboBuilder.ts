@@ -52,10 +52,13 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
   const compact = Boolean(context?.compact);
   const dense = !compact && Boolean(context?.dense);
   const thumbnail = Boolean(context?.thumbnail);
-  const showThumbnailSlider = thumbnail && interactionDsl.dataZoom && interactionDsl.slider;
+  const forceSlider = Boolean(context?.forceSlider);
+  const enableSlider = forceSlider || (interactionDsl.dataZoom && interactionDsl.slider);
+  const enableDataZoom = forceSlider || interactionDsl.dataZoom;
+  const showThumbnailSlider = thumbnail && enableDataZoom && enableSlider;
   const legendRightPadding = dense ? 112 : 140;
   const sliderBottom = 0;
-  const gridBottom = interactionDsl.slider ? (compact ? 40 : dense ? 34 : 46) : (compact ? 38 : dense ? 28 : 40);
+  const gridBottom = enableSlider ? (compact ? 40 : dense ? 34 : 46) : (compact ? 38 : dense ? 28 : 40);
   const thumbnailGrid = {
     left: 40,
     right: hasRightAxis ? 44 : 20,
@@ -98,9 +101,9 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
         : { left: 64, right: hasRightAxis ? 64 : 28, top: 56, bottom: gridBottom, containLabel: true },
     dataZoom: compact
       ? []
-      : interactionDsl.dataZoom
+      : enableDataZoom
         ? [
-          ...((interactionDsl.slider && !thumbnail) || showThumbnailSlider ? [{
+          ...((enableSlider && !thumbnail) || showThumbnailSlider ? [{
             type: 'slider' as const,
             start: zoom.start,
             end: zoom.end,

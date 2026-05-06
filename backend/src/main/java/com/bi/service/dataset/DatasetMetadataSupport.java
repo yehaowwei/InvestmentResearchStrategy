@@ -39,7 +39,7 @@ public class DatasetMetadataSupport {
                 """
                 SELECT model_code, model_name, model_type, description, physical_table_name,
                        source_sql, deletable, model_config_json
-                FROM bi_dataset_model
+                FROM dataset_model
                 ORDER BY id
                 """,
                 (rs, rowNum) -> buildDatasetVo(
@@ -60,7 +60,7 @@ public class DatasetMetadataSupport {
                 """
                 SELECT model_code, model_name, model_type, description, physical_table_name,
                        source_sql, deletable, model_config_json
-                FROM bi_dataset_model
+                FROM dataset_model
                 WHERE model_code = ?
                 """,
                 (rs, rowNum) -> buildDatasetVo(
@@ -85,7 +85,7 @@ public class DatasetMetadataSupport {
                 """
                 SELECT field_code, field_name, data_type, field_role, agg_type,
                        source_expr, calc_type, base_field_code
-                FROM bi_dataset_field
+                FROM dataset_field
                 WHERE model_code = ?
                 ORDER BY sort_no, id
                 """,
@@ -105,7 +105,7 @@ public class DatasetMetadataSupport {
 
     public boolean existsModel(String modelCode) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM bi_dataset_model WHERE model_code = ?",
+                "SELECT COUNT(*) FROM dataset_model WHERE model_code = ?",
                 Integer.class,
                 modelCode
         );
@@ -141,7 +141,7 @@ public class DatasetMetadataSupport {
         List<SourceTableVo> managedTables = jdbcTemplate.query(
                 """
                 SELECT model_code, model_name, physical_table_name
-                FROM bi_dataset_model
+                FROM dataset_model
                 ORDER BY id
                 """,
                 (rs, rowNum) -> SourceTableVo.builder()
@@ -161,7 +161,7 @@ public class DatasetMetadataSupport {
                 FROM information_schema.tables
                 WHERE table_schema = ?
                   AND table_type = 'BASE TABLE'
-                  AND table_name NOT LIKE 'bi_%'
+                  AND table_name NOT IN ('dashboard_definition','dashboard_component','dataset_model','dataset_field','chart_template','shared_state')
                 ORDER BY table_name
                 """,
                 String.class,
@@ -210,7 +210,7 @@ public class DatasetMetadataSupport {
             String role = datasetSqlSupport.normalizeFieldRole(field.getFieldRole(), field.getDataType());
             jdbcTemplate.update(
                     """
-                    INSERT INTO bi_dataset_field(
+                    INSERT INTO dataset_field(
                         model_code, field_code, field_name, data_type, field_role, agg_type, source_expr, sort_no
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
@@ -269,7 +269,7 @@ public class DatasetMetadataSupport {
         List<String> names = jdbcTemplate.queryForList(
                 """
                 SELECT model_name
-                FROM bi_dataset_model
+                FROM dataset_model
                 WHERE physical_table_name = ? AND deletable = 0
                 ORDER BY id
                 LIMIT 1
@@ -324,7 +324,7 @@ public class DatasetMetadataSupport {
         List<String> modelCodes = jdbcTemplate.queryForList(
                 """
                 SELECT model_code
-                FROM bi_dataset_model
+                FROM dataset_model
                 WHERE physical_table_name = ? AND deletable = 0
                 ORDER BY id
                 LIMIT 1

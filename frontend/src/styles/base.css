@@ -8,6 +8,7 @@
   --accent-2: #1d4ed8;
   --danger: #dc2626;
   --shadow: 0 18px 42px rgba(17, 32, 51, 0.08);
+  --runtime-toc-width: 280px;
   font-family: "Segoe UI", "PingFang SC", sans-serif;
 }
 

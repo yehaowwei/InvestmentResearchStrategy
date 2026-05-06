@@ -4,7 +4,7 @@ export interface ChartDraftMeta {
   publishedAt?: string;
 }
 
-const STORAGE_KEY = 'bi-dashboard-chart-draft-meta';
+const STORAGE_KEY = 'strategy-dashboard-chart-draft-meta';
 
 function readMap() {
   if (typeof window === 'undefined') {
@@ -17,11 +17,12 @@ function readMap() {
       return new Map<string, ChartDraftMeta>();
     }
     const parsed = JSON.parse(raw) as ChartDraftMeta[];
-    return new Map(
+    const metaMap = new Map(
       (Array.isArray(parsed) ? parsed : [])
         .filter(item => item?.chartCode)
         .map(item => [item.chartCode, { ...item, chartCode: item.chartCode }])
     );
+    return metaMap;
   } catch {
     return new Map<string, ChartDraftMeta>();
   }

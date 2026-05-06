@@ -22,7 +22,7 @@ public class TemplateServiceImpl implements TemplateService {
     @Override
     public List<TemplateVo> listTemplates() {
         return jdbcTemplate.query(
-                "SELECT template_code, template_name, renderer_code, capability_json, default_dsl_json FROM bi_template ORDER BY id",
+                "SELECT template_code, template_name, renderer_code, capability_json, default_dsl_json FROM chart_template ORDER BY id",
                 (rs, rowNum) -> mapTemplate(rs.getString("template_code"), rs.getString("template_name"), rs.getString("renderer_code"), rs.getString("capability_json"), rs.getString("default_dsl_json"))
         );
     }
@@ -30,7 +30,7 @@ public class TemplateServiceImpl implements TemplateService {
     @Override
     public TemplateVo getTemplate(String templateCode) {
         List<TemplateVo> templates = jdbcTemplate.query(
-                "SELECT template_code, template_name, renderer_code, capability_json, default_dsl_json FROM bi_template WHERE template_code = ?",
+                "SELECT template_code, template_name, renderer_code, capability_json, default_dsl_json FROM chart_template WHERE template_code = ?",
                 (rs, rowNum) -> mapTemplate(rs.getString("template_code"), rs.getString("template_name"), rs.getString("renderer_code"), rs.getString("capability_json"), rs.getString("default_dsl_json")),
                 templateCode
         );

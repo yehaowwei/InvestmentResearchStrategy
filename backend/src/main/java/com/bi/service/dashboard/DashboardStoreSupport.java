@@ -26,7 +26,7 @@ public class DashboardStoreSupport {
 
     public List<DashboardDraftDto> listDashboards() {
         return jdbcTemplate.query(
-                "SELECT dashboard_code, name, status, published_version, created_at, updated_at FROM bi_dashboard ORDER BY id",
+                "SELECT dashboard_code, name, status, published_version, created_at, updated_at FROM dashboard_definition ORDER BY id",
                 (rs, rowNum) -> mapDashboardDraft(
                         rs.getString("dashboard_code"),
                         rs.getString("name"),
@@ -40,7 +40,7 @@ public class DashboardStoreSupport {
 
     public DashboardDraftDto loadDashboard(String dashboardCode) {
         List<DashboardDraftDto> dashboards = jdbcTemplate.query(
-                "SELECT dashboard_code, name, status, published_version, created_at, updated_at FROM bi_dashboard WHERE dashboard_code = ?",
+                "SELECT dashboard_code, name, status, published_version, created_at, updated_at FROM dashboard_definition WHERE dashboard_code = ?",
                 (rs, rowNum) -> mapDashboardDraft(
                         rs.getString("dashboard_code"),
                         rs.getString("name"),
@@ -58,7 +58,7 @@ public class DashboardStoreSupport {
 
     public boolean existsDashboard(String dashboardCode) {
         Integer existing = jdbcTemplate.queryForObject(
-                "SELECT COUNT(1) FROM bi_dashboard WHERE dashboard_code = ?",
+                "SELECT COUNT(1) FROM dashboard_definition WHERE dashboard_code = ?",
                 Integer.class,
                 dashboardCode
         );
@@ -70,7 +70,7 @@ public class DashboardStoreSupport {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO bi_dashboard(dashboard_code, name, status, published_version) VALUES (?, ?, 'DRAFT', 0)",
+                    "INSERT INTO dashboard_definition(dashboard_code, name, status, published_version) VALUES (?, ?, 'DRAFT', 0)",
                     new String[]{"id"}
             );
             statement.setString(1, placeholderCode);
@@ -85,7 +85,7 @@ public class DashboardStoreSupport {
 
         String dashboardCode = "chart_" + generatedId.longValue();
         jdbcTemplate.update(
-                "UPDATE bi_dashboard SET dashboard_code = ? WHERE id = ?",
+                "UPDATE dashboard_definition SET dashboard_code = ? WHERE id = ?",
                 dashboardCode,
                 generatedId.longValue()
         );
@@ -94,7 +94,7 @@ public class DashboardStoreSupport {
 
     public void insertDashboard(String dashboardCode, String dashboardName) {
         jdbcTemplate.update(
-                "INSERT INTO bi_dashboard(dashboard_code, name, status, published_version) VALUES (?, ?, 'DRAFT', 0)",
+                "INSERT INTO dashboard_definition(dashboard_code, name, status, published_version) VALUES (?, ?, 'DRAFT', 0)",
                 dashboardCode,
                 dashboardName
         );
@@ -102,14 +102,14 @@ public class DashboardStoreSupport {
 
     public void updateDashboardDraft(String dashboardCode, String dashboardName) {
         jdbcTemplate.update(
-                "UPDATE bi_dashboard SET name = ?, status = 'DRAFT' WHERE dashboard_code = ?",
+                "UPDATE dashboard_definition SET name = ?, status = 'DRAFT' WHERE dashboard_code = ?",
                 dashboardName,
                 dashboardCode
         );
     }
 
     public void replaceComponents(String dashboardCode, List<ChartComponentDto> components) {
-        jdbcTemplate.update("DELETE FROM bi_component WHERE dashboard_code = ?", dashboardCode);
+        jdbcTemplate.update("DELETE FROM dashboard_component WHERE dashboard_code = ?", dashboardCode);
         int sortNo = 1;
         for (ChartComponentDto component : components) {
             insertComponent(dashboardCode, component, sortNo++);
@@ -118,11 +118,11 @@ public class DashboardStoreSupport {
 
     public Integer publishDashboard(String dashboardCode) {
         jdbcTemplate.update(
-                "UPDATE bi_dashboard SET status = 'PUBLISHED', published_version = published_version + 1 WHERE dashboard_code = ?",
+                "UPDATE dashboard_definition SET status = 'PUBLISHED', published_version = published_version + 1 WHERE dashboard_code = ?",
                 dashboardCode
         );
         return jdbcTemplate.queryForObject(
-                "SELECT published_version FROM bi_dashboard WHERE dashboard_code = ?",
+                "SELECT published_version FROM dashboard_definition WHERE dashboard_code = ?",
                 Integer.class,
                 dashboardCode
         );
@@ -132,15 +132,15 @@ public class DashboardStoreSupport {
         if (!existsDashboard(dashboardCode)) {
             return false;
         }
-        jdbcTemplate.update("DELETE FROM bi_component WHERE dashboard_code = ?", dashboardCode);
-        jdbcTemplate.update("DELETE FROM bi_dashboard WHERE dashboard_code = ?", dashboardCode);
+        jdbcTemplate.update("DELETE FROM dashboard_component WHERE dashboard_code = ?", dashboardCode);
+        jdbcTemplate.update("DELETE FROM dashboard_definition WHERE dashboard_code = ?", dashboardCode);
         return true;
     }
 
     @SuppressWarnings("unchecked")
     public List<ChartComponentDto> loadComponents(String dashboardCode) {
         return jdbcTemplate.query(
-                "SELECT component_code, component_type, title, template_code, model_code, dsl_config_json FROM bi_component WHERE dashboard_code = ? ORDER BY sort_no, id",
+                "SELECT component_code, component_type, title, template_code, model_code, dsl_config_json FROM dashboard_component WHERE dashboard_code = ? ORDER BY sort_no, id",
                 (rs, rowNum) -> {
                     Map<String, Object> dslConfig = jsonSnapshotSupport.fromJson(rs.getString("dsl_config_json"), Map.class);
                     ChartComponentDto component = new ChartComponentDto();
@@ -174,7 +174,7 @@ public class DashboardStoreSupport {
 
     private void insertComponent(String dashboardCode, ChartComponentDto component, int sortNo) {
         jdbcTemplate.update(
-                "INSERT INTO bi_component(dashboard_code, component_code, component_type, title, template_code, model_code, dsl_config_json, sort_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO dashboard_component(dashboard_code, component_code, component_type, title, template_code, model_code, dsl_config_json, sort_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 dashboardCode,
                 component.getComponentCode(),
                 normalizeComponentType(component),

@@ -1,8 +1,9 @@
 import { Button, Empty, Input, Modal } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
+import AppSearchInput from '../../components/AppSearchInput';
 import ChartRendererCore from '../../components/ChartRendererCore';
 import type { DashboardCategoryKey } from '../../types/dashboard';
-import { DASHBOARD_CATEGORIES, getCategoryLabel, getDashboardMeta } from '../../utils/dashboardCatalog';
+import { getCategoryLabel, getDashboardMeta, useDashboardCategories } from '../../utils/dashboardCatalog';
 import { normalizeDisplayText } from '../../utils/dashboard';
 import type { ChartRuntimeCard } from '../../utils/chartLibrary';
 
@@ -40,6 +41,7 @@ export default function StrategyChartSelectorModal(props: {
 }) {
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState<'all' | DashboardCategoryKey>('all');
+  const categories = useDashboardCategories();
 
   useEffect(() => {
     if (!props.open) {
@@ -111,7 +113,7 @@ export default function StrategyChartSelectorModal(props: {
             >
               {TEXT.all}
             </Button>
-            {DASHBOARD_CATEGORIES.map(item => (
+            {categories.map(item => (
               <Button
                 key={item.key}
                 type={category === item.key ? 'primary' : 'default'}
@@ -120,7 +122,7 @@ export default function StrategyChartSelectorModal(props: {
                 {item.label}
               </Button>
             ))}
-            <Input.Search
+            <AppSearchInput
               allowClear
               placeholder={TEXT.search}
               style={{ width: 240, marginLeft: 'auto' }}

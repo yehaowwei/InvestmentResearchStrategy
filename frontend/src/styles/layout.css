@@ -43,7 +43,7 @@
 }
 
 .runtime-library-shell {
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) var(--runtime-toc-width);
   align-items: start;
 }
 

@@ -120,7 +120,7 @@ public class StrategyAiServiceImpl implements StrategyAiService {
         messages.add(Map.of(
                 "role", "system",
                 "content", """
-                        你是投研策略化看板系统里的策略助手，只用中文回答。
+                        你是策略助手，只用中文回答。
                         请严格基于用户提供的策略名称、指标说明和图表摘要回答。
                         回答要专业、简洁、自然，适合演示。
                         不要输出思考过程、推理过程、分析链路，也不要说“我在思考”。

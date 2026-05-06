@@ -1,4 +1,5 @@
 import type { ChartDefinition } from '../types/dashboard';
+import { repairCycleStrategyDsl } from './cycleStrategy';
 import { normalizeDashboard } from './dashboard';
 
 export function normalizeChartDefinition(chart: ChartDefinition, options?: { primaryOnly?: boolean }) {
@@ -19,7 +20,13 @@ export function normalizeChartDefinition(chart: ChartDefinition, options?: { pri
     createdAt: chart.createdAt,
     updatedAt: chart.updatedAt,
     components: options?.primaryOnly === false
-      ? normalized.components
-      : (primaryComponent ? [primaryComponent] : [])
+      ? normalized.components.map(component => ({
+          ...component,
+          dslConfig: repairCycleStrategyDsl(component.dslConfig)
+        }))
+      : (primaryComponent ? [{
+          ...primaryComponent,
+          dslConfig: repairCycleStrategyDsl(primaryComponent.dslConfig)
+        }] : [])
   } satisfies ChartDefinition;
 }

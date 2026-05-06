@@ -98,7 +98,7 @@ public class DatasetServiceImpl implements DatasetService {
         try {
             jdbcTemplate.update(
                     """
-                    INSERT INTO bi_dataset_model(
+                    INSERT INTO dataset_model(
                         model_code, model_name, model_type, description, physical_table_name,
                         source_sql, deletable, model_config_json
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -171,7 +171,7 @@ public class DatasetServiceImpl implements DatasetService {
 
         jdbcTemplate.update(
                 """
-                UPDATE bi_dataset_model
+                UPDATE dataset_model
                 SET model_name = ?, description = ?, source_sql = ?, model_config_json = ?
                 WHERE model_code = ?
                 """,
@@ -183,7 +183,7 @@ public class DatasetServiceImpl implements DatasetService {
         );
 
         if (fieldsShouldRefresh) {
-            jdbcTemplate.update("DELETE FROM bi_dataset_field WHERE model_code = ?", safeDataPoolCode);
+            jdbcTemplate.update("DELETE FROM dataset_field WHERE model_code = ?", safeDataPoolCode);
             String alias = current.isDeletable()
                     ? "dp"
                     : datasetMetadataSupport.resolveMainTableAlias(current);
@@ -216,7 +216,7 @@ public class DatasetServiceImpl implements DatasetService {
         }
 
         Integer nextSortNo = jdbcTemplate.queryForObject(
-                "SELECT COALESCE(MAX(sort_no), 0) + 1 FROM bi_dataset_field WHERE model_code = ?",
+                "SELECT COALESCE(MAX(sort_no), 0) + 1 FROM dataset_field WHERE model_code = ?",
                 Integer.class,
                 safeDataPoolCode
         );
@@ -228,7 +228,7 @@ public class DatasetServiceImpl implements DatasetService {
 
         jdbcTemplate.update(
                 """
-                INSERT INTO bi_dataset_field(
+                INSERT INTO dataset_field(
                     model_code, field_code, field_name, data_type, field_role, agg_type,
                     source_expr, calc_type, base_field_code, calc_config_json, sort_no
                 ) VALUES (?, ?, ?, ?, 'attribute', ?, ?, ?, ?, ?, ?)
@@ -256,15 +256,15 @@ public class DatasetServiceImpl implements DatasetService {
             throw new IllegalArgumentException("源数据池不能删除: " + dataPoolCode);
         }
         Integer usedCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM bi_component WHERE model_code = ?",
+                "SELECT COUNT(*) FROM dashboard_component WHERE model_code = ?",
                 Integer.class,
                 safeDataPoolCode
         );
         if (usedCount != null && usedCount > 0) {
             throw new IllegalArgumentException("数据池正在被图表组件使用，不能删除: " + dataPoolCode);
         }
-        jdbcTemplate.update("DELETE FROM bi_dataset_field WHERE model_code = ?", safeDataPoolCode);
-        jdbcTemplate.update("DELETE FROM bi_dataset_model WHERE model_code = ?", safeDataPoolCode);
+        jdbcTemplate.update("DELETE FROM dataset_field WHERE model_code = ?", safeDataPoolCode);
+        jdbcTemplate.update("DELETE FROM dataset_model WHERE model_code = ?", safeDataPoolCode);
         jdbcTemplate.execute(
                 "DROP TABLE IF EXISTS " + datasetSqlSupport.safeIdentifier(dataset.getTableName(), "physicalTableName")
         );

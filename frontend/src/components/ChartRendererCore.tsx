@@ -239,6 +239,7 @@ export default function ChartRendererCore(props: {
   thumbnail?: boolean;
   compact?: boolean;
   dense?: boolean;
+  forceSlider?: boolean;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -261,10 +262,11 @@ export default function ChartRendererCore(props: {
         activeLayerId: props.activeLayerId,
         compact: compactMode,
         dense: props.dense,
-        thumbnail: thumbnailMode
+        thumbnail: thumbnailMode,
+        forceSlider: props.forceSlider
       })
       : undefined,
-    [compactMode, props.activeLayerId, props.dense, props.preview, template, thumbnailMode, zoomRange]
+    [compactMode, props.activeLayerId, props.dense, props.forceSlider, props.preview, template, thumbnailMode, zoomRange]
   );
 
   const resizeChart = useCallback(() => {

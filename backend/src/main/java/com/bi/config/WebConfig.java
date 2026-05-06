@@ -1,5 +1,6 @@
 package com.bi.config;
 
+import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.CacheControl;
@@ -19,6 +20,17 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/assets/**")
             .addResourceLocations("classpath:/static/assets/")
             .setCacheControl(CacheControl.noStore().mustRevalidate());
+
+        String externalResourceLocation = Paths.get(System.getProperty("user.dir"))
+            .resolve("..")
+            .resolve(".runtime")
+            .resolve("external-resources")
+            .normalize()
+            .toUri()
+            .toString();
+        registry.addResourceHandler("/external-resources/**")
+            .addResourceLocations(externalResourceLocation.endsWith("/") ? externalResourceLocation : externalResourceLocation + "/")
+            .setCacheControl(CacheControl.noStore().mustRevalidate().sMaxAge(0, TimeUnit.SECONDS));
 
         registry.addResourceHandler(
                 "/",

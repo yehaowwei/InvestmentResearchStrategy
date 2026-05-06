@@ -10,6 +10,7 @@ import type {
   DashboardSummary,
   DataPool,
   DatasetModel,
+  ExternalResourceGroup,
   FieldMeta,
   RuntimeChartResponse,
   RuntimeDashboardResponse,
@@ -192,5 +193,24 @@ export const api = {
   getSharedState: (stateKey: string) =>
     unwrap<unknown>(client.get(`/shared-state/${encodeURIComponent(stateKey)}`)),
   saveSharedState: (stateKey: string, state: unknown) =>
-    unwrap<unknown>(client.put(`/shared-state/${encodeURIComponent(stateKey)}`, { state }))
+    unwrap<unknown>(client.put(`/shared-state/${encodeURIComponent(stateKey)}`, { state })),
+  listExternalResourceGroups: () =>
+    unwrap<ExternalResourceGroup[]>(client.get('/external-resource/group')),
+  getExternalResourceGroupBySlug: (slug: string) =>
+    unwrap<ExternalResourceGroup>(client.get(`/external-resource/group/slug/${encodeURIComponent(slug)}`)),
+  createExternalResourceGroup: (payload: { name: string; slug?: string; description?: string }) =>
+    unwrap<ExternalResourceGroup>(client.post('/external-resource/group', payload)),
+  uploadExternalResourceFiles: async (groupId: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    return unwrap<ExternalResourceGroup>(client.post(`/external-resource/group/${encodeURIComponent(groupId)}/files`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }));
+  },
+  reorderExternalResourceFiles: (groupId: string, fileIds: string[]) =>
+    unwrap<ExternalResourceGroup>(client.put(`/external-resource/group/${encodeURIComponent(groupId)}/file-order`, { fileIds })),
+  deleteExternalResourceFile: (groupId: string, fileId: string) =>
+    unwrap<boolean>(client.delete(`/external-resource/group/${encodeURIComponent(groupId)}/files/${encodeURIComponent(fileId)}`)),
+  deleteExternalResourceGroup: (groupId: string) =>
+    unwrap<boolean>(client.delete(`/external-resource/group/${encodeURIComponent(groupId)}`))
 };

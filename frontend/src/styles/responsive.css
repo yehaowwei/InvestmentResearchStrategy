@@ -53,7 +53,12 @@
 
   .drag-sort-grid,
   .strategy-config-grid,
-  .strategy-center-grid {
+  .strategy-center-grid,
+  .external-config-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .convertible-board-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -61,13 +66,21 @@
 @media (max-width: 720px) {
   .page-header,
   .chart-card-header,
-  .favorites-board-card-head {
+  .favorites-board-card-head,
+  .external-config-card-head,
+  .external-config-file-item {
     flex-direction: column;
     align-items: stretch;
   }
 
+  .favorites-filter-nav {
+    justify-content: flex-end;
+  }
+
   .page-toc-width-search {
-    width: 100%;
+    width: min(var(--runtime-toc-width, 280px), 100%) !important;
+    flex-basis: min(var(--runtime-toc-width, 280px), 100%);
+    max-width: 100%;
   }
 
   .metric-card-grid,
@@ -79,9 +92,11 @@
   .favorites-board-grid,
   .public-chart-grid,
   .personal-chart-grid,
+  .convertible-board-grid,
   .drag-sort-grid,
   .strategy-config-grid,
-  .strategy-center-grid {
+  .strategy-center-grid,
+  .external-config-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

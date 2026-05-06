@@ -96,18 +96,14 @@ $frontendRoot = Join-Path $repoRoot 'frontend'
 $staticRoot = Join-Path $backendRoot 'target\generated-resources\static'
 $cacheRoot = Join-Path $repoRoot '.cache'
 $runtimeRoot = Join-Path $repoRoot '.runtime'
-$runtimeDataRoot = Join-Path $runtimeRoot 'data'
-$packagedJar = Join-Path $backendRoot 'target\bi-dashboard-engine-1.0.0.jar'
-$runtimeJar = Join-Path $runtimeRoot 'bi-dashboard-engine-1.0.0.jar'
+$packagedJar = Join-Path $backendRoot 'target\strategy-dashboard-engine-1.0.0.jar'
+$runtimeJar = Join-Path $runtimeRoot 'strategy-dashboard-engine-1.0.0.jar'
 $mavenRepo = Join-Path $cacheRoot 'maven'
 $logsRoot = Join-Path $runtimeRoot 'logs'
 $stdoutLog = Join-Path $logsRoot 'backend.out.log'
 $stderrLog = Join-Path $logsRoot 'backend.err.log'
 $pidFile = Join-Path $runtimeRoot 'backend.pid'
-$demoDbFile = Join-Path $repoRoot 'seed-data\bi-demo.mv.db'
-$runtimeDbFile = Join-Path $runtimeDataRoot 'bi-demo.mv.db'
-$runtimeDbBase = (Join-Path $runtimeDataRoot 'bi-demo') -replace '\\', '/'
-$defaultDbUrl = "jdbc:h2:file:$runtimeDbBase;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
+$defaultDbUrl = "jdbc:mysql://localhost:3306/strategy_dashboard?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false&createDatabaseIfNotExist=true"
 $defaultDeepSeekApiKey = 'sk-f48b1892f7e24fd09fca915cf8e35ec9'
 $frontendNodeModules = Join-Path $frontendRoot 'node_modules'
 $frontendPackageLock = Join-Path $frontendRoot 'package-lock.json'
@@ -133,13 +129,6 @@ Assert-Command -Name 'mvn' -Hint 'Please install Maven 3.9+ and ensure mvn is in
 Assert-Command -Name 'java' -Hint 'Please install Java 17+ and ensure java is in PATH.'
 
 Stop-PortProcess -Port 28637
-
-if (-not (Test-Path $runtimeDataRoot)) {
-  New-Item -ItemType Directory -Path $runtimeDataRoot -Force | Out-Null
-}
-if ((-not (Test-Path $runtimeDbFile)) -and (Test-Path $demoDbFile)) {
-  Copy-Item -LiteralPath $demoDbFile -Destination $runtimeDbFile -Force
-}
 
 Push-Location $frontendRoot
 try {
@@ -215,10 +204,10 @@ try {
     Remove-Item -LiteralPath $stderrLog -Force
   }
 
-  $previousDbUrl = $env:BI_DB_URL
+  $previousDbUrl = $env:STRATEGY_DB_URL
   $previousDeepSeekApiKey = $env:DEEPSEEK_API_KEY
   if (-not $previousDbUrl) {
-    $env:BI_DB_URL = $defaultDbUrl
+    $env:STRATEGY_DB_URL = $defaultDbUrl
   }
   if (-not $previousDeepSeekApiKey) {
     $env:DEEPSEEK_API_KEY = $defaultDeepSeekApiKey
@@ -231,13 +220,32 @@ try {
       -RedirectStandardOutput $stdoutLog `
       -RedirectStandardError $stderrLog `
       -PassThru
+    for ($startupCheck = 0; $startupCheck -lt 20; $startupCheck++) {
+      Start-Sleep -Seconds 1
+      if ($process.HasExited) {
+        break
+      }
+    }
+    if ($process.HasExited) {
+      $recentLog = @()
+      if (Test-Path $stderrLog) {
+        $recentLog += Get-Content -LiteralPath $stderrLog -Tail 40 -ErrorAction SilentlyContinue
+      }
+      if (Test-Path $stdoutLog) {
+        $recentLog += Get-Content -LiteralPath $stdoutLog -Tail 40 -ErrorAction SilentlyContinue
+      }
+      if ($recentLog.Count -gt 0) {
+        Write-Host ($recentLog -join [Environment]::NewLine)
+      }
+      throw 'Backend exited during startup. Check MySQL settings: STRATEGY_DB_URL, STRATEGY_DB_USERNAME, STRATEGY_DB_PASSWORD.'
+    }
   }
   finally {
     if ($previousDbUrl) {
-      $env:BI_DB_URL = $previousDbUrl
+      $env:STRATEGY_DB_URL = $previousDbUrl
     }
     else {
-      Remove-Item Env:\BI_DB_URL -ErrorAction SilentlyContinue
+      Remove-Item Env:\STRATEGY_DB_URL -ErrorAction SilentlyContinue
     }
     if ($previousDeepSeekApiKey) {
       $env:DEEPSEEK_API_KEY = $previousDeepSeekApiKey

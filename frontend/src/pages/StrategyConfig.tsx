@@ -2,13 +2,15 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
+  ExpandOutlined,
   HolderOutlined,
   PlusOutlined
 } from '@ant-design/icons';
-import { Alert, Button, Empty, Input, Popconfirm, Space, message } from 'antd';
+import { Alert, Button, Empty, Input, Modal, Popconfirm, Space, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
+import AppSearchInput from '../components/AppSearchInput';
 import ChartRendererCore from '../components/ChartRendererCore';
 import type { ChartCatalogItem } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
@@ -28,7 +30,7 @@ import {
   resolveActiveRowCodes,
   resolveClosestSortIdFromPoint,
   scrollContainerItemToCenter
-} from './dashboardPageUtils';
+} from './indicatorPageNavigation';
 import StrategyChartSelectorModal from './strategy/StrategyChartSelectorModal';
 
 const TEXT = {
@@ -57,19 +59,20 @@ const TEXT = {
   saveTime: '\u4fdd\u5b58\u65f6\u95f4',
   publishTime: '\u4e0a\u6b21\u53d1\u5e03\u65f6\u95f4',
   open: '\u8fdb\u5165\u914d\u7f6e',
-  delete: '\u5220\u9664\u8349\u7a3f',
-  deleteConfirm: '\u786e\u8ba4\u5220\u9664\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e\u8349\u7a3f\u5417\uff1f',
+  delete: '\u5220\u9664',
+  deleteConfirm: '\u786e\u8ba4\u5220\u9664\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e\u5417\uff1f',
   createDraft: '\u65b0\u5efa\u7b56\u7565',
   noDraft: '\u8fd8\u6ca1\u6709\u7b56\u7565\u914d\u7f6e',
   detailFallback: '\u8fd9\u91cc\u662f IT \u7ef4\u62a4\u89c6\u89d2\uff0c\u53ef\u4ee5\u5bf9\u5355\u4e2a\u7b56\u7565\u8fdb\u884c\u547d\u540d\u3001\u65b0\u589e\u3001\u79fb\u9664\u548c\u76f4\u63a5\u62d6\u62fd\u6392\u5e8f\u3002',
   notFound: '\u672a\u627e\u5230\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e\u53ef\u80fd\u5df2\u88ab\u5220\u9664\u3002',
   toc: '\u5bfc\u822a',
-  draftLabel: '\u914d\u7f6e\u8349\u7a3f',
+  draftLabel: '\u914d\u7f6e\u4e2d',
   cancel: '\u53d6\u6d88',
   completeSelect: '\u9009\u62e9\u5b8c\u6210',
   addChart: '\u65b0\u589e\u6307\u6807',
-  addChartTitle: '\u9009\u62e9\u8981\u52a0\u5165\u7684\u6307\u6807'
+  addChartTitle: '\u9009\u62e9\u8981\u52a0\u5165\u7684\u6307\u6807',
+  chartDetail: '\u6307\u6807\u8be6\u60c5'
 } as const;
 
 type StrategyConfigScope = 'personal' | 'public';
@@ -86,8 +89,8 @@ type StrategyConfigDraft = {
   publishedAt?: string;
 };
 
-const STORAGE_PREFIX = 'bi-dashboard-strategy-config-drafts';
-const CHANGE_EVENT = 'bi-dashboard-strategy-config-drafts-changed';
+const STORAGE_PREFIX = 'strategy-dashboard-config-drafts';
+const CHANGE_EVENT = 'strategy-dashboard-config-drafts-changed';
 
 function storageKey(scope: StrategyConfigScope) {
   return `${STORAGE_PREFIX}:${scope}`;
@@ -124,28 +127,63 @@ function normalizeDraft(draft: StrategyConfigDraft, fallbackOrder: number): Stra
   };
 }
 
+function isLinkedDraft(scope: StrategyConfigScope, draft: StrategyConfigDraft) {
+  return draft.draftId.startsWith(`strategy-config-linked-${scope}-`);
+}
+
 function syncDraftsWithStrategies(scope: StrategyConfigScope, drafts: StrategyConfigDraft[]) {
   const strategies = listStrategies(scope);
-  const nextDrafts = drafts
+  const filteredDrafts = drafts
     .filter(draft => !draft.strategyId || strategies.some(strategy => strategy.strategyId === draft.strategyId));
+
+  const dedupedDrafts: StrategyConfigDraft[] = [];
+  const strategyDraftMap = new Map<string, number>();
+
+  filteredDrafts.forEach(draft => {
+    if (!draft.strategyId) {
+      dedupedDrafts.push(draft);
+      return;
+    }
+
+    const existingIndex = strategyDraftMap.get(draft.strategyId);
+    if (existingIndex == null) {
+      strategyDraftMap.set(draft.strategyId, dedupedDrafts.length);
+      dedupedDrafts.push(draft);
+      return;
+    }
+
+    const existingDraft = dedupedDrafts[existingIndex];
+    const existingIsLinked = isLinkedDraft(scope, existingDraft);
+    const incomingIsLinked = isLinkedDraft(scope, draft);
+
+    if (existingIsLinked && !incomingIsLinked) {
+      dedupedDrafts[existingIndex] = draft;
+      return;
+    }
+
+    if (existingIsLinked === incomingIsLinked && draft.updatedAt > existingDraft.updatedAt) {
+      dedupedDrafts[existingIndex] = draft;
+    }
+  });
+
   const linkedStrategyIds = new Set(
-    nextDrafts
+    dedupedDrafts
       .map(draft => draft.strategyId)
       .filter((strategyId): strategyId is string => Boolean(strategyId))
   );
 
-  let changed = nextDrafts.length !== drafts.length;
+  let changed = dedupedDrafts.length !== drafts.length;
 
   strategies.forEach(strategy => {
     if (linkedStrategyIds.has(strategy.strategyId)) {
       return;
     }
-    nextDrafts.push({
+    dedupedDrafts.push({
       draftId: `strategy-config-linked-${scope}-${strategy.strategyId}`,
       strategyId: strategy.strategyId,
       strategyName: strategy.strategyName,
       selectedChartIds: strategy.charts.map(chart => chart.chartId),
-      order: nextDrafts.length + 1,
+      order: dedupedDrafts.length + 1,
       createdAt: strategy.createdAt,
       updatedAt: strategy.updatedAt,
       savedAt: strategy.updatedAt,
@@ -154,7 +192,7 @@ function syncDraftsWithStrategies(scope: StrategyConfigScope, drafts: StrategyCo
     changed = true;
   });
 
-  const normalized = nextDrafts
+  const normalized = dedupedDrafts
     .map((item, index) => normalizeDraft(item, index + 1))
     .sort((a, b) => (a.order - b.order) || a.createdAt.localeCompare(b.createdAt));
 
@@ -178,7 +216,8 @@ function listDrafts(scope: StrategyConfigScope) {
     if (!Array.isArray(parsed)) {
       return syncDraftsWithStrategies(scope, []);
     }
-    return syncDraftsWithStrategies(scope, parsed);
+    const drafts = syncDraftsWithStrategies(scope, parsed);
+    return drafts;
   } catch {
     return syncDraftsWithStrategies(scope, []);
   }
@@ -276,6 +315,7 @@ function StrategyConfigOverview(props: {
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createSelectedChartIds, setCreateSelectedChartIds] = useState<string[]>([]);
+  const [expandedChart, setExpandedChart] = useState<ChartRuntimeCard>();
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
   const scopeQuery = searchParams.get('scope') === 'my' ? 'my' : undefined;
 
@@ -412,7 +452,7 @@ function StrategyConfigOverview(props: {
       </div>
 
       <div className="favorites-filter-nav">
-        <Input.Search
+        <AppSearchInput
           allowClear
           placeholder={TEXT.searchDraftPlaceholder}
           className="page-toc-width-search"
@@ -447,6 +487,9 @@ function StrategyConfigOverview(props: {
                         </div>
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
+                        <Button icon={<ExpandOutlined />} onClick={() => activeCard && setExpandedChart(activeCard)} disabled={!activeCard}>
+                          放大
+                        </Button>
                         <Button icon={<EditOutlined />} onClick={() => openDraft(draft.draftId)}>
                           {TEXT.open}
                         </Button>
@@ -562,6 +605,29 @@ function StrategyConfigOverview(props: {
         namePlaceholder={TEXT.namePlaceholder}
         onNameChange={setCreateName}
       />
+
+      <Modal
+        title={expandedChart ? normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title, expandedChart.component.componentCode) : TEXT.selectedCharts}
+        open={Boolean(expandedChart)}
+        footer={null}
+        onCancel={() => setExpandedChart(undefined)}
+        width="90vw"
+        styles={{ body: { height: '72vh', padding: 16 } }}
+      >
+        {expandedChart ? (
+          <ChartRendererCore
+            component={expandedChart.component}
+            preview={expandedChart.preview}
+            templateCode={expandedChart.component.templateCode}
+            viewMode="chart"
+            editable={false}
+            selected={false}
+            compact={false}
+            dense={false}
+            forceSlider
+          />
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -579,6 +645,7 @@ function StrategyConfigEditor(props: {
   const [addSelectedChartIds, setAddSelectedChartIds] = useState<string[]>([]);
   const [draggingChartId, setDraggingChartId] = useState<string>();
   const [dragOverChartId, setDragOverChartId] = useState<string>();
+  const [expandedChart, setExpandedChart] = useState<ChartRuntimeCard>();
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
   const draggingChartIdRef = useRef<string>();
   const dragOverChartIdRef = useRef<string>();
@@ -809,31 +876,25 @@ function StrategyConfigEditor(props: {
             {TEXT.publishTime}：{draft.publishedAt ? formatDateTime(draft.publishedAt) : TEXT.unpublished}
           </div>
         </div>
-        <Space wrap size={12}>
+        <Space wrap size={12} align="start">
+          <div className="strategy-info-row" style={{ width: 240, gap: 6 }}>
+            <span className="strategy-selection-title">{TEXT.strategyName}</span>
+            <Input
+              size="small"
+              placeholder={TEXT.namePlaceholder}
+              value={strategyName}
+              onChange={event => setStrategyName(event.target.value)}
+            />
+          </div>
+          <div className="strategy-selection-count" style={{ alignSelf: "end" }}>
+            {draft.selectedChartIds.length} {TEXT.countSuffix}
+          </div>
           <Button icon={<PlusOutlined />} onClick={() => setAddChartOpen(true)}>
             {TEXT.addChart}
           </Button>
           <Button onClick={saveDraft}>{TEXT.save}</Button>
           <Button type="primary" onClick={publishDraft}>{TEXT.publish}</Button>
         </Space>
-      </div>
-
-      <div className="panel-card strategy-config-summary strategy-info-panel">
-        <div className="strategy-info-compact">
-          <div className="strategy-info-fields">
-            <div className="strategy-info-row">
-              <span className="strategy-selection-title">{TEXT.strategyName}</span>
-              <Input
-                placeholder={TEXT.namePlaceholder}
-                value={strategyName}
-                onChange={event => setStrategyName(event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="strategy-info-actions">
-            <div className="strategy-selection-count">{draft.selectedChartIds.length} {TEXT.countSuffix}</div>
-          </div>
-        </div>
       </div>
 
       <div className="page-shell runtime-library-shell">
@@ -860,12 +921,15 @@ function StrategyConfigEditor(props: {
                         </div>
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
-                          <Button
-                            className="thumbnail-drag-button"
-                            icon={<HolderOutlined />}
-                            title="拖拽排序"
-                            aria-label="拖拽排序"
-                            onMouseDown={event => startChartDrag(event, chartId)}
+                        <Button icon={<ExpandOutlined />} onClick={() => setExpandedChart(item)}>
+                          放大
+                        </Button>
+                        <Button
+                          className="thumbnail-drag-button"
+                          icon={<HolderOutlined />}
+                          title="拖拽排序"
+                          aria-label="拖拽排序"
+                          onMouseDown={event => startChartDrag(event, chartId)}
                         >
                           拖拽
                         </Button>
@@ -950,6 +1014,29 @@ function StrategyConfigEditor(props: {
           setAddSelectedChartIds([]);
         }}
       />
+
+      <Modal
+        title={expandedChart ? normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title, expandedChart.component.componentCode) : TEXT.chartDetail}
+        open={Boolean(expandedChart)}
+        footer={null}
+        onCancel={() => setExpandedChart(undefined)}
+        width="90vw"
+        styles={{ body: { height: '72vh', padding: 16 } }}
+      >
+        {expandedChart ? (
+          <ChartRendererCore
+            component={expandedChart.component}
+            preview={expandedChart.preview}
+            templateCode={expandedChart.component.templateCode}
+            viewMode="chart"
+            editable={false}
+            selected={false}
+            compact={false}
+            dense={false}
+            forceSlider
+          />
+        ) : null}
+      </Modal>
     </div>
   );
 }

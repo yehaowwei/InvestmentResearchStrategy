@@ -9,6 +9,7 @@ export type ChartRenderContext = ChartLayerContext & {
   compact?: boolean;
   dense?: boolean;
   thumbnail?: boolean;
+  forceSlider?: boolean;
 };
 
 export interface ChartTemplateDefinition {

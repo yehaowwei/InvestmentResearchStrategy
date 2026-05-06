@@ -405,12 +405,38 @@ export interface FavoriteChart {
   addedAt: string;
 }
 
-export type DashboardCategoryKey = 'valuation' | 'liquidity' | 'sentiment' | 'cycle' | 'fixed_income';
+export type DashboardCategoryKey = string;
+
+export interface DashboardCategoryDefinition {
+  key: DashboardCategoryKey;
+  label: string;
+  order: number;
+}
 
 export interface DashboardMeta {
   dashboardCode: string;
   category: DashboardCategoryKey;
   order: number;
+}
+
+export interface ExternalResourceFile {
+  fileId: string;
+  title: string;
+  fileName: string;
+  href: string;
+  size: number;
+  updatedAt: string;
+}
+
+export interface ExternalResourceGroup {
+  groupId: string;
+  name: string;
+  slug: string;
+  description?: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  files: ExternalResourceFile[];
 }
 
 export interface PersonalBoard {

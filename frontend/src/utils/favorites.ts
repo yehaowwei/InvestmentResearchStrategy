@@ -3,9 +3,8 @@ import type { ComponentDslConfig, DashboardCategoryKey, DashboardComponent, Dash
 import { deepClone, normalizeDisplayText, normalizeDslConfig } from './dashboard';
 import { getCategoryLabel } from './dashboardCatalog';
 
-const LEGACY_STORAGE_KEY = 'bi-dashboard-favorites';
-const BOARD_STORAGE_KEY = 'bi-dashboard-personal-boards';
-const CHANGE_EVENT = 'bi-dashboard-favorites-changed';
+const BOARD_STORAGE_KEY = 'strategy-dashboard-personal-boards';
+const CHANGE_EVENT = 'strategy-dashboard-favorites-changed';
 const DEFAULT_PRIMARY_LABEL = '未分组';
 
 export interface PersonalChartEntry {
@@ -44,23 +43,6 @@ function normalizeBoard(board: PersonalBoard, fallbackOrder = 0): PersonalBoard 
   };
 }
 
-function readLegacyFavorites(): FavoriteChart[] {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw) as FavoriteChart[];
-    return Array.isArray(parsed) ? parsed.map(normalizeFavorite) : [];
-  } catch {
-    return [];
-  }
-}
-
 function writeBoards(boards: PersonalBoard[], syncRemote = true) {
   if (typeof window === 'undefined') {
     return;
@@ -72,19 +54,6 @@ function writeBoards(boards: PersonalBoard[], syncRemote = true) {
   }
 }
 
-function migrateLegacyFavorites(legacyFavorites: FavoriteChart[]) {
-  return legacyFavorites.map((favorite, index) => ({
-    boardId: `favorite-${favorite.favoriteId}`,
-    boardName: favorite.componentTitle,
-    primaryLabel: DEFAULT_PRIMARY_LABEL,
-    secondaryLabel: favorite.componentTitle,
-    order: index + 1,
-    createdAt: favorite.addedAt,
-    updatedAt: favorite.addedAt,
-    components: [favorite]
-  }));
-}
-
 function readBoards(): PersonalBoard[] {
   if (typeof window === 'undefined') {
     return [];
@@ -93,20 +62,14 @@ function readBoards(): PersonalBoard[] {
   try {
     const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
     if (!raw) {
-      const legacyFavorites = readLegacyFavorites();
-      if (legacyFavorites.length === 0) {
-        return [];
-      }
-      const migratedBoards = migrateLegacyFavorites(legacyFavorites);
-      writeBoards(migratedBoards);
-      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-      return migratedBoards;
+      return [];
     }
 
     const parsed = JSON.parse(raw) as PersonalBoard[];
-    return Array.isArray(parsed)
+    const boards = Array.isArray(parsed)
       ? parsed.map((board, index) => normalizeBoard(board, index + 1))
       : [];
+    return boards;
   } catch {
     return [];
   }
