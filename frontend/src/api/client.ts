@@ -198,15 +198,36 @@ export const api = {
     unwrap<ExternalResourceGroup[]>(client.get('/external-resource/group')),
   getExternalResourceGroupBySlug: (slug: string) =>
     unwrap<ExternalResourceGroup>(client.get(`/external-resource/group/slug/${encodeURIComponent(slug)}`)),
-  createExternalResourceGroup: (payload: { name: string; slug?: string; description?: string }) =>
+  createExternalResourceGroup: (payload: { name: string; slug?: string; description?: string; parentName?: string }) =>
     unwrap<ExternalResourceGroup>(client.post('/external-resource/group', payload)),
-  uploadExternalResourceFiles: async (groupId: string, files: File[]) => {
+  uploadExternalResourceFiles: async (
+    groupId: string,
+    files: File[],
+    metadata?: { resourceName?: string; sectionName?: string; thirdLevelName?: string }
+  ) => {
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
+    if (metadata?.resourceName) {
+      formData.append('resourceName', metadata.resourceName);
+    }
+    if (metadata?.sectionName) {
+      formData.append('sectionName', metadata.sectionName);
+    }
+    if (metadata?.thirdLevelName) {
+      formData.append('thirdLevelName', metadata.thirdLevelName);
+    }
     return unwrap<ExternalResourceGroup>(client.post(`/external-resource/group/${encodeURIComponent(groupId)}/files`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }));
   },
+  createExternalResourceLink: (groupId: string, payload: {
+    title: string;
+    href: string;
+    sectionName?: string;
+    thirdLevelName?: string;
+    resourceType?: string;
+  }) =>
+    unwrap<ExternalResourceGroup>(client.post(`/external-resource/group/${encodeURIComponent(groupId)}/resources`, payload)),
   reorderExternalResourceFiles: (groupId: string, fileIds: string[]) =>
     unwrap<ExternalResourceGroup>(client.put(`/external-resource/group/${encodeURIComponent(groupId)}/file-order`, { fileIds })),
   deleteExternalResourceFile: (groupId: string, fileId: string) =>

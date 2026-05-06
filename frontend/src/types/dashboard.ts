@@ -424,6 +424,9 @@ export interface ExternalResourceFile {
   title: string;
   fileName: string;
   href: string;
+  resourceType: 'HTML' | 'LINK' | string;
+  sectionName?: string;
+  thirdLevelName?: string;
   size: number;
   updatedAt: string;
 }
@@ -433,6 +436,7 @@ export interface ExternalResourceGroup {
   name: string;
   slug: string;
   description?: string;
+  parentName?: string;
   order: number;
   createdAt: string;
   updatedAt: string;

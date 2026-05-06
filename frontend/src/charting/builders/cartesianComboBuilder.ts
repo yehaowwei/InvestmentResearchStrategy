@@ -53,9 +53,20 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
   const dense = !compact && Boolean(context?.dense);
   const thumbnail = Boolean(context?.thumbnail);
   const forceSlider = Boolean(context?.forceSlider);
+  const forceDataZoom = Boolean(context?.forceDataZoom) || forceSlider;
   const enableSlider = forceSlider || (interactionDsl.dataZoom && interactionDsl.slider);
-  const enableDataZoom = forceSlider || interactionDsl.dataZoom;
+  const enableDataZoom = forceDataZoom || interactionDsl.dataZoom;
   const showThumbnailSlider = thumbnail && enableDataZoom && enableSlider;
+  let sliderStart = zoom.start;
+  let sliderEnd = zoom.end;
+
+  // In enlarged mode, default to a narrower recent window so the slider is immediately usable.
+  if (forceSlider && sliderStart === 0 && sliderEnd === 100 && xValues.length > 18) {
+    const visibleCount = Math.min(18, xValues.length);
+    const visibleRatio = visibleCount / xValues.length;
+    sliderStart = Math.max(0, 100 - (visibleRatio * 100));
+    sliderEnd = 100;
+  }
   const legendRightPadding = dense ? 112 : 140;
   const sliderBottom = 0;
   const gridBottom = enableSlider ? (compact ? 40 : dense ? 34 : 46) : (compact ? 38 : dense ? 28 : 40);
@@ -105,26 +116,38 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
         ? [
           ...((enableSlider && !thumbnail) || showThumbnailSlider ? [{
             type: 'slider' as const,
-            start: zoom.start,
-            end: zoom.end,
+            start: sliderStart,
+            end: sliderEnd,
             height: thumbnail ? 12 : dense ? 14 : 18,
             bottom: sliderBottom,
-            showDetail: false,
+            showDetail: !thumbnail,
             brushSelect: false,
-            fillerColor: thumbnail ? 'rgba(59, 130, 246, 0.16)' : undefined,
-            borderColor: thumbnail ? 'rgba(148, 163, 184, 0.55)' : undefined,
-            backgroundColor: thumbnail ? 'rgba(241, 245, 249, 0.92)' : undefined,
+            fillerColor: thumbnail ? 'rgba(59, 130, 246, 0.16)' : 'rgba(191, 219, 254, 0.55)',
+            borderColor: thumbnail ? 'rgba(148, 163, 184, 0.55)' : 'rgba(191, 219, 254, 0.75)',
+            backgroundColor: thumbnail ? 'rgba(241, 245, 249, 0.92)' : 'rgba(239, 246, 255, 0.9)',
             dataBackground: thumbnail
               ? {
                   lineStyle: { color: 'rgba(148, 163, 184, 0.8)' },
                   areaStyle: { color: 'rgba(226, 232, 240, 0.9)' }
                 }
-              : undefined,
-            handleSize: thumbnail ? '80%' : undefined,
+              : {
+                  lineStyle: { color: '#cbd5e1' },
+                  areaStyle: { color: 'rgba(226, 232, 240, 0.85)' }
+                },
+            handleSize: thumbnail ? '80%' : 14,
+            moveHandleSize: thumbnail ? 0 : 10,
+            handleStyle: thumbnail ? undefined : {
+              color: '#dbeafe',
+              borderColor: '#93c5fd'
+            },
+            moveHandleStyle: thumbnail ? undefined : {
+              color: 'rgba(147, 197, 253, 0.22)',
+              borderColor: '#bfdbfe'
+            },
             textStyle: { color: '#475569', fontSize: thumbnail ? 9 : dense ? 9 : 11 },
             labelFormatter: (value: string | number) => formatTimeLabel(value, xValues)
           }] : []),
-          { type: 'inside' as const, start: zoom.start, end: zoom.end, zoomOnMouseWheel: !thumbnail }
+          { type: 'inside' as const, start: sliderStart, end: sliderEnd, zoomOnMouseWheel: !thumbnail }
         ]
         : [],
     xAxis: {

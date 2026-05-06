@@ -240,12 +240,13 @@ export default function ChartRendererCore(props: {
   compact?: boolean;
   dense?: boolean;
   forceSlider?: boolean;
+  forceDataZoom?: boolean;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.EChartsType | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
-  const [zoomRange, setZoomRange] = useState<{ start: number; end: number }>({ start: 0, end: 100 });
+  const zoomRangeRef = useRef<{ start: number; end: number }>({ start: 0, end: 100 });
   const [thumbnailLegendVisible, setThumbnailLegendVisible] = useState(false);
   const [thumbnailLegendPosition, setThumbnailLegendPosition] = useState<LegendPosition>({ x: 10, y: 34 });
   const thumbnailMode = Boolean(props.thumbnail);
@@ -258,15 +259,16 @@ export default function ChartRendererCore(props: {
   const option = useMemo(
     () => props.preview && template.buildOption
       ? template.buildOption(props.preview, {
-        zoomRange,
+        zoomRange: zoomRangeRef.current,
         activeLayerId: props.activeLayerId,
         compact: compactMode,
         dense: props.dense,
         thumbnail: thumbnailMode,
-        forceSlider: props.forceSlider
+        forceSlider: props.forceSlider,
+        forceDataZoom: props.forceDataZoom
       })
       : undefined,
-    [compactMode, props.activeLayerId, props.dense, props.forceSlider, props.preview, template, thumbnailMode, zoomRange]
+    [compactMode, props.activeLayerId, props.dense, props.forceDataZoom, props.forceSlider, props.preview, template, thumbnailMode]
   );
 
   const resizeChart = useCallback(() => {
@@ -299,7 +301,7 @@ export default function ChartRendererCore(props: {
 
   useEffect(() => {
     if (!props.preview) {
-      setZoomRange({ start: 0, end: 100 });
+      zoomRangeRef.current = { start: 0, end: 100 };
     }
   }, [props.preview]);
 
@@ -326,11 +328,7 @@ export default function ChartRendererCore(props: {
     chartRef.current = chart;
     const syncZoom = () => {
       const next = readZoomRange(chart);
-      setZoomRange(current => (
-        Math.abs(current.start - next.start) < 0.01 && Math.abs(current.end - next.end) < 0.01
-          ? current
-          : next
-      ));
+      zoomRangeRef.current = next;
     };
 
     chart.on('datazoom', syncZoom);

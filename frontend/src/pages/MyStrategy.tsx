@@ -15,6 +15,7 @@ import { api } from '../api/client';
 import AppSearchInput from '../components/AppSearchInput';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
+import FloatingStrategyAi from '../components/FloatingStrategyAi';
 import { buildCycleStrategyAiReply } from '../utils/cycleStrategy';
 import StrategyChartSelectorModal from './strategy/StrategyChartSelectorModal';
 import type { ChartCatalogItem, ChartPreview } from '../types/dashboard';
@@ -1018,11 +1019,22 @@ function MyStrategyOverview() {
                 editable={false}
                 selected={false}
                 forceSlider
+                forceDataZoom
               />
             </ChartContainer>
           </div>
         ) : null}
       </Modal>
+
+      <FloatingStrategyAi
+        storageKey="my-strategy-overview"
+        pageTitle={TEXT.title}
+        charts={filteredStrategies.flatMap(strategy => strategy.charts.map(chart => ({
+          id: chart.chartId,
+          title: chart.componentTitle,
+          preview: previewMap[chart.chartId]
+        })))}
+      />
     </div>
   );
 }
@@ -1713,6 +1725,7 @@ function MyStrategyDetail() {
                 editable={false}
                 selected={false}
                 forceSlider
+                forceDataZoom
               />
             </ChartContainer>
           </div>
@@ -1732,6 +1745,16 @@ function MyStrategyDetail() {
           setAddChartOpen(false);
           setAddSelectedChartIds([]);
         }}
+      />
+
+      <FloatingStrategyAi
+        storageKey={`my-strategy-${params.strategyId ?? 'overview'}`}
+        pageTitle={draftName || TEXT.title}
+        charts={strategy.charts.map(chart => ({
+          id: chart.chartId,
+          title: chart.componentTitle,
+          preview: previewMap[chart.chartId]
+        }))}
       />
     </div>
   );

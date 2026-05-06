@@ -1,5 +1,5 @@
 import { DeleteOutlined, DragOutlined, LinkOutlined, UploadOutlined } from '@ant-design/icons';
-import { Alert, Button, Empty, Popconfirm, Space, Spin, message } from 'antd';
+import { Alert, Button, Empty, Input, Modal, Popconfirm, Radio, Space, Spin, Tag, message } from 'antd';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -24,6 +24,11 @@ function resolveClosestSortIdFromPoint(clientX: number, clientY: number) {
   return element?.dataset.resourceSortId;
 }
 
+function normalizeThirdLevelName(value?: string) {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : '未配置三级目录';
+}
+
 export default function ExternalResourceGroupConfigPage() {
   const navigate = useNavigate();
   const params = useParams();
@@ -33,6 +38,12 @@ export default function ExternalResourceGroupConfigPage() {
   const [error, setError] = useState<string>();
   const [uploading, setUploading] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [resourceOpen, setResourceOpen] = useState(false);
+  const [resourceType, setResourceType] = useState<'HTML' | 'LINK'>('HTML');
+  const [resourceName, setResourceName] = useState('');
+  const [thirdLevelName, setThirdLevelName] = useState('');
+  const [resourceHref, setResourceHref] = useState('');
+  const [resourceFile, setResourceFile] = useState<File>();
   const [draggingFileId, setDraggingFileId] = useState<string>();
   const [dragOverFileId, setDragOverFileId] = useState<string>();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -68,26 +79,53 @@ export default function ExternalResourceGroupConfigPage() {
     document.body.style.cursor = '';
   }, []);
 
-  const uploadFiles = async (fileList: FileList | null) => {
-    const files = fileList ? Array.from(fileList).filter(file => /\.html?$/i.test(file.name)) : [];
-    if (files.length === 0) {
+  const resetResourceForm = () => {
+    setResourceType('HTML');
+    setResourceName('');
+    setThirdLevelName('');
+    setResourceHref('');
+    setResourceFile(undefined);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const saveResource = async () => {
+    if (!resourceName.trim()) {
+      message.warning('请输入资源名称');
+      return;
+    }
+    if (resourceType === 'HTML' && !resourceFile) {
       message.warning('请选择 HTML 文件');
+      return;
+    }
+    if (resourceType === 'LINK' && !resourceHref.trim()) {
+      message.warning('请输入链接地址');
       return;
     }
     setUploading(true);
     try {
-      const nextGroup = await api.uploadExternalResourceFiles(groupId, files);
+      const nextGroup = resourceType === 'HTML'
+        ? await api.uploadExternalResourceFiles(groupId, [resourceFile as File], {
+          resourceName: resourceName.trim(),
+          thirdLevelName: thirdLevelName.trim() || undefined
+        })
+        : await api.createExternalResourceLink(groupId, {
+          title: resourceName.trim(),
+          href: resourceHref.trim(),
+          thirdLevelName: thirdLevelName.trim() || undefined,
+          resourceType: 'LINK'
+        });
       setGroup(nextGroup);
       notifyExternalResourceChanged();
-      message.success('HTML 资源已上传');
+      message.success('资源已保存');
+      setResourceOpen(false);
+      resetResourceForm();
     } catch (uploadError) {
       console.error(uploadError);
-      message.error(uploadError instanceof Error ? uploadError.message : 'HTML 资源上传失败');
+      message.error(uploadError instanceof Error ? uploadError.message : '资源保存失败');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -96,10 +134,10 @@ export default function ExternalResourceGroupConfigPage() {
       await api.deleteExternalResourceFile(groupId, fileId);
       loadGroup();
       notifyExternalResourceChanged();
-      message.success('HTML 资源已删除');
+      message.success('资源已删除');
     } catch (deleteError) {
       console.error(deleteError);
-      message.error(deleteError instanceof Error ? deleteError.message : 'HTML 资源删除失败');
+      message.error(deleteError instanceof Error ? deleteError.message : '资源删除失败');
     }
   };
 
@@ -187,23 +225,32 @@ export default function ExternalResourceGroupConfigPage() {
       <div className="page-header">
         <div>
           <h2 className="page-title">{group?.name ?? '目录资源配置'}</h2>
-          <div className="page-subtitle">拖拽调整资源顺序，顺序会同步到外部资源展示页。</div>
+          <div className="page-subtitle">
+            在这个二级目录下配置资源。资源类型支持 HTML 和链接，三级目录可选；配置后会同步显示在右侧导航和页面标签中。
+          </div>
         </div>
         <Space wrap size={12}>
           <input
             ref={fileInputRef}
             type="file"
             accept=".html,.htm"
-            multiple
             style={{ display: 'none' }}
-            onChange={event => void uploadFiles(event.target.files)}
+            onChange={event => setResourceFile(event.target.files?.[0])}
           />
           <Button onClick={() => navigate('/external-resource-config')}>返回目录列表</Button>
-          <Button icon={<UploadOutlined />} loading={uploading} onClick={() => fileInputRef.current?.click()}>
-            上传 HTML
+          <Button type="primary" icon={<UploadOutlined />} loading={uploading} onClick={() => setResourceOpen(true)}>
+            新增资源
           </Button>
         </Space>
       </div>
+
+      {group ? (
+        <div className="external-config-group-summary">
+          <Tag color="blue">{group.parentName || '友情链接'}</Tag>
+          <Tag color="gold">二级目录：{group.name}</Tag>
+          <Tag>资源数：{group.files.length}</Tag>
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="panel-card canvas-card canvas-empty">
@@ -220,9 +267,14 @@ export default function ExternalResourceGroupConfigPage() {
               >
                 <div className="external-config-file-main">
                   <div className="external-config-file-name">{file.title}</div>
-                  <div className="external-config-file-meta">{file.fileName}</div>
+                  <div className="external-config-file-meta">
+                    类型：{file.resourceType === 'LINK' ? '链接' : 'HTML'}
+                    {' · '}
+                    三级目录：{normalizeThirdLevelName(file.thirdLevelName)}
+                    {file.resourceType === 'HTML' && file.fileName ? ` · 文件：${file.fileName}` : null}
+                  </div>
                 </div>
-                <Space size={8}>
+                <Space size={8} wrap>
                   <Button
                     icon={<DragOutlined />}
                     onMouseDown={event => startDrag(event, file.fileId)}
@@ -235,7 +287,7 @@ export default function ExternalResourceGroupConfigPage() {
                     打开
                   </Button>
                   <Popconfirm
-                    title="确认删除这个 HTML 资源吗？"
+                    title="确认删除这个资源吗？"
                     okText="删除"
                     cancelText="取消"
                     onConfirm={() => deleteFile(file.fileId)}
@@ -251,9 +303,54 @@ export default function ExternalResourceGroupConfigPage() {
         </div>
       ) : (
         <div className="panel-card canvas-card canvas-empty">
-          <Empty description="当前目录还没有 HTML 资源" />
+          <Empty description="当前目录还没有资源" />
         </div>
       )}
+
+      <Modal
+        title="新增资源"
+        open={resourceOpen}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={uploading}
+        onOk={() => void saveResource()}
+        onCancel={() => {
+          setResourceOpen(false);
+          resetResourceForm();
+        }}
+      >
+        <div className="external-config-create-form">
+          <div className="strategy-info-row">
+            <span className="strategy-selection-title">资源类型</span>
+            <Radio.Group value={resourceType} onChange={event => setResourceType(event.target.value)}>
+              <Radio.Button value="HTML">HTML</Radio.Button>
+              <Radio.Button value="LINK">链接</Radio.Button>
+            </Radio.Group>
+          </div>
+          <div className="strategy-info-row">
+            <span className="strategy-selection-title">资源名称</span>
+            <Input value={resourceName} placeholder="例如：估值速览表" onChange={event => setResourceName(event.target.value)} />
+          </div>
+          <div className="strategy-info-row">
+            <span className="strategy-selection-title">所属三级目录</span>
+            <Input value={thirdLevelName} placeholder="例如：估值面，可不填" onChange={event => setThirdLevelName(event.target.value)} />
+          </div>
+          {resourceType === 'HTML' ? (
+            <div className="strategy-info-row">
+              <span className="strategy-selection-title">HTML 文件</span>
+              <Space wrap>
+                <Button onClick={() => fileInputRef.current?.click()}>选择文件</Button>
+                <span className="external-config-file-meta">{resourceFile?.name ?? '未选择文件'}</span>
+              </Space>
+            </div>
+          ) : (
+            <div className="strategy-info-row">
+              <span className="strategy-selection-title">链接地址</span>
+              <Input value={resourceHref} placeholder="https://example.com" onChange={event => setResourceHref(event.target.value)} />
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

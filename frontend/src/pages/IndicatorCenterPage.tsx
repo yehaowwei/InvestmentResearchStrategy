@@ -377,6 +377,7 @@ export default function IndicatorCenterPage() {
                 editable={false}
                 selected={false}
                 forceSlider
+                forceDataZoom
               />
             </ChartContainer>
           </div>

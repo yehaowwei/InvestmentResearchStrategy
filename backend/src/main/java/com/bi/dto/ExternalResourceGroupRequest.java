@@ -7,4 +7,5 @@ public class ExternalResourceGroupRequest {
     private String name;
     private String slug;
     private String description;
+    private String parentName;
 }

@@ -14,6 +14,7 @@ public class ExternalResourceGroupDto {
     private String name;
     private String slug;
     private String description;
+    private String parentName;
     private int order;
     private String createdAt;
     private String updatedAt;

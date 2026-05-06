@@ -625,6 +625,7 @@ function StrategyConfigOverview(props: {
             compact={false}
             dense={false}
             forceSlider
+            forceDataZoom
           />
         ) : null}
       </Modal>
@@ -1034,6 +1035,7 @@ function StrategyConfigEditor(props: {
             compact={false}
             dense={false}
             forceSlider
+            forceDataZoom
           />
         ) : null}
       </Modal>

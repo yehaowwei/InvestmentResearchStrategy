@@ -15,6 +15,7 @@ import { api } from '../api/client';
 import AppSearchInput from '../components/AppSearchInput';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
+import FloatingStrategyAi from '../components/FloatingStrategyAi';
 import type { ChartPreview } from '../types/dashboard';
 import { buildCycleStrategyAiReply } from '../utils/cycleStrategy';
 import { normalizeDisplayText } from '../utils/dashboard';
@@ -590,11 +591,22 @@ function StrategyOverview() {
                 editable={false}
                 selected={false}
                 forceSlider
+                forceDataZoom
               />
             </ChartContainer>
           </div>
         ) : null}
       </Modal>
+
+      <FloatingStrategyAi
+        storageKey="strategy-center-overview"
+        pageTitle={TEXT.title}
+        charts={filteredStrategies.flatMap(strategy => strategy.charts.map(chart => ({
+          id: chart.chartId,
+          title: chart.componentTitle,
+          preview: previewMap[chart.chartId]
+        })))}
+      />
 
     </div>
   );
@@ -997,11 +1009,22 @@ function StrategyDetail() {
                 editable={false}
                 selected={false}
                 forceSlider
+                forceDataZoom
               />
             </ChartContainer>
           </div>
         ) : null}
       </Modal>
+
+      <FloatingStrategyAi
+        storageKey={`strategy-center-${params.strategyId ?? 'overview'}`}
+        pageTitle={strategy?.strategyName || TEXT.title}
+        charts={strategy?.charts.map(chart => ({
+          id: chart.chartId,
+          title: chart.componentTitle,
+          preview: previewMap[chart.chartId]
+        })) ?? []}
+      />
     </div>
   );
 }

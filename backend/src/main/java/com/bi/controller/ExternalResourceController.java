@@ -4,6 +4,7 @@ import com.bi.common.ApiResponse;
 import com.bi.dto.ExternalResourceGroupDto;
 import com.bi.dto.ExternalResourceOrderRequest;
 import com.bi.dto.ExternalResourceGroupRequest;
+import com.bi.dto.ExternalResourceRequest;
 import com.bi.service.ExternalResourceService;
 import java.util.List;
 import org.springframework.http.MediaType;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -44,8 +46,17 @@ public class ExternalResourceController {
 
     @PostMapping(value = "/group/{groupId}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<ExternalResourceGroupDto> uploadFiles(@PathVariable("groupId") String groupId,
+                                                             @RequestParam(value = "resourceName", required = false) String resourceName,
+                                                             @RequestParam(value = "sectionName", required = false) String sectionName,
+                                                             @RequestParam(value = "thirdLevelName", required = false) String thirdLevelName,
                                                              @RequestPart("files") MultipartFile[] files) {
-        return ApiResponse.ok(externalResourceService.uploadFiles(groupId, files));
+        return ApiResponse.ok(externalResourceService.uploadFiles(groupId, files, resourceName, sectionName, thirdLevelName));
+    }
+
+    @PostMapping("/group/{groupId}/resources")
+    public ApiResponse<ExternalResourceGroupDto> createLinkResource(@PathVariable("groupId") String groupId,
+                                                                    @RequestBody ExternalResourceRequest request) {
+        return ApiResponse.ok(externalResourceService.createLinkResource(groupId, request));
     }
 
     @PutMapping("/group/{groupId}/file-order")

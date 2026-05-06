@@ -497,6 +497,7 @@ export default function MyIndicatorsPage() {
                 editable={false}
                 selected={false}
                 forceSlider
+                forceDataZoom
               />
             </ChartContainer>
           </div>

@@ -2,45 +2,47 @@ import {
   AppstoreOutlined,
   BankOutlined,
   ClusterOutlined,
-  DatabaseOutlined,
-  FolderViewOutlined,
   LineChartOutlined,
-  OrderedListOutlined,
   MenuFoldOutlined,
   StarOutlined
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { api } from './api/client';
 import ExternalResourceConfigPage from './pages/ExternalResourceConfigPage';
 import ExternalResourceGroupConfigPage from './pages/ExternalResourceGroupConfigPage';
 import ExternalResourcePage from './pages/ExternalResourcePage';
+import IndicatorCenterPage from './pages/IndicatorCenterPage';
 import IndicatorConfigPage from './pages/IndicatorConfigPage';
 import MyIndicatorsPage from './pages/MyIndicatorsPage';
-import IndicatorCenterPage from './pages/IndicatorCenterPage';
 import MyStrategy from './pages/MyStrategy';
 import StrategyCenter from './pages/StrategyCenter';
 import StrategyConfig from './pages/StrategyConfig';
+import type { ExternalResourceGroup } from './types/dashboard';
 import {
   syncDashboardCategoriesFromServer,
   syncDashboardMetaFromServer,
   useDashboardCategories
 } from './utils/dashboardCatalog';
-import type { ExternalResourceGroup } from './types/dashboard';
-import { api } from './api/client';
 import { syncFavoritesFromServer } from './utils/favorites';
 import { syncStrategiesFromServer } from './utils/strategies';
 
 const TEXT = {
-  myFavorites: '\u6211\u7684\u6307\u6807',
-  myStrategy: '\u6211\u7684\u7b56\u7565',
-  strategyCenter: '\u7b56\u7565\u4e2d\u5fc3',
-  runtimeCenter: '\u6307\u6807\u4e2d\u5fc3',
-  strategyConfig: '\u7b56\u7565\u914d\u7f6e',
-  externalResourceConfig: '\u5916\u90e8\u8d44\u6e90\u914d\u7f6e',
-  designer: '\u6307\u6807\u914d\u7f6e',
-  brand: '\u7b56\u7565\u5de5\u4f5c\u53f0'
+  myFavorites: '我的指标',
+  myStrategy: '我的策略',
+  strategyCenter: '策略中心',
+  runtimeCenter: '指标中心',
+  strategyConfig: '策略配置',
+  externalResourceCenter: '友情链接',
+  externalResourceConfig: '链接配置',
+  designer: '指标配置',
+  brand: '策略工作台'
 };
+
+function renderMenuIcon(Icon: typeof StarOutlined, color: string) {
+  return <Icon style={{ color, fontSize: 18 }} />;
+}
 
 function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   if (pathname.startsWith('/runtime/fixed_income')) {
@@ -74,7 +76,7 @@ function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   if (pathname.startsWith('/my-strategy')) {
     return '/my-strategy';
   }
-  return '/designer';
+  return '/favorites';
 }
 
 export default function App() {
@@ -85,20 +87,32 @@ export default function App() {
   const categories = useDashboardCategories();
   const selectedKey = resolveSelectedKey(location.pathname, categories.map(item => item.key));
   const runtimeCategories = categories;
+
+  const externalMenuItems = useMemo(
+    () => externalResourceGroups
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map(item => ({
+        key: `/external-resource/${item.slug}`,
+        label: <Link to={`/external-resource/${item.slug}`}>{item.name}</Link>
+      })),
+    [externalResourceGroups]
+  );
+
   const items = [
     {
       key: '/favorites',
-      icon: <StarOutlined />,
+      icon: renderMenuIcon(StarOutlined, '#eab308'),
       label: <Link to="/favorites">{TEXT.myFavorites}</Link>
     },
     {
       key: '/my-strategy',
-      icon: <FolderViewOutlined />,
+      icon: renderMenuIcon(StarOutlined, '#eab308'),
       label: <Link to="/my-strategy">{TEXT.myStrategy}</Link>
     },
     {
       key: 'runtime-group',
-      icon: <DatabaseOutlined />,
+      icon: renderMenuIcon(ClusterOutlined, '#2563eb'),
       label: TEXT.runtimeCenter,
       children: runtimeCategories.map(item => ({
         key: `/runtime/${item.key}`,
@@ -107,27 +121,28 @@ export default function App() {
     },
     {
       key: '/strategy-center',
-      icon: <ClusterOutlined />,
+      icon: renderMenuIcon(ClusterOutlined, '#2563eb'),
       label: <Link to="/strategy-center">{TEXT.strategyCenter}</Link>
     },
-    ...externalResourceGroups.map(item => ({
-      key: `/external-resource/${item.slug}`,
-      icon: <BankOutlined />,
-      label: <Link to={`/external-resource/${item.slug}`}>{item.name}</Link>
-    })),
+    {
+      key: 'external-resource-group',
+      icon: renderMenuIcon(BankOutlined, '#b45309'),
+      label: TEXT.externalResourceCenter,
+      children: externalMenuItems
+    },
     {
       key: '/designer',
-      icon: <AppstoreOutlined />,
+      icon: renderMenuIcon(AppstoreOutlined, '#7c3aed'),
       label: <Link to="/designer">{TEXT.designer}</Link>
     },
     {
       key: '/strategy/config',
-      icon: <OrderedListOutlined />,
+      icon: renderMenuIcon(AppstoreOutlined, '#7c3aed'),
       label: <Link to="/strategy/config">{TEXT.strategyConfig}</Link>
     },
     {
       key: '/external-resource-config',
-      icon: <OrderedListOutlined />,
+      icon: renderMenuIcon(AppstoreOutlined, '#7c3aed'),
       label: <Link to="/external-resource-config">{TEXT.externalResourceConfig}</Link>
     }
   ];
@@ -197,14 +212,14 @@ export default function App() {
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
-          defaultOpenKeys={['runtime-group']}
+          defaultOpenKeys={['runtime-group', 'external-resource-group']}
           items={items}
           className="app-sidebar-menu"
         />
       </aside>
       <Layout.Content className="app-content app-content-sidebar">
         <Routes>
-          <Route path="/" element={<IndicatorConfigPage />} />
+          <Route path="/" element={<Navigate to="/favorites" replace />} />
           <Route path="/designer" element={<IndicatorConfigPage />} />
           <Route path="/designer/:categoryKey" element={<IndicatorConfigPage />} />
           <Route path="/designer/:categoryKey/:chartCode" element={<IndicatorConfigPage />} />

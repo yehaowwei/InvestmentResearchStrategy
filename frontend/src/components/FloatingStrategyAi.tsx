@@ -1,19 +1,21 @@
-import { CloseOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
-import { Button, Input } from 'antd';
+import { CheckOutlined, CloseOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
+import { Button, Input, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api/client';
 import type { ChartPreview } from '../types/dashboard';
+import { buildChartRuntimeCards } from '../utils/chartLibrary';
+import { createStrategy, listMyStrategies, type StrategyChartSnapshot } from '../utils/strategies';
 
-type IndicatorAiChartContext = {
-  id: string;
-  title: string;
-  preview?: ChartPreview;
-};
-
-type IndicatorAiMessage = {
+type StrategyAiMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+};
+
+type StrategyAiChartContext = {
+  id: string;
+  title: string;
+  preview?: ChartPreview;
 };
 
 type Point = { x: number; y: number };
@@ -25,110 +27,38 @@ type DragState =
   | { mode: 'resize'; pointerId: number; start: Point; origin: Bounds }
   | null;
 
-const STORAGE_KEY = 'strategy-dashboard-indicator-ai-floating-v5';
+type StrategyProposal = {
+  id: string;
+  strategyName: string;
+  description: string;
+  charts: StrategyChartSnapshot[];
+};
+
+const STORAGE_KEY = 'strategy-dashboard-strategy-ai-floating-v1';
 const TRIGGER_WIDTH = 126;
 const TRIGGER_HEIGHT = 48;
-const PANEL_WIDTH = 380;
-const PANEL_HEIGHT = 680;
-const MIN_PANEL_WIDTH = 320;
-const MIN_PANEL_HEIGHT = 340;
+const PANEL_WIDTH = 400;
+const PANEL_HEIGHT = 700;
+const MIN_PANEL_WIDTH = 340;
+const MIN_PANEL_HEIGHT = 360;
 
 const TEXT = {
   title: 'TKF智能体助手',
-  placeholder: '例如：帮我分析当前页面指标的整体状态和重点变化',
+  pageTitle: '策略页智能助手',
   open: 'TKF智能体助手',
+  placeholder: '例如：创建一个风格周期定位策略，或者帮我总结当前策略变化',
   send: '发送',
-  demo: '全局分析',
-  greeting: '我会结合当前页面已有指标，帮你做全局分析、重点变化总结和观察建议。'
+  demo: '创建演示策略',
+  greeting: '我可以帮你根据对话生成策略演示方案。比如你说“创建一个风格周期定位策略”，我会组装对应策略并支持一键保存到我的策略。',
+  save: '确定保存',
+  created: '策略已保存到我的策略',
+  createFailed: '创建策略失败',
+  noTemplate: '当前没有找到用于组装风格周期定位策略的模板图表。',
+  duplicated: '我的策略里已经有同名策略了，我为你追加了一个新版本名称。'
 } as const;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function toFiniteNumber(value: unknown) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const normalized = value.replace(/,/g, '').trim();
-    if (!normalized) {
-      return undefined;
-    }
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function formatSummaryNumber(value: number) {
-  return new Intl.NumberFormat('zh-CN', {
-    maximumFractionDigits: Math.abs(value) >= 100 ? 0 : 2
-  }).format(value);
-}
-
-function buildRecentSummary(title: string, preview?: ChartPreview) {
-  const metrics = preview?.queryDsl.metrics ?? [];
-  const dimensions = preview?.queryDsl.dimensionFields ?? [];
-  const metric = metrics[0];
-  if (!preview || !metric) {
-    return `${title} 当前可作为辅助观察项。`;
-  }
-
-  const metricFieldCode = metric.fieldCode;
-  const dimensionFieldCode = dimensions[0];
-  const points = (preview.rows ?? [])
-    .map((row, index) => {
-      const value = toFiniteNumber(row[metricFieldCode]);
-      if (value == null) {
-        return undefined;
-      }
-      const label = String((dimensionFieldCode ? row[dimensionFieldCode] : undefined) ?? `第${index + 1}期`);
-      return { label, value };
-    })
-    .filter((item): item is { label: string; value: number } => Boolean(item));
-
-  if (points.length < 2) {
-    return `${title} 当前样本较少，建议继续观察。`;
-  }
-
-  const last = points[points.length - 1];
-  const prev = points[points.length - 2];
-  const delta = last.value - prev.value;
-  const trend = delta > 0 ? '较上一期回升' : delta < 0 ? '较上一期回落' : '与上一期基本持平';
-  return `${title}：${last.label} 为 ${formatSummaryNumber(last.value)}，${trend}。`;
-}
-
-function buildIndicatorMeaning(title: string) {
-  if (title.includes('估值')) {
-    return '更适合用来观察当前资产是否处于相对高估或低估区间。';
-  }
-  if (title.includes('波动') || title.includes('风险')) {
-    return '更适合用来观察风险偏好和波动状态是否在抬升。';
-  }
-  if (title.includes('成交') || title.includes('资金') || title.includes('融资')) {
-    return '更适合用来观察市场资金活跃度和资金方向变化。';
-  }
-  if (title.includes('比价') || title.includes('价差')) {
-    return '更适合用来观察相对性价比和资产切换信号。';
-  }
-  return '更适合用来观察该主题下的阶段性变化。';
-}
-
-function buildFallbackReply(pageTitle: string, charts: IndicatorAiChartContext[], prompt: string) {
-  const normalizedPrompt = prompt.trim().toLowerCase();
-  const summaries = charts.slice(0, 6).map(chart => buildRecentSummary(chart.title, chart.preview));
-  const meanings = charts.slice(0, 6).map(chart => `${chart.title}：${buildIndicatorMeaning(chart.title)}`);
-
-  if (normalizedPrompt.includes('全局') || normalizedPrompt.includes('整体') || normalizedPrompt.includes('总结') || normalizedPrompt.includes('分析')) {
-    return `我先对“${pageTitle}”做一个全局分析：\n当前共关注 ${charts.length} 个指标，建议先从趋势、估值和风险三个维度理解。\n${summaries.join('\n')}`;
-  }
-
-  if (normalizedPrompt.includes('看什么') || normalizedPrompt.includes('作用') || normalizedPrompt.includes('指标')) {
-    return `当前页面这些指标主要在看下面几类信息：\n${meanings.join('\n')}`;
-  }
-
-  return `围绕“${pageTitle}”，我建议先看整体变化，再挑重点指标细看。\n${summaries.join('\n')}`;
 }
 
 function normalizeTrigger(point: Point) {
@@ -182,34 +112,120 @@ function resolveDefaultLayout() {
         y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_HEIGHT) / 2)
       })
     : normalizeTrigger({
-        x: window.innerWidth - TRIGGER_WIDTH - 320,
+        x: window.innerWidth - TRIGGER_WIDTH - 332,
         y: 118
       });
 
-  const panel = normalizePanel({
-    x: trigger.x,
-    y: trigger.y + 58,
-    width: PANEL_WIDTH,
-    height: PANEL_HEIGHT
-  });
-
-  return { trigger, panel };
+  return {
+    trigger,
+    panel: normalizePanel({
+      x: trigger.x,
+      y: trigger.y + 58,
+      width: PANEL_WIDTH,
+      height: PANEL_HEIGHT
+    })
+  };
 }
 
-export default function FloatingIndicatorAi(props: {
+function buildSummary(title: string, preview?: ChartPreview) {
+  const metric = preview?.queryDsl.metrics?.[0];
+  const dimension = preview?.queryDsl.dimensionFields?.[0];
+  if (!metric || !preview) {
+    return `${title} 可作为策略结构中的观察项。`;
+  }
+  const lastRow = preview.rows?.[preview.rows.length - 1];
+  if (!lastRow) {
+    return `${title} 当前暂无可用样本。`;
+  }
+  const label = String((dimension ? lastRow[dimension] : undefined) ?? '最新一期');
+  const value = lastRow[metric.fieldCode];
+  return `${title} 在 ${label} 的最新值为 ${String(value ?? '-')}`;
+}
+
+function buildFallbackReply(pageTitle: string, charts: StrategyAiChartContext[], prompt: string) {
+  const normalizedPrompt = prompt.trim().toLowerCase();
+  const summaries = charts.slice(0, 5).map(chart => buildSummary(chart.title, chart.preview));
+  if (normalizedPrompt.includes('创建') || normalizedPrompt.includes('策略')) {
+    return `如果你要创建策略，我可以先根据现有模板组装一个演示版本，再由你确认保存。\n当前可参考的图表有：\n${summaries.join('\n')}`;
+  }
+  return `我先结合“${pageTitle}”里的内容给你做个简要解读：\n${summaries.join('\n')}`;
+}
+
+function normalizeCreatePrompt(prompt: string) {
+  return prompt.replace(/\s+/g, '').toLowerCase();
+}
+
+function isCreateCycleStrategyPrompt(prompt: string) {
+  const normalized = normalizeCreatePrompt(prompt);
+  return normalized.includes('创建')
+    && (normalized.includes('风格周期') || normalized.includes('周期定位'))
+    && normalized.includes('策略');
+}
+
+function resolvePersonalStrategyName(baseName: string) {
+  const existingNames = new Set(listMyStrategies().map(item => item.strategyName));
+  if (!existingNames.has(baseName)) {
+    return { name: baseName, duplicated: false };
+  }
+  let index = 2;
+  let nextName = `${baseName}${index}`;
+  while (existingNames.has(nextName)) {
+    index += 1;
+    nextName = `${baseName}${index}`;
+  }
+  return { name: nextName, duplicated: true };
+}
+
+async function buildCycleStrategyProposal() {
+  const [ruleCards, trendCards] = await Promise.all([
+    buildChartRuntimeCards('chart_91'),
+    buildChartRuntimeCards('chart_171')
+  ]);
+  const selectedCards = [...ruleCards, ...trendCards]
+    .filter(card => (
+      card.component.dslConfig.visualDsl.title.includes('三因素风格周期')
+      || card.component.title.includes('三因素风格周期')
+    ))
+    .slice(0, 2);
+  if (selectedCards.length < 2) {
+    return undefined;
+  }
+  const { name, duplicated } = resolvePersonalStrategyName('三因素风格周期定位策略');
+  return {
+    duplicated,
+    proposal: {
+      id: `proposal-${Date.now()}`,
+      strategyName: name,
+      description: '基于三因素风格周期定位规则与趋势图的演示策略',
+      charts: selectedCards.map(card => ({
+        chartId: `${card.chartCode}:${card.component.componentCode}`,
+        chartCode: card.chartCode,
+        chartName: card.chartName,
+        componentCode: card.component.componentCode,
+        componentTitle: card.component.dslConfig.visualDsl.title || card.component.title,
+        templateCode: card.component.templateCode,
+        modelCode: card.component.modelCode,
+        dslConfig: card.component.dslConfig,
+        addedAt: new Date().toISOString()
+      }))
+    } satisfies StrategyProposal
+  };
+}
+
+export default function FloatingStrategyAi(props: {
   storageKey: string;
   pageTitle: string;
-  charts: IndicatorAiChartContext[];
+  charts: StrategyAiChartContext[];
 }) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<IndicatorAiMessage[]>([
+  const [messages, setMessages] = useState<StrategyAiMessage[]>([
     { id: 'assistant-initial', role: 'assistant', content: TEXT.greeting }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [autoTriggered, setAutoTriggered] = useState(false);
   const [triggerPos, setTriggerPos] = useState<Point>({ x: 16, y: 16 });
   const [panelBounds, setPanelBounds] = useState<Bounds>({ x: 16, y: 72, width: PANEL_WIDTH, height: PANEL_HEIGHT });
+  const [proposal, setProposal] = useState<StrategyProposal>();
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState>(null);
   const suppressClickRef = useRef(false);
@@ -257,11 +273,11 @@ export default function FloatingIndicatorAi(props: {
   }, []);
 
   useEffect(() => {
-    setMessages([{ id: `assistant-initial-${props.storageKey}`, role: 'assistant', content: TEXT.greeting }]);
+    setMessages([{ id: `assistant-${props.storageKey}`, role: 'assistant', content: TEXT.greeting }]);
     setInput('');
     setLoading(false);
-    setAutoTriggered(false);
     setOpen(false);
+    setProposal(undefined);
   }, [props.storageKey]);
 
   useEffect(() => {
@@ -269,16 +285,7 @@ export default function FloatingIndicatorAi(props: {
       return;
     }
     messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-  }, [messages, loading]);
-
-  useEffect(() => {
-    if (!open || autoTriggered || availableCharts.length === 0) {
-      return;
-    }
-    setAutoTriggered(true);
-    setPanelBounds(current => normalizePanel(current));
-    void submitPrompt('请对当前页面现有指标做一次全局分析');
-  }, [open, autoTriggered, availableCharts.length]);
+  }, [messages, loading, proposal]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -334,13 +341,32 @@ export default function FloatingIndicatorAi(props: {
     };
   }, [panelBounds, triggerPos]);
 
-  const appendMessage = (message: IndicatorAiMessage) => {
-    setMessages(current => [...current, message]);
+  const appendMessage = (messageItem: StrategyAiMessage) => {
+    setMessages(current => [...current, messageItem]);
+  };
+
+  const saveProposal = () => {
+    if (!proposal) {
+      return;
+    }
+    createStrategy({
+      scope: 'personal',
+      strategyName: proposal.strategyName,
+      description: proposal.description,
+      charts: proposal.charts
+    });
+    message.success(TEXT.created);
+    setProposal(undefined);
+    appendMessage({
+      id: `assistant-saved-${Date.now()}`,
+      role: 'assistant',
+      content: `已经帮你把“${proposal.strategyName}”保存到我的策略里了。`
+    });
   };
 
   const submitPrompt = async (prompt: string) => {
     const trimmed = prompt.trim();
-    if (!trimmed || availableCharts.length === 0 || loading) {
+    if (!trimmed || loading) {
       return;
     }
 
@@ -350,6 +376,37 @@ export default function FloatingIndicatorAi(props: {
       content: trimmed
     });
     setInput('');
+    setProposal(undefined);
+
+    if (isCreateCycleStrategyPrompt(trimmed)) {
+      setLoading(true);
+      try {
+        const next = await buildCycleStrategyProposal();
+        if (!next) {
+          appendMessage({
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: TEXT.noTemplate
+          });
+          return;
+        }
+        if (next.duplicated) {
+          message.info(TEXT.duplicated);
+        }
+        setProposal(next.proposal);
+        appendMessage({
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: `我已经为你组装好了一个演示策略：“${next.proposal.strategyName}”。它会包含“三因素风格周期定位”和“三因素风格周期走势图”两张图，用来做周期状态判断和月度解读。你确认的话，点击下方“确定保存”就会直接进入我的策略。`
+        });
+      } catch (error) {
+        console.error(error);
+        message.error(TEXT.createFailed);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     const assistantMessageId = `assistant-${Date.now()}`;
     appendMessage({
@@ -360,8 +417,8 @@ export default function FloatingIndicatorAi(props: {
 
     const chartContexts = availableCharts.slice(0, 8).map(chart => ({
       title: chart.title,
-      summary: buildRecentSummary(chart.title, chart.preview),
-      meaning: buildIndicatorMeaning(chart.title)
+      summary: buildSummary(chart.title, chart.preview),
+      meaning: `${chart.title} 可用于当前策略观察`
     }));
 
     setLoading(true);
@@ -429,7 +486,7 @@ export default function FloatingIndicatorAi(props: {
     <>
       <button
         type="button"
-        className={`floating-indicator-ai-trigger${open ? ' open' : ''}`}
+        className={`floating-indicator-ai-trigger floating-strategy-ai-trigger${open ? ' open' : ''}`}
         aria-label={TEXT.title}
         title={TEXT.title}
         style={{ left: triggerPos.x, top: triggerPos.y }}
@@ -449,7 +506,7 @@ export default function FloatingIndicatorAi(props: {
 
       {open ? (
         <aside
-          className="floating-indicator-ai-panel"
+          className="floating-indicator-ai-panel floating-strategy-ai-panel"
           style={{ left: panelBounds.x, top: panelBounds.y, width: panelBounds.width, height: panelBounds.height }}
         >
           <div className="floating-indicator-ai-head" onPointerDown={startPanelDrag}>
@@ -475,10 +532,10 @@ export default function FloatingIndicatorAi(props: {
             />
           </div>
 
-          <div className="floating-indicator-ai-subtitle">{props.pageTitle}</div>
+          <div className="floating-indicator-ai-subtitle">{props.pageTitle || TEXT.pageTitle}</div>
 
           <div className="floating-indicator-ai-actions">
-            <Button size="small" onClick={() => void submitPrompt('请对当前页面现有指标做一次全局分析')}>
+            <Button size="small" onClick={() => void submitPrompt('创建一个风格周期定位策略')}>
               {TEXT.demo}
             </Button>
           </div>
@@ -491,12 +548,29 @@ export default function FloatingIndicatorAi(props: {
             ))}
           </div>
 
+          {proposal ? (
+            <div className="floating-strategy-ai-proposal">
+              <div className="floating-strategy-ai-proposal-title">{proposal.strategyName}</div>
+              <div className="floating-strategy-ai-proposal-desc">{proposal.description}</div>
+              <div className="floating-strategy-ai-proposal-charts">
+                {proposal.charts.map(chart => (
+                  <div key={chart.chartId} className="floating-strategy-ai-proposal-chart">{chart.componentTitle}</div>
+                ))}
+              </div>
+              <div className="floating-strategy-ai-proposal-actions">
+                <Button type="primary" icon={<CheckOutlined />} onClick={saveProposal}>
+                  {TEXT.save}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="floating-indicator-ai-compose">
             <Input.TextArea
               value={input}
               placeholder={TEXT.placeholder}
               autoSize={{ minRows: 3, maxRows: 5 }}
-              disabled={loading || availableCharts.length === 0}
+              disabled={loading}
               onChange={event => setInput(event.target.value)}
               onPressEnter={event => {
                 if (!event.shiftKey) {
@@ -510,7 +584,6 @@ export default function FloatingIndicatorAi(props: {
                 type="primary"
                 icon={<SendOutlined />}
                 loading={loading}
-                disabled={availableCharts.length === 0}
                 onClick={() => void submitPrompt(input)}
               >
                 {TEXT.send}

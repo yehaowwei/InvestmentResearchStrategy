@@ -797,6 +797,8 @@ export default function IndicatorConfigPage() {
               selected={false}
               compact={false}
               dense={false}
+              forceSlider
+              forceDataZoom
             />
           ) : null}
         </Modal>
@@ -961,6 +963,8 @@ export default function IndicatorConfigPage() {
             selected={false}
             compact={false}
             dense={false}
+            forceSlider
+            forceDataZoom
           />
         ) : null}
       </Modal>

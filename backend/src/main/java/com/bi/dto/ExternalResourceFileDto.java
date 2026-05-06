@@ -12,6 +12,9 @@ public class ExternalResourceFileDto {
     private String title;
     private String fileName;
     private String href;
+    private String resourceType;
+    private String sectionName;
+    private String thirdLevelName;
     private long size;
     private String updatedAt;
 }
