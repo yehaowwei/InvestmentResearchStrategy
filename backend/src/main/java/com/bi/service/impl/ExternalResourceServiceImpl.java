@@ -1,6 +1,7 @@
 package com.bi.service.impl;
 
 import com.bi.common.JsonSnapshotSupport;
+import com.bi.dto.ExternalResourceDirectoryDto;
 import com.bi.dto.ExternalResourceFileDto;
 import com.bi.dto.ExternalResourceGroupDto;
 import com.bi.dto.ExternalResourceGroupRequest;
@@ -59,6 +60,21 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
     }
 
     @Override
+    public List<ExternalResourceDirectoryDto> listResourceDirectories() {
+        ensureResourceRoot();
+        try (var stream = Files.list(resourceRoot)) {
+            return stream
+                .filter(Files::isDirectory)
+                .map(path -> path.getFileName().toString())
+                .sorted(String::compareTo)
+                .map(name -> new ExternalResourceDirectoryDto(name, name))
+                .collect(Collectors.toCollection(ArrayList::new));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to list external resource directories", exception);
+        }
+    }
+
+    @Override
     public ExternalResourceGroupDto getGroupBySlug(String slug) {
         ExternalResourceGroupState group = readGroups().stream()
             .filter(item -> item.getSlug().equals(slug))
@@ -80,7 +96,6 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
         created.setGroupId("external-resource-" + UUID.randomUUID());
         created.setName(name);
         created.setSlug(slug);
-        created.setDescription(normalizeOptionalText(request.getDescription()));
         created.setParentName(resolveParentName(request.getParentName()));
         created.setOrder(groups.size() + 1);
         created.setCreatedAt(now);
@@ -89,6 +104,44 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
         saveGroups(groups);
         createDirectory(groupDirectory(created));
         return toDto(created);
+    }
+
+    @Override
+    public ExternalResourceGroupDto updateGroup(String groupId, ExternalResourceGroupRequest request) {
+        String name = normalizeRequiredText(request.getName(), "Group name is required");
+        String slug = normalizeSlug(request.getSlug(), name);
+        List<ExternalResourceGroupState> groups = readGroups();
+        ExternalResourceGroupState group = findGroup(groups, groupId);
+        if (groups.stream().anyMatch(item -> !item.getGroupId().equals(groupId) && item.getSlug().equals(slug))) {
+            throw new IllegalArgumentException("External resource slug already exists");
+        }
+        Path previousDirectory = groupDirectory(group);
+        group.setName(name);
+        group.setSlug(slug);
+        group.setParentName(resolveParentName(request.getParentName()));
+        group.setUpdatedAt(now());
+        if (!previousDirectory.equals(groupDirectory(group))) {
+            moveDirectory(previousDirectory, groupDirectory(group));
+        }
+        saveGroups(groups);
+        createDirectory(groupDirectory(group));
+        return toDto(group);
+    }
+
+    @Override
+    public ExternalResourceGroupDto createThirdLevelDirectory(String groupId, String name) {
+        String normalizedName = normalizeRequiredText(name, "Third level directory name is required");
+        List<ExternalResourceGroupState> groups = readGroups();
+        ExternalResourceGroupState group = findGroup(groups, groupId);
+        if (group.getThirdLevelDirectories() == null) {
+            group.setThirdLevelDirectories(new ArrayList<>());
+        }
+        if (!group.getThirdLevelDirectories().contains(normalizedName)) {
+            group.getThirdLevelDirectories().add(normalizedName);
+            group.setUpdatedAt(now());
+            saveGroups(groups);
+        }
+        return toDto(group);
     }
 
     @Override
@@ -177,6 +230,43 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
     }
 
     @Override
+    public ExternalResourceGroupDto updateResource(String groupId, String fileId, ExternalResourceRequest request) {
+        List<ExternalResourceGroupState> groups = readGroups();
+        ExternalResourceGroupState group = findGroup(groups, groupId);
+        String title = normalizeRequiredText(request.getTitle(), "Resource name is required");
+        String now = now();
+
+        ExternalResourceState resource = findResourceById(group, fileId);
+        if (resource != null && "LINK".equalsIgnoreCase(resource.getResourceType())) {
+            String href = normalizeRequiredText(request.getHref(), "Resource link is required");
+            if (!href.startsWith("http://") && !href.startsWith("https://")) {
+                throw new IllegalArgumentException("Resource link must start with http:// or https://");
+            }
+            resource.setTitle(title);
+            resource.setHref(href);
+            resource.setSectionName(normalizeOptionalText(request.getSectionName()));
+            resource.setThirdLevelName(normalizeOptionalText(request.getThirdLevelName()));
+            resource.setUpdatedAt(now);
+            group.setUpdatedAt(now);
+            saveGroups(groups);
+            return toDto(group);
+        }
+
+        String fileName = decodeFileId(fileId);
+        ExternalResourceState fileResource = findResourceByFileName(group, fileName);
+        if (fileResource == null) {
+            throw new IllegalArgumentException("External resource does not exist");
+        }
+        fileResource.setTitle(title);
+        fileResource.setSectionName(normalizeOptionalText(request.getSectionName()));
+        fileResource.setThirdLevelName(normalizeOptionalText(request.getThirdLevelName()));
+        fileResource.setUpdatedAt(now);
+        group.setUpdatedAt(now);
+        saveGroups(groups);
+        return toDto(group);
+    }
+
+    @Override
     public ExternalResourceGroupDto reorderFiles(String groupId, List<String> fileIds) {
         List<ExternalResourceGroupState> groups = readGroups();
         ExternalResourceGroupState group = findGroup(groups, groupId);
@@ -248,16 +338,17 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
     }
 
     private ExternalResourceGroupDto toDto(ExternalResourceGroupState state) {
+        List<ExternalResourceFileDto> files = listFiles(state);
         return new ExternalResourceGroupDto(
             state.getGroupId(),
             state.getName(),
             state.getSlug(),
-            state.getDescription(),
             resolveParentName(state.getParentName()),
             state.getOrder(),
             state.getCreatedAt(),
             state.getUpdatedAt(),
-            listFiles(state)
+            safeThirdLevelDirectories(state, files),
+            files
         );
     }
 
@@ -389,6 +480,28 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
         }
     }
 
+    private void moveDirectory(Path source, Path target) {
+        if (source.equals(target)) {
+            return;
+        }
+        try {
+            if (!Files.exists(source)) {
+                createDirectory(target);
+                return;
+            }
+            if (Files.exists(target)) {
+                return;
+            }
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException exception) {
+            try {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException fallbackException) {
+                throw new IllegalStateException("Failed to move external resource directory", fallbackException);
+            }
+        }
+    }
+
     private void ensureResourceRoot() {
         createDirectory(resourceRoot);
     }
@@ -422,7 +535,6 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
             group.setGroupId("external-resource-convertible-board");
             group.setName("转债研究");
             group.setSlug("convertible-board");
-            group.setDescription("转债研究友情链接");
             group.setParentName("友情链接");
             group.setOrder(groups.size() + 1);
             group.setCreatedAt(now);
@@ -431,11 +543,9 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
             saveGroups(groups);
         } else if (
             !"转债研究".equals(existingConvertibleBoard.getName())
-                || !"转债研究友情链接".equals(existingConvertibleBoard.getDescription())
                 || !"友情链接".equals(existingConvertibleBoard.getParentName())
         ) {
             existingConvertibleBoard.setName("转债研究");
-            existingConvertibleBoard.setDescription("转债研究友情链接");
             existingConvertibleBoard.setParentName("友情链接");
             existingConvertibleBoard.setUpdatedAt(now());
             saveGroups(groups);
@@ -582,6 +692,24 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
         return group.getResources();
     }
 
+    private List<String> safeThirdLevelDirectories(ExternalResourceGroupState group, List<ExternalResourceFileDto> files) {
+        if (group.getThirdLevelDirectories() == null) {
+            group.setThirdLevelDirectories(new ArrayList<>());
+        }
+        List<String> directories = group.getThirdLevelDirectories().stream()
+            .map(this::normalizeOptionalText)
+            .filter(value -> !value.isEmpty())
+            .distinct()
+            .collect(Collectors.toCollection(ArrayList::new));
+        for (ExternalResourceFileDto file : files) {
+            String thirdLevelName = normalizeOptionalText(file.getThirdLevelName());
+            if (!thirdLevelName.isEmpty() && !directories.contains(thirdLevelName)) {
+                directories.add(thirdLevelName);
+            }
+        }
+        return directories;
+    }
+
     private ExternalResourceState findResourceByFileName(ExternalResourceGroupState group, String fileName) {
         return safeResources(group).stream()
             .filter(resource -> fileName.equals(resource.getFileName()))
@@ -606,6 +734,7 @@ public class ExternalResourceServiceImpl implements ExternalResourceService {
         private int order;
         private String createdAt;
         private String updatedAt;
+        private List<String> thirdLevelDirectories = new ArrayList<>();
         private List<String> fileOrder = new ArrayList<>();
         private List<ExternalResourceState> resources = new ArrayList<>();
     }

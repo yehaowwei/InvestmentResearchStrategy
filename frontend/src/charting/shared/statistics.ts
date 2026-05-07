@@ -54,6 +54,8 @@ function buildLineSeries(name: string, yAxisIndex: number, data: Array<number | 
 function buildBandSeries(params: {
   id: string;
   namePrefix: string;
+  upperName: string;
+  lowerName: string;
   yAxisIndex: number;
   lower: Array<number | null>;
   upper: Array<number | null>;
@@ -71,7 +73,7 @@ function buildBandSeries(params: {
 
   return [
     {
-      name: `${params.namePrefix} lower-fill`,
+      name: `${params.namePrefix}-fill-base`,
       type: 'line',
       yAxisIndex: params.yAxisIndex,
       data: params.lower,
@@ -84,7 +86,7 @@ function buildBandSeries(params: {
       tooltip: { show: false }
     },
     {
-      name: `${params.namePrefix} band`,
+      name: `${params.namePrefix}-band`,
       type: 'line',
       yAxisIndex: params.yAxisIndex,
       data: span,
@@ -96,8 +98,8 @@ function buildBandSeries(params: {
       emphasis: { disabled: true },
       tooltip: { show: false }
     },
-    buildLineSeries(`${params.namePrefix} upper`, params.yAxisIndex, params.upper, params.lineColor, params.lineStyleType, Math.max(1, params.lineWidth - 0.5)),
-    buildLineSeries(`${params.namePrefix} lower`, params.yAxisIndex, params.lower, params.lineColor, params.lineStyleType, Math.max(1, params.lineWidth - 0.5))
+    buildLineSeries(params.upperName, params.yAxisIndex, params.upper, params.lineColor, params.lineStyleType, Math.max(1, params.lineWidth - 0.5)),
+    buildLineSeries(params.lowerName, params.yAxisIndex, params.lower, params.lineColor, params.lineStyleType, Math.max(1, params.lineWidth - 0.5))
   ];
 }
 
@@ -258,7 +260,6 @@ export function buildStatisticItemSeries(
     if (!metric) return [];
 
     const metricName = normalizeDisplayText(metric.displayName, metric.fieldCode);
-    const itemName = normalizeDisplayText(item.itemName, '指标统计量');
     const visibleSamples = sampleVisibleWindowValues(preview, xField, metric.fieldCode, xValues, startIndex, endIndex);
     const visibleAvg = mean(visibleSamples);
     const visibleStd = visibleAvg == null ? null : stdDev(visibleSamples, visibleAvg);
@@ -266,13 +267,15 @@ export function buildStatisticItemSeries(
     const next: LineSeriesOption[] = [];
 
     if (item.visible.mean.enabled && item.visible.mean.layerIds.includes(activeLayerId)) {
-      next.push(buildLineSeries(`${metricName} ${itemName}-均值(视图)`, resolveStatisticAxisIndex(item.visible.mean), buildConstantSeriesData(xValues.length, startIndex, endIndex, visibleAvg), item.visible.mean.lineColor, item.visible.mean.lineStyle, lineWidth));
+      next.push(buildLineSeries(`${metricName}均值`, resolveStatisticAxisIndex(item.visible.mean), buildConstantSeriesData(xValues.length, startIndex, endIndex, visibleAvg), item.visible.mean.lineColor, item.visible.mean.lineStyle, lineWidth));
     }
 
     if (item.visible.std1.enabled && item.visible.std1.layerIds.includes(activeLayerId) && visibleAvg != null && visibleStd != null) {
       next.push(...buildBandSeries({
         id: `${item.id}-visible-std1`,
-        namePrefix: `${metricName} ${itemName}-±1σ(视图)`,
+        namePrefix: `${metricName}±1σ`,
+        upperName: `${metricName}+1σ`,
+        lowerName: `${metricName}-1σ`,
         yAxisIndex: resolveStatisticAxisIndex(item.visible.std1),
         lower: buildConstantSeriesData(xValues.length, startIndex, endIndex, visibleAvg - visibleStd),
         upper: buildConstantSeriesData(xValues.length, startIndex, endIndex, visibleAvg + visibleStd),
@@ -287,7 +290,9 @@ export function buildStatisticItemSeries(
     if (item.visible.std2.enabled && item.visible.std2.layerIds.includes(activeLayerId) && visibleAvg != null && visibleStd != null) {
       next.push(...buildBandSeries({
         id: `${item.id}-visible-std2`,
-        namePrefix: `${metricName} ${itemName}-±2σ(视图)`,
+        namePrefix: `${metricName}±2σ`,
+        upperName: `${metricName}+2σ`,
+        lowerName: `${metricName}-2σ`,
         yAxisIndex: resolveStatisticAxisIndex(item.visible.std2),
         lower: buildConstantSeriesData(xValues.length, startIndex, endIndex, visibleAvg - (visibleStd * 2)),
         upper: buildConstantSeriesData(xValues.length, startIndex, endIndex, visibleAvg + (visibleStd * 2)),
@@ -308,7 +313,7 @@ export function buildStatisticItemSeries(
         if (rank != null) data[index] = rank;
       }
       if (data.some(value => value != null)) {
-        next.push(buildLineSeries(`${metricName} ${itemName}-分位点(视图)`, resolveStatisticAxisIndex(item.visible.percentile), data, item.visible.percentile.lineColor, item.visible.percentile.lineStyle, lineWidth));
+        next.push(buildLineSeries(`${metricName}分位点`, resolveStatisticAxisIndex(item.visible.percentile), data, item.visible.percentile.lineColor, item.visible.percentile.lineStyle, lineWidth));
       }
     }
 
@@ -316,7 +321,7 @@ export function buildStatisticItemSeries(
       if (item.rolling.mean.enabled && item.rolling.mean.layerIds.includes(activeLayerId)) {
         const rollingMean = buildRollingStatisticData(preview, item, xField, metric.fieldCode, xValues, startIndex, endIndex, sampleValues => mean(sampleValues));
         if (rollingMean.some(value => value != null)) {
-          next.push(buildLineSeries(`${metricName} ${itemName}-均值(滚动${rollingYears}年)`, resolveStatisticAxisIndex(item.rolling.mean), rollingMean, item.rolling.mean.lineColor, item.rolling.mean.lineStyle, lineWidth));
+          next.push(buildLineSeries(`${metricName}滚动${rollingYears}年均值`, resolveStatisticAxisIndex(item.rolling.mean), rollingMean, item.rolling.mean.lineColor, item.rolling.mean.lineStyle, lineWidth));
         }
       }
 
@@ -334,7 +339,9 @@ export function buildStatisticItemSeries(
         if ([...upper, ...lower].some(value => value != null)) {
           next.push(...buildBandSeries({
             id: `${item.id}-rolling-std1`,
-            namePrefix: `${metricName} ${itemName}-±1σ(滚动${rollingYears}年)`,
+            namePrefix: `${metricName}滚动${rollingYears}年±1σ`,
+            upperName: `${metricName}滚动${rollingYears}年+1σ`,
+            lowerName: `${metricName}滚动${rollingYears}年-1σ`,
             yAxisIndex: resolveStatisticAxisIndex(item.rolling.std1),
             lower,
             upper,
@@ -361,7 +368,9 @@ export function buildStatisticItemSeries(
         if ([...upper, ...lower].some(value => value != null)) {
           next.push(...buildBandSeries({
             id: `${item.id}-rolling-std2`,
-            namePrefix: `${metricName} ${itemName}-±2σ(滚动${rollingYears}年)`,
+            namePrefix: `${metricName}滚动${rollingYears}年±2σ`,
+            upperName: `${metricName}滚动${rollingYears}年+2σ`,
+            lowerName: `${metricName}滚动${rollingYears}年-2σ`,
             yAxisIndex: resolveStatisticAxisIndex(item.rolling.std2),
             lower,
             upper,
@@ -375,7 +384,7 @@ export function buildStatisticItemSeries(
       }
 
       if (item.rolling.percentile.enabled && item.rolling.percentile.layerIds.includes(activeLayerId)) {
-        next.push(...buildRollingPercentileSeries(preview, item, item.rolling.percentile, metric.fieldCode, `${metricName} ${itemName}-分位点(滚动${rollingYears}年)`, xField, xValues, startIndex, endIndex, lineWidth));
+        next.push(...buildRollingPercentileSeries(preview, item, item.rolling.percentile, metric.fieldCode, `${metricName}滚动${rollingYears}年分位点`, xField, xValues, startIndex, endIndex, lineWidth));
       }
     }
 

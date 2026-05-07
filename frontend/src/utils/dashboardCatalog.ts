@@ -21,6 +21,36 @@ const BUILTIN_CATEGORIES: DashboardCategoryDefinition[] = [
 ];
 
 const BUILTIN_META: Record<string, DashboardMeta> = {
+  chart_6: {
+    dashboardCode: 'chart_6',
+    category: 'valuation',
+    order: 1
+  },
+  chart_8: {
+    dashboardCode: 'chart_8',
+    category: 'valuation',
+    order: 2
+  },
+  chart_10: {
+    dashboardCode: 'chart_10',
+    category: 'liquidity',
+    order: 1
+  },
+  chart_11: {
+    dashboardCode: 'chart_11',
+    category: 'liquidity',
+    order: 2
+  },
+  chart_171: {
+    dashboardCode: 'chart_171',
+    category: 'cycle',
+    order: 0
+  },
+  chart_91: {
+    dashboardCode: 'chart_91',
+    category: 'cycle',
+    order: 0
+  },
   margin_financing_dashboard: {
     dashboardCode: 'margin_financing_dashboard',
     category: 'liquidity',
@@ -51,7 +81,7 @@ function normalizeCategories(input?: DashboardCategoryDefinition[]) {
   source.forEach((item, index) => {
     const key = typeof item?.key === 'string' ? item.key.trim() : '';
     const label = normalizeCategoryLabel(item?.label);
-    if (!key || !label || key === 'fixed_income') {
+    if (!key || !label) {
       return;
     }
     merged.set(key, {

@@ -13,8 +13,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import AppSearchInput from '../components/AppSearchInput';
 import ChartConfigPanel from '../components/ChartConfigPanel';
+import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
-import DashboardCanvas from '../components/DashboardCanvas';
 import type {
   ChartCatalogItem,
   ChartDefinition,
@@ -126,7 +126,11 @@ export default function IndicatorConfigPage() {
       visualDsl: selectedChart.dslConfig.visualDsl,
       chartLayersDsl: selectedChart.dslConfig.chartLayersDsl,
       dimensionConfigDsl: selectedChart.dslConfig.dimensionConfigDsl,
-      statisticalItemsDsl: selectedChart.dslConfig.statisticalItemsDsl
+      statisticalItemsDsl: selectedChart.dslConfig.statisticalItemsDsl,
+      metricScrollWindow: selectedChart.dslConfig.queryDsl.metrics.map(metric => ({
+        fieldCode: metric.fieldCode,
+        enableScrollWindow: metric.enableScrollWindow ?? false
+      }))
     });
   }, [selectedChart]);
 
@@ -577,7 +581,7 @@ export default function IndicatorConfigPage() {
       <>
         <div className="page-header designer-library-header">
           <div>
-            <h2 className="page-title">指标配置（面向 IT 人员使用）</h2>
+            <h2 className="page-title">指标配置</h2>
           </div>
           <Space wrap size={12}>
             <Button
@@ -717,7 +721,7 @@ export default function IndicatorConfigPage() {
               onChange={event => setSearchKeyword(event.target.value)}
             />
             <aside className="panel-card runtime-toc-card">
-              <div className="runtime-toc-title">导航</div>
+              <div className="runtime-toc-title">{getCategoryLabel(routeCategory)}</div>
               <div className="runtime-toc-scroll" ref={tocScrollRef}>
                 <div className="runtime-toc-group">
                   <button type="button" className="runtime-toc-group-button active">{getCategoryLabel(routeCategory)}</button>
@@ -783,12 +787,14 @@ export default function IndicatorConfigPage() {
           title={expandedPreview ? resolveComponentChartName(expandedPreview.component) : '指标预览'}
           open={Boolean(expandedPreview)}
           footer={null}
+          destroyOnHidden
           onCancel={() => setExpandedPreview(undefined)}
           width="90vw"
           styles={{ body: { height: '72vh', padding: 16 } }}
         >
           {expandedPreview ? (
             <ChartRendererCore
+              key={expandedPreview.component.componentCode}
               component={expandedPreview.component}
               preview={expandedPreview.preview}
               templateCode={expandedPreview.component.templateCode}
@@ -885,25 +891,26 @@ export default function IndicatorConfigPage() {
       <div className="page-shell">
         <div className="single-chart-stage">
           {selectedChart ? (
-            <DashboardCanvas
-              components={[selectedChart]}
-              previews={draftPreview ? { [selectedChart.componentCode]: draftPreview } : {}}
-              editable={Boolean(draft)}
-              resizable={false}
-              dataPools={dataPools}
-              selectedComponentCode={selectedChart.componentCode}
-              onSelect={() => undefined}
-              onLayoutChange={components => {
-                const component = components[0];
-                if (component) {
-                  applyDraftComponent(component);
-                }
-              }}
-              onComponentChange={applyDraftComponent}
-              onComponentPreview={component => {
-                void previewComponent(component);
-              }}
-            />
+            <div className="panel-card canvas-card single-chart-panel">
+              <ChartContainer
+                tag={normalizeDisplayText(selectedChart.dslConfig.visualDsl.indicatorTag)}
+                title={resolveComponentChartName(selectedChart, draft?.chartName)}
+              >
+                <ChartRendererCore
+                  component={selectedChart}
+                  preview={draftPreview}
+                  templateCode={selectedChart.templateCode}
+                  viewMode="chart"
+                  editable={false}
+                  selected={false}
+                  dataPools={dataPools}
+                  onComponentChange={applyDraftComponent}
+                  onComponentPreview={component => {
+                    void previewComponent(component);
+                  }}
+                />
+              </ChartContainer>
+            </div>
           ) : (
             <div className="canvas-empty single-chart-empty-shell">
               <div className="single-chart-empty">
@@ -949,12 +956,14 @@ export default function IndicatorConfigPage() {
         title={expandedPreview ? resolveComponentChartName(expandedPreview.component, draft?.chartName) : '指标预览'}
         open={Boolean(expandedPreview)}
         footer={null}
+        destroyOnHidden
         onCancel={() => setExpandedPreview(undefined)}
         width="90vw"
         styles={{ body: { height: '72vh', padding: 16 } }}
       >
         {expandedPreview ? (
           <ChartRendererCore
+            key={expandedPreview.component.componentCode}
             component={expandedPreview.component}
             preview={expandedPreview.preview}
             templateCode={expandedPreview.component.templateCode}

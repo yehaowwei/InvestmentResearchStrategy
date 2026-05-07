@@ -44,7 +44,7 @@ const TEXT = {
   removed: '\u6307\u6807\u5df2\u4ece\u6211\u7684\u6307\u6807\u79fb\u9664',
   added: '\u6307\u6807\u5df2\u52a0\u5165\u6211\u7684\u6307\u6807',
   emptyCategory: '\u5f53\u524d\u5206\u7c7b\u4e0b\u8fd8\u6ca1\u6709\u6307\u6807',
-  toc: '\u5bfc\u822a',
+  toc: '\u6211\u7684\u6307\u6807',
   chartDetail: '\u6307\u6807\u8be6\u60c5'
 };
 
@@ -479,6 +479,7 @@ export default function MyIndicatorsPage() {
         title={expandedChart ? normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode) : TEXT.chartDetail}
         open={Boolean(expandedChart)}
         footer={null}
+        destroyOnHidden
         onCancel={() => setExpandedChart(undefined)}
         width="90vw"
         styles={{ body: { height: '78vh', padding: 16 } }}
@@ -490,6 +491,7 @@ export default function MyIndicatorsPage() {
               tag={normalizeDisplayText(expandedChart.chart.dslConfig.visualDsl.indicatorTag)}
             >
               <ChartRendererCore
+                key={expandedChart.chart.componentCode}
                 component={toComponent(expandedChart)}
                 preview={previews[expandedChart.chart.componentCode]}
                 templateCode={expandedChart.chart.templateCode}

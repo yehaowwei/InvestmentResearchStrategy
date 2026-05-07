@@ -43,6 +43,7 @@ export interface MetricSetting {
   negativeColor?: string;
   smooth: boolean;
   layerIds: string[];
+  enableScrollWindow?: boolean;
 }
 
 export interface FilterCondition {
@@ -100,6 +101,7 @@ export type StatisticAxis = 'left' | 'right';
 export interface DimensionConfigDsl {
   stackBySecondDimension: boolean;
   layerIds: string[];
+  enableScrollWindow?: boolean;
 }
 
 export interface StatisticLineConfig {
@@ -108,6 +110,7 @@ export interface StatisticLineConfig {
   lineColor: string;
   lineStyle: StatisticalLineStyle;
   layerIds: string[];
+  enableScrollWindow?: boolean;
 }
 
 export interface StatisticBandConfig extends StatisticLineConfig {
@@ -435,11 +438,11 @@ export interface ExternalResourceGroup {
   groupId: string;
   name: string;
   slug: string;
-  description?: string;
   parentName?: string;
   order: number;
   createdAt: string;
   updatedAt: string;
+  thirdLevelDirectories?: string[];
   files: ExternalResourceFile[];
 }
 

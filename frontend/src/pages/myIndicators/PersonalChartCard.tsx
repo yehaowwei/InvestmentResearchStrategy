@@ -38,9 +38,6 @@ export default function PersonalChartCard(props: {
           <h3 className="favorites-board-title">
             {normalizeDisplayText(item.chart.componentTitle, item.chart.componentCode)}
           </h3>
-          <div className="favorites-board-meta">
-            <span>{item.primaryLabel}</span>
-          </div>
         </div>
         <div className="favorites-card-actions public-chart-card-actions personal-chart-card-actions">
           <Button
@@ -62,16 +59,9 @@ export default function PersonalChartCard(props: {
           </Popconfirm>
         </div>
       </div>
-      <div className="favorites-board-thumb">
-        <div className="library-chart-preview">
-          <div className="library-chart-preview-head">
-            {normalizeDisplayText(item.chart.dslConfig.visualDsl.indicatorTag) ? (
-              <span className="chart-card-tag">
-                {normalizeDisplayText(item.chart.dslConfig.visualDsl.indicatorTag)}
-              </span>
-            ) : null}
-          </div>
-          <div className="library-chart-preview-body">
+        <div className="favorites-board-thumb">
+          <div className="library-chart-preview">
+            <div className="library-chart-preview-body">
             {props.preview ? (
               <ChartRendererCore
                 component={toComponent(item)}

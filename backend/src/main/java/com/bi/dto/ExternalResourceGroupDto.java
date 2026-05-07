@@ -13,10 +13,10 @@ public class ExternalResourceGroupDto {
     private String groupId;
     private String name;
     private String slug;
-    private String description;
     private String parentName;
     private int order;
     private String createdAt;
     private String updatedAt;
+    private List<String> thirdLevelDirectories = new ArrayList<>();
     private List<ExternalResourceFileDto> files = new ArrayList<>();
 }

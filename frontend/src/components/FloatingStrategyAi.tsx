@@ -34,9 +34,8 @@ type StrategyProposal = {
   charts: StrategyChartSnapshot[];
 };
 
-const STORAGE_KEY = 'strategy-dashboard-strategy-ai-floating-v1';
-const TRIGGER_WIDTH = 126;
-const TRIGGER_HEIGHT = 48;
+const STORAGE_KEY = 'strategy-dashboard-strategy-ai-floating-v2';
+const TRIGGER_SIZE = 59;
 const PANEL_WIDTH = 400;
 const PANEL_HEIGHT = 700;
 const MIN_PANEL_WIDTH = 340;
@@ -63,8 +62,8 @@ function clamp(value: number, min: number, max: number) {
 
 function normalizeTrigger(point: Point) {
   return {
-    x: clamp(point.x, 16, window.innerWidth - TRIGGER_WIDTH - 16),
-    y: clamp(point.y, 16, window.innerHeight - TRIGGER_HEIGHT - 16)
+    x: clamp(point.x, 16, window.innerWidth - TRIGGER_SIZE - 16),
+    y: clamp(point.y, 16, window.innerHeight - TRIGGER_SIZE - 16)
   };
 }
 
@@ -108,11 +107,11 @@ function resolveDefaultLayout() {
   const search = document.querySelector<HTMLElement>('.page-toc-width-search');
   const trigger = search
     ? normalizeTrigger({
-        x: search.getBoundingClientRect().left - TRIGGER_WIDTH - 12,
-        y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_HEIGHT) / 2)
+        x: search.getBoundingClientRect().left - TRIGGER_SIZE - 12,
+        y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_SIZE) / 2)
       })
     : normalizeTrigger({
-        x: window.innerWidth - TRIGGER_WIDTH - 332,
+        x: window.innerWidth - TRIGGER_SIZE - 332,
         y: 118
       });
 
@@ -500,8 +499,7 @@ export default function FloatingStrategyAi(props: {
           setOpen(current => !current);
         }}
       >
-        <RobotOutlined />
-        <span>{TEXT.open}</span>
+        <img className="floating-indicator-ai-trigger-image" src="/TKF-AI.png" alt="" draggable={false} />
       </button>
 
       {open ? (

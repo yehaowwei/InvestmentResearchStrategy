@@ -84,7 +84,6 @@ export default function AddChartModal(props: {
                             item.component.componentCode
                           )}
                         </h3>
-                        <div className="favorites-board-meta" />
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
                         <Button type="primary" onClick={() => props.onAdd(item)}>
@@ -95,13 +94,6 @@ export default function AddChartModal(props: {
 
                     <div className="favorites-board-thumb">
                       <div className="library-chart-preview">
-                        <div className="library-chart-preview-head">
-                          {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag) ? (
-                            <span className="chart-card-tag">
-                              {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag)}
-                            </span>
-                          ) : null}
-                        </div>
                         <div className="library-chart-preview-body">
                           {item.preview ? (
                             <ChartRendererCore

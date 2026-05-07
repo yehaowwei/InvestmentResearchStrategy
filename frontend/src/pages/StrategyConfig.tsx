@@ -14,7 +14,6 @@ import AppSearchInput from '../components/AppSearchInput';
 import ChartRendererCore from '../components/ChartRendererCore';
 import type { ChartCatalogItem } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
-import { getDashboardMeta, getCategoryLabel } from '../utils/dashboardCatalog';
 import { buildChartRuntimeCards, type ChartRuntimeCard } from '../utils/chartLibrary';
 import {
   createStrategy,
@@ -66,7 +65,7 @@ const TEXT = {
   detailFallback: '\u8fd9\u91cc\u662f IT \u7ef4\u62a4\u89c6\u89d2\uff0c\u53ef\u4ee5\u5bf9\u5355\u4e2a\u7b56\u7565\u8fdb\u884c\u547d\u540d\u3001\u65b0\u589e\u3001\u79fb\u9664\u548c\u76f4\u63a5\u62d6\u62fd\u6392\u5e8f\u3002',
   notFound: '\u672a\u627e\u5230\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u914d\u7f6e\u53ef\u80fd\u5df2\u88ab\u5220\u9664\u3002',
-  toc: '\u5bfc\u822a',
+  toc: '\u7b56\u7565\u914d\u7f6e',
   draftLabel: '\u914d\u7f6e\u4e2d',
   cancel: '\u53d6\u6d88',
   completeSelect: '\u9009\u62e9\u5b8c\u6210',
@@ -610,12 +609,14 @@ function StrategyConfigOverview(props: {
         title={expandedChart ? normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title, expandedChart.component.componentCode) : TEXT.selectedCharts}
         open={Boolean(expandedChart)}
         footer={null}
+        destroyOnHidden
         onCancel={() => setExpandedChart(undefined)}
         width="90vw"
         styles={{ body: { height: '72vh', padding: 16 } }}
       >
         {expandedChart ? (
           <ChartRendererCore
+            key={expandedChart.component.componentCode}
             component={expandedChart.component}
             preview={expandedChart.preview}
             templateCode={expandedChart.component.templateCode}
@@ -916,10 +917,6 @@ function StrategyConfigEditor(props: {
                         <h3 className="favorites-board-title">
                           {normalizeDisplayText(item.component.dslConfig.visualDsl.title || item.component.title, item.component.componentCode)}
                         </h3>
-                        <div className="favorites-board-meta">
-                          <span>{getCategoryLabel(getDashboardMeta(item.chartCode).category)}</span>
-                          <span>{normalizeDisplayText(item.chartName, item.chartCode)}</span>
-                        </div>
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
                         <Button icon={<ExpandOutlined />} onClick={() => setExpandedChart(item)}>
@@ -940,15 +937,8 @@ function StrategyConfigEditor(props: {
                       </div>
                     </div>
                     <div className="favorites-board-thumb">
-                      <div className="library-chart-preview">
-                        <div className="library-chart-preview-head">
-                          {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag) ? (
-                            <span className="chart-card-tag">
-                              {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag)}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="library-chart-preview-body">
+                        <div className="library-chart-preview">
+                          <div className="library-chart-preview-body">
                           {item.preview ? (
                             <ChartRendererCore
                               component={item.component}
@@ -1020,12 +1010,14 @@ function StrategyConfigEditor(props: {
         title={expandedChart ? normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title, expandedChart.component.componentCode) : TEXT.chartDetail}
         open={Boolean(expandedChart)}
         footer={null}
+        destroyOnHidden
         onCancel={() => setExpandedChart(undefined)}
         width="90vw"
         styles={{ body: { height: '72vh', padding: 16 } }}
       >
         {expandedChart ? (
           <ChartRendererCore
+            key={expandedChart.component.componentCode}
             component={expandedChart.component}
             preview={expandedChart.preview}
             templateCode={expandedChart.component.templateCode}

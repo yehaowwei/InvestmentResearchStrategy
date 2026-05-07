@@ -16,12 +16,9 @@ export function matchChartKeyword(entry: PersonalChartEntry, keyword: string) {
 }
 
 export function toComponent(entry: PersonalChartEntry): DashboardComponent {
-  const isTableComponent =
-    entry.chart.templateCode === 'table' || Boolean(entry.chart.dslConfig.tableDsl);
-
   return {
     componentCode: entry.chart.componentCode,
-    componentType: isTableComponent ? 'table' : 'chart',
+    componentType: entry.chart.templateCode === 'table' ? 'table' : 'chart',
     templateCode: entry.chart.templateCode,
     modelCode: entry.chart.modelCode,
     title: entry.chart.componentTitle,

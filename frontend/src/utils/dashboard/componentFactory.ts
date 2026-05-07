@@ -15,7 +15,6 @@ import {
 } from '../dashboardText';
 import { createChartLayer } from './chartLayers';
 import { normalizeDslConfig } from './normalization';
-import { createStatisticItem } from './statistics';
 
 export {
   buildInitialTableDsl,
@@ -50,7 +49,7 @@ export function createComponentFromTemplate(template: TemplateDefinition, modelC
     ...dslConfig.dimensionConfigDsl,
     layerIds: [firstLayerId]
   };
-  dslConfig.statisticalItemsDsl = [createStatisticItem([firstLayerId], '', index)];
+  dslConfig.statisticalItemsDsl = [];
   dslConfig.layout = {
     ...dslConfig.layout,
     y: index * 9

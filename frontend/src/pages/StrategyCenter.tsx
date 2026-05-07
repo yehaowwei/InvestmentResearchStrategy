@@ -42,7 +42,7 @@ const TEXT = {
   favoritedMessage: '\u7b56\u7565\u5df2\u6536\u85cf\u5230\u6211\u7684\u7b56\u7565',
   noPreview: '\u5f53\u524d\u7b56\u7565\u6682\u65e0\u9884\u89c8',
   noStrategy: '\u8fd8\u6ca1\u6709\u914d\u7f6e\u597d\u7684\u7b56\u7565',
-  toc: '\u5bfc\u822a',
+  toc: '\u7b56\u7565\u4e2d\u5fc3',
   notFound: '\u672a\u627e\u5230\u7b56\u7565',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u53ef\u80fd\u5df2\u7ecf\u88ab\u5220\u9664\u3002',
   back: '\u8fd4\u56de\u7b56\u7565\u4e2d\u5fc3',
@@ -157,7 +157,7 @@ function writeStrategyAiConversations(strategyId: string | undefined, conversati
 function buildComponent(snapshot: StrategyChartSnapshot) {
   return {
     componentCode: snapshot.componentCode,
-    componentType: snapshot.templateCode === 'table' || Boolean(snapshot.dslConfig.tableDsl) ? 'table' : 'chart',
+    componentType: snapshot.templateCode === 'table' ? 'table' : 'chart',
     templateCode: snapshot.templateCode,
     modelCode: snapshot.modelCode,
     title: snapshot.componentTitle,
@@ -573,6 +573,7 @@ function StrategyOverview() {
         title={expandedChart?.componentTitle || TEXT.chartDetail}
         open={Boolean(expandedChart)}
         footer={null}
+        destroyOnHidden
         onCancel={() => setExpandedChart(undefined)}
         width="90vw"
         styles={{ body: { height: '78vh', padding: 16 } }}
@@ -584,6 +585,7 @@ function StrategyOverview() {
               tag={normalizeDisplayText(expandedChart.dslConfig.visualDsl.indicatorTag)}
             >
               <ChartRendererCore
+                key={expandedChart.chartId}
                 component={buildComponent(expandedChart)}
                 preview={previewMap[expandedChart.chartId]}
                 templateCode={expandedChart.templateCode}
@@ -855,11 +857,6 @@ function StrategyDetail() {
                   </div>
                   <div className="favorites-board-thumb">
                     <div className="library-chart-preview">
-                      <div className="library-chart-preview-head">
-                        {normalizeDisplayText(chart.dslConfig.visualDsl.indicatorTag) ? (
-                          <span className="chart-card-tag">{normalizeDisplayText(chart.dslConfig.visualDsl.indicatorTag)}</span>
-                        ) : null}
-                      </div>
                       <div className="library-chart-preview-body">
                         {previewMap[chart.chartId] ? (
                           <ChartRendererCore
@@ -991,6 +988,7 @@ function StrategyDetail() {
         title={expandedChart?.componentTitle || TEXT.chartDetail}
         open={Boolean(expandedChart)}
         footer={null}
+        destroyOnHidden
         onCancel={() => setExpandedChart(undefined)}
         width="90vw"
         styles={{ body: { height: '78vh', padding: 16 } }}
@@ -1002,6 +1000,7 @@ function StrategyDetail() {
               tag={normalizeDisplayText(expandedChart.dslConfig.visualDsl.indicatorTag)}
             >
               <ChartRendererCore
+                key={expandedChart.chartId}
                 component={buildComponent(expandedChart)}
                 preview={previewMap[expandedChart.chartId]}
                 templateCode={expandedChart.templateCode}

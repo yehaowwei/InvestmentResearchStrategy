@@ -45,9 +45,6 @@ function renderMenuIcon(Icon: typeof StarOutlined, color: string) {
 }
 
 function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
-  if (pathname.startsWith('/runtime/fixed_income')) {
-    return '/external-resource/convertible-board';
-  }
   if (pathname.startsWith('/runtime/')) {
     const [, , categoryKey] = pathname.split('/');
     if (categoryKey === 'all') {
@@ -236,7 +233,6 @@ export default function App() {
           <Route path="/external-resource-config" element={<ExternalResourceConfigPage />} />
           <Route path="/external-resource-config/:groupId" element={<ExternalResourceGroupConfigPage />} />
           <Route path="/external-resource/:groupSlug" element={<ExternalResourcePage />} />
-          <Route path="/runtime/fixed_income" element={<Navigate to="/external-resource/convertible-board" replace />} />
         </Routes>
       </Layout.Content>
     </Layout>

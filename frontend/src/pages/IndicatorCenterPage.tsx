@@ -31,7 +31,7 @@ export default function IndicatorCenterPage() {
   const [, setFavoriteVersion] = useState(0);
   const tocScrollRef = useRef<HTMLDivElement | null>(null);
   const categories = useDashboardCategories();
-  const runtimeCategories = categories.filter(item => item.key !== 'fixed_income');
+  const runtimeCategories = categories;
 
   const categoryCharts = useMemo(
     () => (
@@ -222,7 +222,6 @@ export default function IndicatorCenterPage() {
                             item.component.componentCode
                           )}
                         </h3>
-                        <div className="favorites-board-meta" />
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
                         <Button icon={<ExpandOutlined />} onClick={() => setExpandedChart(item)}>
@@ -265,13 +264,6 @@ export default function IndicatorCenterPage() {
                     </div>
                     <div className="favorites-board-thumb">
                       <div className="library-chart-preview">
-                        <div className="library-chart-preview-head">
-                          {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag) ? (
-                            <span className="chart-card-tag">
-                              {normalizeDisplayText(item.component.dslConfig.visualDsl.indicatorTag)}
-                            </span>
-                          ) : null}
-                        </div>
                         <div className="library-chart-preview-body">
                           {item.preview ? (
                             <ChartRendererCore
@@ -303,7 +295,7 @@ export default function IndicatorCenterPage() {
         </div>
 
         <aside className="panel-card runtime-toc-card">
-          <div className="runtime-toc-title">导航</div>
+          <div className="runtime-toc-title">{category === 'all' ? '指标中心' : getCategoryLabel(category)}</div>
           <div className="runtime-toc-scroll" ref={tocScrollRef}>
             {category === 'all' ? (
               categoryNavGroups.map(group => (
@@ -356,6 +348,7 @@ export default function IndicatorCenterPage() {
         ) : '指标详情'}
         open={Boolean(expandedChart)}
         footer={null}
+        destroyOnHidden
         onCancel={() => setExpandedChart(undefined)}
         width="90vw"
         styles={{ body: { height: '78vh', padding: 16 } }}
@@ -370,6 +363,7 @@ export default function IndicatorCenterPage() {
               tag={normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.indicatorTag)}
             >
               <ChartRendererCore
+                key={expandedChart.component.componentCode}
                 component={expandedChart.component}
                 preview={expandedChart.preview}
                 templateCode={expandedChart.component.templateCode}

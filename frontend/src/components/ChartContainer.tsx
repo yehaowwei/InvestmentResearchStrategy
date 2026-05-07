@@ -16,7 +16,6 @@ export default function ChartContainer(props: {
       {props.hideHeader ? null : (
         <div className="chart-card-header">
           <div>
-            {props.tag ? <div className="chart-card-tag">{props.tag}</div> : null}
             <div className="chart-card-title">{props.title}</div>
             {props.subtitle ? <div className="chart-card-subtitle">{props.subtitle}</div> : null}
           </div>

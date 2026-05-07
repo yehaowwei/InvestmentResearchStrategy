@@ -1,5 +1,6 @@
 import type { BarSeriesOption, EChartsOption, LineSeriesOption } from 'echarts';
 import type { ChartPreview } from '../../types/dashboard';
+import { formatNumberMax3 } from '../../utils/numberFormat';
 import type { ChartRenderContext } from '../types';
 import { buildSeriesName, buildStatisticItemSeries, hasStatisticOnRightAxis } from '../shared/statistics';
 import { formatTimeLabel, normalizeZoomRange } from '../shared/time';
@@ -37,6 +38,25 @@ function splitKey(row: Record<string, unknown>, fields: string[]) {
   return fields.map(field => String(row[field] ?? '')).join(' / ');
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderTooltipMarker(series: CartesianSeriesOption | undefined, color: string) {
+  if (series?.type === 'bar') {
+    return `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${escapeHtml(color)};margin-right:6px;vertical-align:-1px;"></span>`;
+  }
+  const lineStyle = (series as LineSeriesOption | undefined)?.lineStyle;
+  const lineType = typeof lineStyle === 'object' && lineStyle && 'type' in lineStyle ? String(lineStyle.type ?? 'solid') : 'solid';
+  const borderStyle = lineType === 'dashed' || lineType === 'dotted' ? lineType : 'solid';
+  return `<span style="display:inline-block;width:24px;border-top:3px ${borderStyle} ${escapeHtml(color)};margin-right:6px;vertical-align:middle;"></span>`;
+}
+
 export function buildCartesianComboOption(preview: ChartPreview, context?: ChartRenderContext): EChartsOption {
   const activeLayerId = resolveActiveLayerId(preview, context);
   const dimensions = dimensionFields(preview, activeLayerId);
@@ -49,13 +69,16 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
   const hasRightAxis = metrics.some(metric => metric.yAxis === 'right') || hasStatisticOnRightAxis(preview, activeLayerId);
   const zoom = normalizeZoomRange(context);
   const enableStack = preview.dslConfig.dimensionConfigDsl.stackBySecondDimension && dimensions.length >= 2;
+  const hasScrollWindowConfig = preview.dslConfig.dimensionConfigDsl.enableScrollWindow !== undefined || metrics.some(metric => metric.enableScrollWindow !== undefined);
+  const enableScrollWindow = preview.dslConfig.dimensionConfigDsl.enableScrollWindow || metrics.some(metric => metric.enableScrollWindow);
+  const scrollWindowEnabled = hasScrollWindowConfig ? enableScrollWindow : interactionDsl.dataZoom;
   const compact = Boolean(context?.compact);
   const dense = !compact && Boolean(context?.dense);
   const thumbnail = Boolean(context?.thumbnail);
-  const forceSlider = Boolean(context?.forceSlider);
-  const forceDataZoom = Boolean(context?.forceDataZoom) || forceSlider;
-  const enableSlider = forceSlider || (interactionDsl.dataZoom && interactionDsl.slider);
-  const enableDataZoom = forceDataZoom || interactionDsl.dataZoom;
+  const forceSlider = scrollWindowEnabled && Boolean(context?.forceSlider);
+  const forceDataZoom = scrollWindowEnabled && (Boolean(context?.forceDataZoom) || forceSlider);
+  const enableSlider = forceSlider || (scrollWindowEnabled && interactionDsl.slider);
+  const enableDataZoom = forceDataZoom || scrollWindowEnabled;
   const showThumbnailSlider = thumbnail && enableDataZoom && enableSlider;
   let sliderStart = zoom.start;
   let sliderEnd = zoom.end;
@@ -68,15 +91,50 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
     sliderEnd = 100;
   }
   const legendRightPadding = dense ? 112 : 140;
-  const sliderBottom = 0;
-  const gridBottom = enableSlider ? (compact ? 40 : dense ? 34 : 46) : (compact ? 38 : dense ? 28 : 40);
+  const sliderBottom = thumbnail ? 14 : 0;
+  const sliderHeight = thumbnail ? 24 : dense ? 28 : 36;
+  const gridBottom = enableSlider ? (compact ? 52 : dense ? 48 : 64) : (compact ? 38 : dense ? 28 : 40);
   const thumbnailGrid = {
     left: 40,
     right: hasRightAxis ? 44 : 20,
     top: 16,
-    bottom: showThumbnailSlider ? 54 : 34,
+    bottom: showThumbnailSlider ? 84 : 34,
     containLabel: true
   };
+  const series = [
+    ...(metrics.flatMap(metric => splitValues.map(key => {
+      const rowsByX = new Map(
+        preview.rows
+          .filter(row => splitKey(row, splitBy) === key)
+          .map(row => [String(row[xField] ?? ''), row])
+      );
+      const type = chartTypeMap[metric.chartType] ?? 'line';
+      const baseStackKey = enableStack ? `${metric.fieldCode}-${metric.yAxis}` : undefined;
+      const itemColor = type === 'bar'
+        ? ((params: { value?: number }) => (Number(params?.value ?? 0) < 0 ? (metric.negativeColor || '#dc2626') : metric.color))
+        : metric.color;
+
+      const nextSeries: CartesianSeriesOption = {
+        name: buildSeriesName(metric, key),
+        type,
+        yAxisIndex: metric.yAxis === 'right' ? 1 : 0,
+        data: xValues.map(x => Number(rowsByX.get(x)?.[metric.fieldCode] ?? 0)),
+        stack: baseStackKey,
+        itemStyle: { color: itemColor as never },
+        lineStyle: { width: styleDsl.lineWidth, color: metric.color },
+        smooth: type === 'line' ? metric.smooth : false,
+        showSymbol: type === 'line' ? styleDsl.showSymbol : undefined
+      };
+
+      if (metric.chartType === 'area') {
+        return { ...nextSeries, areaStyle: { opacity: styleDsl.areaOpacity, color: metric.color } } as LineSeriesOption;
+      }
+
+      return nextSeries;
+    })) as CartesianSeriesOption[]),
+    ...buildStatisticItemSeries(preview, xField, xValues, activeLayerId, context)
+  ];
+  const seriesByName = new Map(series.map(item => [String(item.name ?? ''), item]));
 
   return {
     animationDuration: compact ? 0 : 300,
@@ -88,6 +146,28 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
       borderWidth: dense ? 1 : undefined,
       textStyle: dense ? { fontSize: 10, color: '#0f172a' } : { color: '#0f172a' },
       axisPointer: { type: 'line', label: { show: !dense } },
+      valueFormatter: value => formatNumberMax3(value),
+      formatter: params => {
+        const points = Array.isArray(params) ? params : [params];
+        const firstPoint = points[0] as (typeof points)[number] & { axisValueLabel?: string };
+        const title = escapeHtml(firstPoint?.axisValueLabel ?? firstPoint?.name ?? '');
+        const rows = points
+          .filter(point => point?.seriesName)
+          .map(point => {
+            const seriesOption = seriesByName.get(String(point.seriesName));
+            const color = typeof point.color === 'string' ? point.color : '#64748b';
+            return `<div style="display:flex;align-items:center;gap:4px;min-width:0;">
+              ${renderTooltipMarker(seriesOption, color)}
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(point.seriesName)}</span>
+              <strong style="margin-left:12px;">${escapeHtml(formatNumberMax3(point.value))}</strong>
+            </div>`;
+          })
+          .join('');
+        return `<div style="display:grid;gap:6px;max-width:${dense ? 180 : 320}px;">
+          <div style="font-weight:700;color:#0f172a;">${title}</div>
+          ${rows}
+        </div>`;
+      },
       extraCssText: dense ? 'max-width: 180px; white-space: normal; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);' : undefined
     },
     legend: compact || thumbnail || !interactionDsl.legend ? { show: false } : {
@@ -118,7 +198,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
             type: 'slider' as const,
             start: sliderStart,
             end: sliderEnd,
-            height: thumbnail ? 12 : dense ? 14 : 18,
+            height: sliderHeight,
             bottom: sliderBottom,
             showDetail: !thumbnail,
             brushSelect: false,
@@ -134,11 +214,16 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
                   lineStyle: { color: '#cbd5e1' },
                   areaStyle: { color: 'rgba(226, 232, 240, 0.85)' }
                 },
-            handleSize: thumbnail ? '80%' : 14,
-            moveHandleSize: thumbnail ? 0 : 10,
-            handleStyle: thumbnail ? undefined : {
+            handleSize: '100%',
+            moveHandleSize: thumbnail ? 0 : 14,
+            handleStyle: thumbnail ? {
               color: '#dbeafe',
-              borderColor: '#93c5fd'
+              borderColor: '#60a5fa',
+              borderWidth: 2
+            } : {
+              color: '#dbeafe',
+              borderColor: '#60a5fa',
+              borderWidth: 2
             },
             moveHandleStyle: thumbnail ? undefined : {
               color: 'rgba(147, 197, 253, 0.22)',
@@ -147,7 +232,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
             textStyle: { color: '#475569', fontSize: thumbnail ? 9 : dense ? 9 : 11 },
             labelFormatter: (value: string | number) => formatTimeLabel(value, xValues)
           }] : []),
-          { type: 'inside' as const, start: sliderStart, end: sliderEnd, zoomOnMouseWheel: !thumbnail }
+          ...(scrollWindowEnabled ? [{ type: 'inside' as const, start: sliderStart, end: sliderEnd, zoomOnMouseWheel: !thumbnail }] : [])
         ]
         : [],
     xAxis: {
@@ -165,7 +250,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
       {
         type: 'value',
         name: compact ? '' : visualDsl.leftAxisName,
-        axisLabel: compact ? { fontSize: 10, margin: 8, color: '#475569' } : { fontSize: dense ? 10 : undefined, color: '#475569', margin: dense ? 8 : 10, hideOverlap: true },
+        axisLabel: compact ? { fontSize: 10, margin: 8, color: '#475569', formatter: value => formatNumberMax3(value) } : { fontSize: dense ? 10 : undefined, color: '#475569', margin: dense ? 8 : 10, hideOverlap: true, formatter: value => formatNumberMax3(value) },
         axisTick: { show: true },
         axisLine: { show: true },
         splitNumber: compact ? 4 : undefined
@@ -174,44 +259,12 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
         type: 'value',
         name: compact ? '' : visualDsl.rightAxisName,
         show: hasRightAxis,
-        axisLabel: compact ? { fontSize: 10, margin: 8, color: '#475569' } : { fontSize: dense ? 10 : undefined, color: '#475569', margin: dense ? 8 : 10, hideOverlap: true },
+        axisLabel: compact ? { fontSize: 10, margin: 8, color: '#475569', formatter: value => formatNumberMax3(value) } : { fontSize: dense ? 10 : undefined, color: '#475569', margin: dense ? 8 : 10, hideOverlap: true, formatter: value => formatNumberMax3(value) },
         axisTick: { show: true },
         axisLine: { show: true },
         splitNumber: compact ? 4 : undefined
       }
     ],
-    series: [
-      ...(metrics.flatMap(metric => splitValues.map(key => {
-        const rowsByX = new Map(
-          preview.rows
-            .filter(row => splitKey(row, splitBy) === key)
-            .map(row => [String(row[xField] ?? ''), row])
-        );
-        const type = chartTypeMap[metric.chartType] ?? 'line';
-        const baseStackKey = enableStack ? `${metric.fieldCode}-${metric.yAxis}` : undefined;
-        const itemColor = type === 'bar'
-          ? ((params: { value?: number }) => (Number(params?.value ?? 0) < 0 ? (metric.negativeColor || '#dc2626') : metric.color))
-          : metric.color;
-
-        const series: CartesianSeriesOption = {
-          name: buildSeriesName(metric, key),
-          type,
-          yAxisIndex: metric.yAxis === 'right' ? 1 : 0,
-          data: xValues.map(x => Number(rowsByX.get(x)?.[metric.fieldCode] ?? 0)),
-          stack: baseStackKey,
-          itemStyle: { color: itemColor as never },
-          lineStyle: { width: styleDsl.lineWidth, color: metric.color },
-          smooth: type === 'line' ? metric.smooth : false,
-          showSymbol: type === 'line' ? styleDsl.showSymbol : undefined
-        };
-
-        if (metric.chartType === 'area') {
-          return { ...series, areaStyle: { opacity: styleDsl.areaOpacity, color: metric.color } } as LineSeriesOption;
-        }
-
-        return series;
-      })) as CartesianSeriesOption[]),
-      ...buildStatisticItemSeries(preview, xField, xValues, activeLayerId, context)
-    ]
+    series
   };
 }

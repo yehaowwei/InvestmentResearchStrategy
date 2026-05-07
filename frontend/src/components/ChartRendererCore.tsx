@@ -12,6 +12,7 @@ import type {
   TableStyleRule
 } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
+import { formatNumberMax3 } from '../utils/numberFormat';
 import InteractiveTableDesigner from './InteractiveTableDesigner';
 
 function readZoomRange(chart: echarts.EChartsType) {
@@ -78,6 +79,8 @@ interface ThumbnailLegendItem {
   key: string;
   label: string;
   color: string;
+  marker: 'line' | 'bar';
+  lineStyle?: 'solid' | 'dashed' | 'dotted';
 }
 
 interface LegendPosition {
@@ -88,51 +91,62 @@ interface LegendPosition {
 function buildThumbnailLegendItems(preview: ChartPreview, activeLayerId?: string): ThumbnailLegendItem[] {
   const metricMap = new Map(preview.dslConfig.queryDsl.metrics.map(metric => [metric.fieldCode, metric]));
   const items: ThumbnailLegendItem[] = [];
-  const pushItem = (key: string, label: string, color: string) => {
+  const pushItem = (
+    key: string,
+    label: string,
+    color: string,
+    marker: ThumbnailLegendItem['marker'] = 'line',
+    lineStyle: ThumbnailLegendItem['lineStyle'] = 'solid'
+  ) => {
     if (items.some(item => item.key === key)) {
       return;
     }
-    items.push({ key, label, color });
+    items.push({ key, label, color, marker, lineStyle });
   };
   const matchesLayer = (layerIds: string[]) => !activeLayerId || layerIds.includes(activeLayerId);
 
   preview.dslConfig.queryDsl.metrics
     .filter(metric => matchesLayer(metric.layerIds))
     .forEach(metric => {
-      pushItem(`metric-${metric.fieldCode}`, normalizeDisplayText(metric.displayName, metric.fieldCode), metric.color);
+      pushItem(
+        `metric-${metric.fieldCode}`,
+        normalizeDisplayText(metric.displayName, metric.fieldCode),
+        metric.color,
+        metric.chartType === 'bar' ? 'bar' : 'line',
+        'solid'
+      );
     });
 
-  preview.dslConfig.statisticalItemsDsl.forEach((item, index) => {
+  preview.dslConfig.statisticalItemsDsl.forEach(item => {
     const metric = metricMap.get(item.metricFieldCode ?? '') ?? preview.dslConfig.queryDsl.metrics[0];
     if (!metric) {
       return;
     }
     const metricName = normalizeDisplayText(metric.displayName, metric.fieldCode);
-    const itemName = normalizeDisplayText(item.itemName, `统计量${index + 1}`);
 
     if (item.visible.mean.enabled && matchesLayer(item.visible.mean.layerIds)) {
-      pushItem(`${item.id}-visible-mean`, `${metricName} ${itemName} 均值`, item.visible.mean.lineColor);
+      pushItem(`${item.id}-visible-mean`, `${metricName}均值`, item.visible.mean.lineColor, 'line', item.visible.mean.lineStyle);
     }
     if (item.visible.std1.enabled && matchesLayer(item.visible.std1.layerIds)) {
-      pushItem(`${item.id}-visible-std1`, `${metricName} ${itemName} ±1σ`, item.visible.std1.lineColor);
+      pushItem(`${item.id}-visible-std1`, `${metricName}±1σ`, item.visible.std1.lineColor, 'line', item.visible.std1.lineStyle);
     }
     if (item.visible.std2.enabled && matchesLayer(item.visible.std2.layerIds)) {
-      pushItem(`${item.id}-visible-std2`, `${metricName} ${itemName} ±2σ`, item.visible.std2.lineColor);
+      pushItem(`${item.id}-visible-std2`, `${metricName}±2σ`, item.visible.std2.lineColor, 'line', item.visible.std2.lineStyle);
     }
     if (item.visible.percentile.enabled && matchesLayer(item.visible.percentile.layerIds)) {
-      pushItem(`${item.id}-visible-percentile`, `${metricName} ${itemName} 分位点`, item.visible.percentile.lineColor);
+      pushItem(`${item.id}-visible-percentile`, `${metricName}分位点`, item.visible.percentile.lineColor, 'line', item.visible.percentile.lineStyle);
     }
     if (item.rolling.mean.enabled && matchesLayer(item.rolling.mean.layerIds)) {
-      pushItem(`${item.id}-rolling-mean`, `${metricName} ${itemName} 滚动均值`, item.rolling.mean.lineColor);
+      pushItem(`${item.id}-rolling-mean`, `${metricName}滚动均值`, item.rolling.mean.lineColor, 'line', item.rolling.mean.lineStyle);
     }
     if (item.rolling.std1.enabled && matchesLayer(item.rolling.std1.layerIds)) {
-      pushItem(`${item.id}-rolling-std1`, `${metricName} ${itemName} 滚动±1σ`, item.rolling.std1.lineColor);
+      pushItem(`${item.id}-rolling-std1`, `${metricName}滚动±1σ`, item.rolling.std1.lineColor, 'line', item.rolling.std1.lineStyle);
     }
     if (item.rolling.std2.enabled && matchesLayer(item.rolling.std2.layerIds)) {
-      pushItem(`${item.id}-rolling-std2`, `${metricName} ${itemName} 滚动±2σ`, item.rolling.std2.lineColor);
+      pushItem(`${item.id}-rolling-std2`, `${metricName}滚动±2σ`, item.rolling.std2.lineColor, 'line', item.rolling.std2.lineStyle);
     }
     if (item.rolling.percentile.enabled && matchesLayer(item.rolling.percentile.layerIds)) {
-      pushItem(`${item.id}-rolling-percentile`, `${metricName} ${itemName} 滚动分位点`, item.rolling.percentile.lineColor);
+      pushItem(`${item.id}-rolling-percentile`, `${metricName}滚动分位点`, item.rolling.percentile.lineColor, 'line', item.rolling.percentile.lineStyle);
     }
   });
 
@@ -150,7 +164,7 @@ function renderStaticTable(preview: ChartPreview, thumbnail = false) {
     region: 'body',
     rowIndex: cell.rowIndex,
     colIndex: cell.colIndex,
-    text: String(cell.textOverride ?? cell.text ?? cell.sourceText ?? cell.value ?? ''),
+    text: String(cell.textOverride ?? formatNumberMax3(cell.value ?? cell.text ?? cell.sourceText)),
     value: cell.value,
     fieldCode: cell.fieldCode
   }));
@@ -252,6 +266,12 @@ export default function ChartRendererCore(props: {
   const thumbnailMode = Boolean(props.thumbnail);
   const compactMode = props.compact ?? thumbnailMode;
   const template = useMemo(() => getChartTemplate(props.templateCode), [props.templateCode]);
+  const effectiveViewMode = (
+    props.viewMode === 'table'
+    || props.templateCode === 'table'
+    || props.component?.templateCode === 'table'
+    || props.component?.componentType === 'table'
+  ) ? 'table' : 'chart';
   const thumbnailLegendItems = useMemo(
     () => (thumbnailMode && props.preview ? buildThumbnailLegendItems(props.preview, props.activeLayerId) : []),
     [props.activeLayerId, props.preview, thumbnailMode]
@@ -297,7 +317,7 @@ export default function ChartRendererCore(props: {
     };
   }, []);
 
-  const shouldRenderChart = props.viewMode !== 'table' && template.renderer !== 'table' && Boolean(option);
+  const shouldRenderChart = effectiveViewMode !== 'table' && template.renderer !== 'table' && Boolean(option);
 
   useEffect(() => {
     if (!props.preview) {
@@ -360,7 +380,7 @@ export default function ChartRendererCore(props: {
     resizeChart();
     const timer = window.setTimeout(resizeChart, 80);
     return () => window.clearTimeout(timer);
-  }, [props.resizeTick, props.viewMode, resizeChart]);
+  }, [effectiveViewMode, props.resizeTick, resizeChart]);
 
   if (
     template.renderer === 'table'
@@ -386,7 +406,7 @@ export default function ChartRendererCore(props: {
     return <Empty description="等待预览数据" />;
   }
 
-  if (template.renderer === 'table' || props.viewMode === 'table') {
+  if (template.renderer === 'table' || effectiveViewMode === 'table') {
     return renderStaticTable(props.preview, thumbnailMode);
   }
 
@@ -448,7 +468,10 @@ export default function ChartRendererCore(props: {
           <div className="chart-thumbnail-legend">
             {thumbnailLegendItems.map(item => (
               <span key={item.key} className="chart-thumbnail-legend-item">
-                <span className="chart-thumbnail-legend-dot" style={{ backgroundColor: item.color }} />
+                <span
+                  className={`chart-thumbnail-legend-marker chart-thumbnail-legend-marker-${item.marker} chart-thumbnail-legend-line-${item.lineStyle ?? 'solid'}`}
+                  style={{ color: item.color, backgroundColor: item.marker === 'bar' ? item.color : undefined }}
+                />
                 <span className="chart-thumbnail-legend-label">{item.label}</span>
               </span>
             ))}

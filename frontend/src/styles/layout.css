@@ -100,6 +100,12 @@
   height: 100%;
 }
 
+.single-chart-panel {
+  width: 100%;
+  min-height: 720px;
+  height: calc(100vh - 148px);
+}
+
 .single-chart-empty-shell {
   width: 100%;
 }
@@ -123,12 +129,16 @@
 .config-panel-shell {
   position: relative;
   top: 0;
+  height: calc(100vh - 148px);
+  min-height: 0;
 }
 
 .property-panel {
   display: flex;
   flex-direction: column;
-  max-height: none;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
 }
 
 .property-panel-empty {
@@ -139,6 +149,10 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+
+.property-panel-scroll-fixed {
+  height: 100%;
 }
 
 .property-panel-footer {

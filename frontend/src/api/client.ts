@@ -196,10 +196,16 @@ export const api = {
     unwrap<unknown>(client.put(`/shared-state/${encodeURIComponent(stateKey)}`, { state })),
   listExternalResourceGroups: () =>
     unwrap<ExternalResourceGroup[]>(client.get('/external-resource/group')),
+  listExternalResourceDirectories: () =>
+    unwrap<Array<{ label: string; value: string }>>(client.get('/external-resource/directories')),
   getExternalResourceGroupBySlug: (slug: string) =>
     unwrap<ExternalResourceGroup>(client.get(`/external-resource/group/slug/${encodeURIComponent(slug)}`)),
-  createExternalResourceGroup: (payload: { name: string; slug?: string; description?: string; parentName?: string }) =>
+  createExternalResourceGroup: (payload: { name: string; slug?: string; parentName?: string }) =>
     unwrap<ExternalResourceGroup>(client.post('/external-resource/group', payload)),
+  updateExternalResourceGroup: (groupId: string, payload: { name: string; slug?: string; parentName?: string }) =>
+    unwrap<ExternalResourceGroup>(client.put(`/external-resource/group/${encodeURIComponent(groupId)}`, payload)),
+  createExternalResourceThirdLevel: (groupId: string, name: string) =>
+    unwrap<ExternalResourceGroup>(client.post(`/external-resource/group/${encodeURIComponent(groupId)}/third-level`, { name })),
   uploadExternalResourceFiles: async (
     groupId: string,
     files: File[],
@@ -228,6 +234,14 @@ export const api = {
     resourceType?: string;
   }) =>
     unwrap<ExternalResourceGroup>(client.post(`/external-resource/group/${encodeURIComponent(groupId)}/resources`, payload)),
+  updateExternalResource: (groupId: string, fileId: string, payload: {
+    title: string;
+    href?: string;
+    sectionName?: string;
+    thirdLevelName?: string;
+    resourceType?: string;
+  }) =>
+    unwrap<ExternalResourceGroup>(client.put(`/external-resource/group/${encodeURIComponent(groupId)}/resources/${encodeURIComponent(fileId)}`, payload)),
   reorderExternalResourceFiles: (groupId: string, fileIds: string[]) =>
     unwrap<ExternalResourceGroup>(client.put(`/external-resource/group/${encodeURIComponent(groupId)}/file-order`, { fileIds })),
   deleteExternalResourceFile: (groupId: string, fileId: string) =>

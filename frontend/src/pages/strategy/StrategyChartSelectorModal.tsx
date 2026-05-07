@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AppSearchInput from '../../components/AppSearchInput';
 import ChartRendererCore from '../../components/ChartRendererCore';
 import type { DashboardCategoryKey } from '../../types/dashboard';
-import { getCategoryLabel, getDashboardMeta, useDashboardCategories } from '../../utils/dashboardCatalog';
+import { getDashboardMeta, useDashboardCategories } from '../../utils/dashboardCatalog';
 import { normalizeDisplayText } from '../../utils/dashboard';
 import type { ChartRuntimeCard } from '../../utils/chartLibrary';
 
@@ -146,10 +146,6 @@ export default function StrategyChartSelectorModal(props: {
                         <h3 className="favorites-board-title">
                           {normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode)}
                         </h3>
-                        <div className="favorites-board-meta">
-                          <span>{getCategoryLabel(getDashboardMeta(card.chartCode).category)}</span>
-                          <span>{normalizeDisplayText(card.chartName, card.chartCode)}</span>
-                        </div>
                       </div>
                       <div className="favorites-card-actions public-chart-card-actions">
                         <Button type={selected ? 'default' : 'primary'} onClick={() => props.onToggle(chartId)}>
@@ -159,13 +155,6 @@ export default function StrategyChartSelectorModal(props: {
                     </div>
                     <div className="favorites-board-thumb">
                       <div className="library-chart-preview">
-                        <div className="library-chart-preview-head">
-                          {normalizeDisplayText(card.component.dslConfig.visualDsl.indicatorTag) ? (
-                            <span className="chart-card-tag">
-                              {normalizeDisplayText(card.component.dslConfig.visualDsl.indicatorTag)}
-                            </span>
-                          ) : null}
-                        </div>
                         <div className="library-chart-preview-body">
                           {card.preview ? (
                             <ChartRendererCore

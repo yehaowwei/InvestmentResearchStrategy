@@ -9,10 +9,7 @@ import { normalizeDisplayText } from '../dashboardText';
 
 export function normalizeStatisticItemName(name: string | undefined, index: number) {
   const repairedName = normalizeDisplayText(name);
-  if (!repairedName || /^stat/i.test(repairedName)) {
-    return `统计量${index + 1}`;
-  }
-  return repairedName;
+  return repairedName || '';
 }
 
 function createPercentileConfig() {
@@ -28,36 +25,40 @@ function createPercentileConfig() {
 export function createStatisticItem(defaultLayerIds: string[], metricFieldCode?: string, index = 0): StatisticalItemDsl {
   return {
     id: `stat-item-${Date.now()}-${index}`,
-    itemName: `统计量${index + 1}`,
+    itemName: '',
     metricFieldCode: metricFieldCode || '',
     rollingWindowYears: 3,
     visible: {
       mean: {
-        enabled: true,
+        enabled: false,
         yAxis: 'left',
         lineColor: '#dc2626',
         lineStyle: 'solid',
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       },
       std1: {
-        enabled: true,
+        enabled: false,
         yAxis: 'left',
         lineColor: '#f97316',
         bandColor: '#fdba74',
         lineStyle: 'dashed',
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       },
       std2: {
-        enabled: true,
+        enabled: false,
         yAxis: 'left',
         lineColor: '#fb7185',
         bandColor: '#fecdd3',
         lineStyle: 'dotted',
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       },
       percentile: {
         ...createPercentileConfig(),
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       }
     },
     rolling: {
@@ -66,7 +67,8 @@ export function createStatisticItem(defaultLayerIds: string[], metricFieldCode?:
         yAxis: 'left',
         lineColor: '#FF9F7F',
         lineStyle: 'solid',
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       },
       std1: {
         enabled: false,
@@ -74,7 +76,8 @@ export function createStatisticItem(defaultLayerIds: string[], metricFieldCode?:
         lineColor: '#3BA272',
         bandColor: '#a7f3d0',
         lineStyle: 'dashed',
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       },
       std2: {
         enabled: false,
@@ -82,14 +85,16 @@ export function createStatisticItem(defaultLayerIds: string[], metricFieldCode?:
         lineColor: '#73C0DE',
         bandColor: '#bae6fd',
         lineStyle: 'dotted',
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       },
       percentile: {
         enabled: false,
         yAxis: 'right',
         lineColor: '#9A60B4',
         lineStyle: 'dashed',
-        layerIds: defaultLayerIds
+        layerIds: defaultLayerIds,
+        enableScrollWindow: true
       }
     }
   };
@@ -105,7 +110,8 @@ export function ensureMetricDefaults(metric: MetricSetting, defaultLayerIds: str
     color: metric.color || '#1d4ed8',
     negativeColor: metric.negativeColor || '#dc2626',
     smooth: metric.smooth ?? false,
-    layerIds: metric.layerIds?.length ? metric.layerIds : defaultLayerIds
+    layerIds: metric.layerIds?.length ? metric.layerIds : defaultLayerIds,
+    enableScrollWindow: metric.enableScrollWindow ?? true
   };
 }
 
@@ -138,7 +144,8 @@ export function normalizeStatisticItems(
         yAxis: value?.yAxis === 'right' ? 'right' : defaults.yAxis,
         lineColor: value?.lineColor || defaults.lineColor,
         lineStyle: value?.lineStyle ?? defaults.lineStyle,
-        layerIds: value?.layerIds?.length ? value.layerIds : defaultLayerIds
+        layerIds: value?.layerIds?.length ? value.layerIds : defaultLayerIds,
+        enableScrollWindow: value?.enableScrollWindow ?? defaults.enableScrollWindow ?? false
       });
       const wrapBand = (value: StatisticalItemDsl['visible']['std1'], defaults: StatisticalItemDsl['visible']['std1']) => ({
         ...wrapLine(value, defaults),
@@ -166,5 +173,5 @@ export function normalizeStatisticItems(
     });
   }
 
-  return [createStatisticItem(defaultLayerIds, firstMetricCode, 0)];
+  return [];
 }

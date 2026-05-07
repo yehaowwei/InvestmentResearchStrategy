@@ -25,9 +25,8 @@ type DragState =
   | { mode: 'resize'; pointerId: number; start: Point; origin: Bounds }
   | null;
 
-const STORAGE_KEY = 'strategy-dashboard-indicator-ai-floating-v5';
-const TRIGGER_WIDTH = 126;
-const TRIGGER_HEIGHT = 48;
+const STORAGE_KEY = 'strategy-dashboard-indicator-ai-floating-v6';
+const TRIGGER_SIZE = 59;
 const PANEL_WIDTH = 380;
 const PANEL_HEIGHT = 680;
 const MIN_PANEL_WIDTH = 320;
@@ -133,8 +132,8 @@ function buildFallbackReply(pageTitle: string, charts: IndicatorAiChartContext[]
 
 function normalizeTrigger(point: Point) {
   return {
-    x: clamp(point.x, 16, window.innerWidth - TRIGGER_WIDTH - 16),
-    y: clamp(point.y, 16, window.innerHeight - TRIGGER_HEIGHT - 16)
+    x: clamp(point.x, 16, window.innerWidth - TRIGGER_SIZE - 16),
+    y: clamp(point.y, 16, window.innerHeight - TRIGGER_SIZE - 16)
   };
 }
 
@@ -178,11 +177,11 @@ function resolveDefaultLayout() {
   const search = document.querySelector<HTMLElement>('.page-toc-width-search');
   const trigger = search
     ? normalizeTrigger({
-        x: search.getBoundingClientRect().left - TRIGGER_WIDTH - 12,
-        y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_HEIGHT) / 2)
+        x: search.getBoundingClientRect().left - TRIGGER_SIZE - 12,
+        y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_SIZE) / 2)
       })
     : normalizeTrigger({
-        x: window.innerWidth - TRIGGER_WIDTH - 320,
+        x: window.innerWidth - TRIGGER_SIZE - 320,
         y: 118
       });
 
@@ -443,8 +442,7 @@ export default function FloatingIndicatorAi(props: {
           setOpen(current => !current);
         }}
       >
-        <RobotOutlined />
-        <span>{TEXT.open}</span>
+        <img className="floating-indicator-ai-trigger-image" src="/TKF-AI.png" alt="" draggable={false} />
       </button>
 
       {open ? (

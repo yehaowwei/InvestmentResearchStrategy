@@ -1,4 +1,4 @@
-import { DeleteOutlined, FolderAddOutlined, SettingOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, FolderAddOutlined, SettingOutlined } from '@ant-design/icons';
 import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Space, Spin, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,30 +9,34 @@ function notifyExternalResourceChanged() {
   window.dispatchEvent(new CustomEvent('external-resource-groups-changed'));
 }
 
-const ROOT_DIRECTORY_OPTIONS = [{ label: '友情链接', value: '友情链接' }];
-
 export default function ExternalResourceConfigPage() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<ExternalResourceGroup[]>([]);
+  const [directories, setDirectories] = useState<Array<{ label: string; value: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [createName, setCreateName] = useState('');
-  const [createSlug, setCreateSlug] = useState('');
-  const [createDescription, setCreateDescription] = useState('');
-  const [createParentName, setCreateParentName] = useState('友情链接');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<ExternalResourceGroup>();
+  const [groupName, setGroupName] = useState('');
+  const [resourceSlug, setResourceSlug] = useState('');
 
   const sortedGroups = useMemo(
     () => groups.slice().sort((a, b) => a.order - b.order),
     [groups]
   );
 
-  const loadGroups = () => {
+  const loadData = () => {
     setLoading(true);
     setError(undefined);
-    api.listExternalResourceGroups()
-      .then(setGroups)
+    Promise.all([
+      api.listExternalResourceGroups(),
+      api.listExternalResourceDirectories()
+    ])
+      .then(([nextGroups, nextDirectories]) => {
+        setGroups(nextGroups);
+        setDirectories(nextDirectories);
+      })
       .catch(loadError => {
         console.error(loadError);
         setError(loadError instanceof Error ? loadError.message : '链接配置加载失败');
@@ -41,35 +45,53 @@ export default function ExternalResourceConfigPage() {
   };
 
   useEffect(() => {
-    loadGroups();
+    loadData();
   }, []);
 
-  const createGroup = async () => {
-    if (!createName.trim()) {
+  const openCreate = () => {
+    setEditingGroup(undefined);
+    setGroupName('');
+    setResourceSlug('');
+    setModalOpen(true);
+  };
+
+  const openEdit = (group: ExternalResourceGroup) => {
+    setEditingGroup(group);
+    setGroupName(group.name);
+    setResourceSlug(group.slug);
+    setModalOpen(true);
+  };
+
+  const saveGroup = async () => {
+    if (!groupName.trim()) {
       message.warning('请输入二级目录名称');
       return;
     }
-    setCreating(true);
+    setSaving(true);
     try {
-      await api.createExternalResourceGroup({
-        name: createName.trim(),
-        slug: createSlug.trim() || undefined,
-        description: createDescription.trim() || undefined,
-        parentName: createParentName.trim() || '友情链接'
-      });
-      message.success('二级目录已创建');
+      if (editingGroup) {
+        await api.updateExternalResourceGroup(editingGroup.groupId, {
+          name: groupName.trim(),
+          slug: resourceSlug.trim() || undefined,
+          parentName: '友情链接'
+        });
+        message.success('二级目录已修改');
+      } else {
+        await api.createExternalResourceGroup({
+          name: groupName.trim(),
+          slug: resourceSlug.trim() || undefined,
+          parentName: '友情链接'
+        });
+        message.success('二级目录已创建');
+      }
       notifyExternalResourceChanged();
-      setCreateOpen(false);
-      setCreateName('');
-      setCreateSlug('');
-      setCreateDescription('');
-      setCreateParentName('友情链接');
-      loadGroups();
-    } catch (createError) {
-      console.error(createError);
-      message.error(createError instanceof Error ? createError.message : '二级目录创建失败');
+      setModalOpen(false);
+      loadData();
+    } catch (saveError) {
+      console.error(saveError);
+      message.error(saveError instanceof Error ? saveError.message : '目录保存失败');
     } finally {
-      setCreating(false);
+      setSaving(false);
     }
   };
 
@@ -78,7 +100,7 @@ export default function ExternalResourceConfigPage() {
       await api.deleteExternalResourceGroup(groupId);
       message.success('二级目录已删除');
       notifyExternalResourceChanged();
-      loadGroups();
+      loadData();
     } catch (deleteError) {
       console.error(deleteError);
       message.error(deleteError instanceof Error ? deleteError.message : '二级目录删除失败');
@@ -94,12 +116,9 @@ export default function ExternalResourceConfigPage() {
       <div className="page-header">
         <div>
           <h2 className="page-title">链接配置</h2>
-          <div className="page-subtitle">
-            先维护左侧菜单的二级目录，再进入目录配置资源。每个资源都可以选择类型为 HTML 或链接，并可绑定可选的三级目录。
-          </div>
         </div>
         <Space wrap size={12}>
-          <Button type="primary" icon={<FolderAddOutlined />} onClick={() => setCreateOpen(true)}>
+          <Button type="primary" icon={<FolderAddOutlined />} onClick={openCreate}>
             新建二级目录
           </Button>
         </Space>
@@ -118,16 +137,16 @@ export default function ExternalResourceConfigPage() {
                   <h3 className="external-config-card-title">{group.name}</h3>
                   <div className="external-config-card-subtitle">
                     <span>一级目录：{group.parentName || '友情链接'}</span>
-                    <span>路由：/external-resource/{group.slug}</span>
+                    <span>资源位置：{group.slug}</span>
                     <span>{group.files.length} 个资源</span>
                   </div>
                 </div>
                 <Space wrap size={8}>
-                  <Button
-                    icon={<SettingOutlined />}
-                    onClick={() => navigate(`/external-resource-config/${group.groupId}`)}
-                  >
+                  <Button icon={<SettingOutlined />} onClick={() => navigate(`/external-resource-config/${group.groupId}`)}>
                     进入配置
+                  </Button>
+                  <Button icon={<EditOutlined />} onClick={() => openEdit(group)}>
+                    修改
                   </Button>
                   <Popconfirm
                     title="确认删除这个二级目录吗？"
@@ -141,7 +160,6 @@ export default function ExternalResourceConfigPage() {
                   </Popconfirm>
                 </Space>
               </div>
-              {group.description ? <div className="external-config-card-description">{group.description}</div> : null}
             </section>
           ))}
         </div>
@@ -152,38 +170,32 @@ export default function ExternalResourceConfigPage() {
       )}
 
       <Modal
-        title="新建二级目录"
-        open={createOpen}
-        confirmLoading={creating}
-        okText="创建"
+        title={editingGroup ? '修改二级目录' : '新建二级目录'}
+        open={modalOpen}
+        confirmLoading={saving}
+        okText="保存"
         cancelText="取消"
-        onOk={() => void createGroup()}
-        onCancel={() => setCreateOpen(false)}
+        onOk={() => void saveGroup()}
+        onCancel={() => setModalOpen(false)}
       >
         <div className="external-config-create-form">
           <div className="strategy-info-row">
             <span className="strategy-selection-title">一级目录</span>
-            <Select
-              value={createParentName}
-              options={ROOT_DIRECTORY_OPTIONS}
-              onChange={setCreateParentName}
-            />
+            <Input value="友情链接" disabled />
           </div>
           <div className="strategy-info-row">
             <span className="strategy-selection-title">二级目录名称</span>
-            <Input value={createName} placeholder="例如：转债研究" onChange={event => setCreateName(event.target.value)} />
+            <Input value={groupName} placeholder="例如：转债研究" onChange={event => setGroupName(event.target.value)} />
           </div>
           <div className="strategy-info-row">
-            <span className="strategy-selection-title">路由标识</span>
-            <Input value={createSlug} placeholder="例如：convertible-board" onChange={event => setCreateSlug(event.target.value)} />
-          </div>
-          <div className="strategy-info-row">
-            <span className="strategy-selection-title">描述</span>
-            <Input.TextArea
-              value={createDescription}
-              rows={3}
-              placeholder="例如：转债研究相关的 HTML 页面与外部链接"
-              onChange={event => setCreateDescription(event.target.value)}
+            <span className="strategy-selection-title">资源位置</span>
+            <Select
+              showSearch
+              allowClear
+              value={resourceSlug || undefined}
+              placeholder="选择后端可用资源文件夹"
+              options={directories}
+              onChange={value => setResourceSlug(value ?? '')}
             />
           </div>
         </div>

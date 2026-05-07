@@ -18,7 +18,6 @@ import {
   createStatisticItem,
   getDefaultTableColumnFields,
   normalizeDslConfig,
-  normalizeStatisticItemName,
   resolveModel,
   syncTableComponentWithModel
 } from '../utils/dashboard';
@@ -152,7 +151,7 @@ function sanitizeComponent(component: DashboardComponent): DashboardComponent {
         return {
           ...defaults,
           ...item,
-          itemName: normalizeStatisticItemName(item.itemName, index),
+          itemName: '',
           metricFieldCode,
           rollingWindowYears: Number(item.rollingWindowYears ?? defaults.rollingWindowYears ?? 3),
           visible: mergeScope(defaults.visible, item.visible),
@@ -192,6 +191,13 @@ function buildLinePanel(
             />
           </div>
         ) : null}
+        <Space>
+          <span className="metric-field-label">启用滚动窗口</span>
+          <Switch
+            checked={Boolean(config.enableScrollWindow)}
+            onChange={checked => updateStatisticConfig(index, scope, key, { enableScrollWindow: checked })}
+          />
+        </Space>
         <Space wrap style={{ width: '100%' }}>
           <Space>
             <span className="metric-field-label">启用</span>
@@ -236,6 +242,13 @@ function buildBandPanel(
             <InputNumber style={{ width: '100%' }} min={0.5} step={0.5} value={component.dslConfig.statisticalItemsDsl[index].rollingWindowYears} onChange={value => updateStatistic(index, currentItem => ({ ...currentItem, rollingWindowYears: Number(value ?? currentItem.rollingWindowYears ?? 3) }))} />
           </div>
         ) : null}
+        <Space>
+          <span className="metric-field-label">启用滚动窗口</span>
+          <Switch
+            checked={Boolean(config.enableScrollWindow)}
+            onChange={checked => updateStatisticConfig(index, scope, key, { enableScrollWindow: checked })}
+          />
+        </Space>
         <Space wrap style={{ width: '100%' }}>
           <Space>
             <span className="metric-field-label">启用</span>
@@ -332,7 +345,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
   return (
     <div className="config-panel-shell">
       <div className="panel-card property-panel">
-        <div className="property-panel-scroll">
+        <div className="property-panel-scroll property-panel-scroll-fixed">
           <div className="panel-section">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
               {moduleCards.map(module => (
@@ -417,6 +430,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                 <div><FieldLabel>维度字段</FieldLabel><Select mode="multiple" maxCount={2} style={{ width: '100%' }} value={component.dslConfig.queryDsl.dimensionFields} options={dimensionOptions} onChange={value => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, dimensionFields: value } } }))} /></div>
                 <div><FieldLabel>所在图层</FieldLabel><Select mode="multiple" style={{ width: '100%' }} value={component.dslConfig.dimensionConfigDsl.layerIds} options={layerOptions} onChange={value => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, dimensionConfigDsl: { ...current.dslConfig.dimensionConfigDsl, layerIds: value } } }))} /></div>
                 <Space><span className="metric-field-label">第二维度堆叠</span><Switch checked={component.dslConfig.dimensionConfigDsl.stackBySecondDimension} onChange={checked => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, dimensionConfigDsl: { ...current.dslConfig.dimensionConfigDsl, stackBySecondDimension: checked } } }))} /></Space>
+                <Space><span className="metric-field-label">启用滚动窗口</span><Switch checked={Boolean(component.dslConfig.dimensionConfigDsl.enableScrollWindow)} onChange={checked => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, dimensionConfigDsl: { ...current.dslConfig.dimensionConfigDsl, enableScrollWindow: checked } } }))} /></Space>
               </Space></div>
 
               <div className="panel-section"><h3 className="panel-title">指标</h3><Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -432,6 +446,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                       </Space.Compact>
                       {metric.chartType === 'bar' ? <div><FieldLabel>负值颜色</FieldLabel><ColorBoard value={metric.negativeColor || '#dc2626'} onChange={hex => updateMetric(index, currentMetric => ({ ...currentMetric, negativeColor: hex }))} /></div> : null}
                       <div><FieldLabel>图层</FieldLabel><Select mode="multiple" style={{ width: '100%' }} value={metric.layerIds} options={layerOptions} placeholder="选择图层" onChange={value => updateMetric(index, currentMetric => ({ ...currentMetric, layerIds: value }))} /></div>
+                      <Space><span className="metric-field-label">启用滚动窗口</span><Switch checked={Boolean(metric.enableScrollWindow)} onChange={checked => updateMetric(index, currentMetric => ({ ...currentMetric, enableScrollWindow: checked }))} /></Space>
                       <Space><span className="metric-field-label">平滑</span><Switch checked={metric.smooth} onChange={checked => updateMetric(index, currentMetric => ({ ...currentMetric, smooth: checked }))} /></Space>
                     </Space>
                   </Card>
@@ -444,15 +459,14 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
           {isCartesianTemplate && (activeModule === 'mean' || activeModule === 'std' || activeModule === 'percentile') ? (
             <div className="panel-section"><h3 className="panel-title">指标统计量</h3><Space direction="vertical" size={12} style={{ width: '100%' }}>
               {component.dslConfig.statisticalItemsDsl.map((item, index) => (
-                <Card key={item.id} size="small" title={item.itemName || `统计量${index + 1}`} extra={component.dslConfig.statisticalItemsDsl.length > 1 ? <Button size="small" danger onClick={() => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, statisticalItemsDsl: current.dslConfig.statisticalItemsDsl.filter((_, itemIndex) => itemIndex !== index) } }))}>删除</Button> : null}>
+                <Card key={item.id} size="small" extra={<Button size="small" danger onClick={() => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, statisticalItemsDsl: current.dslConfig.statisticalItemsDsl.filter((_, itemIndex) => itemIndex !== index) } }))}>删除</Button>}>
                   <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                    <Input value={item.itemName} placeholder={`统计量${index + 1}`} onChange={event => updateStatistic(index, currentItem => ({ ...currentItem, itemName: event.target.value }))} />
                     <Select style={{ width: '100%' }} value={item.metricFieldCode} options={metricBindingOptions} onChange={value => updateStatistic(index, currentItem => ({ ...currentItem, metricFieldCode: value }))} />
                     <Collapse items={statisticPanelItems(item, index)} defaultActiveKey={statisticPanelItems(item, index).map(panel => panel.key)} />
                   </Space>
                 </Card>
               ))}
-              <Button block onClick={() => { const firstMetricCode = component.dslConfig.queryDsl.metrics[0]?.fieldCode; applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, statisticalItemsDsl: [...current.dslConfig.statisticalItemsDsl, { ...createStatisticItem(current.dslConfig.chartLayersDsl[0] ? [current.dslConfig.chartLayersDsl[0].id] : [], firstMetricCode, current.dslConfig.statisticalItemsDsl.length), itemName: `统计量${current.dslConfig.statisticalItemsDsl.length + 1}` }] } })); }}>新增统计量</Button>
+              <Button block onClick={() => { const firstMetricCode = component.dslConfig.queryDsl.metrics[0]?.fieldCode; applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, statisticalItemsDsl: [...current.dslConfig.statisticalItemsDsl, { ...createStatisticItem(current.dslConfig.chartLayersDsl[0] ? [current.dslConfig.chartLayersDsl[0].id] : [], firstMetricCode, current.dslConfig.statisticalItemsDsl.length), itemName: '' }] } })); }}>新增统计量</Button>
             </Space></div>
           ) : null}
         </div>
