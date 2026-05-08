@@ -7,7 +7,7 @@ import {
   StarOutlined
 } from '@ant-design/icons';
 import { ConfigProvider, Layout, Menu } from 'antd';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api/client';
 import ExternalResourceConfigPage from './pages/ExternalResourceConfigPage';
@@ -76,22 +76,17 @@ function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   return '/favorites';
 }
 
-function resolveScreenLayoutClasses() {
+const DESIGN_VIEWPORT_WIDTH = 2134;
+
+function resolveViewportScale(basePixelRatio: number) {
   if (typeof window === 'undefined') {
-    return '';
+    return 1;
   }
-  const screenWidth = window.screen?.availWidth || window.screen?.width || window.innerWidth;
-  const classes = [] as string[];
-  if (screenWidth <= 1440) {
-    classes.push('screen-lte-1440');
-  }
-  if (screenWidth <= 1180) {
-    classes.push('screen-lte-1180');
-  }
-  if (screenWidth <= 768) {
-    classes.push('screen-lte-768');
-  }
-  return classes.join(' ');
+  const currentPixelRatio = window.devicePixelRatio || basePixelRatio || 1;
+  const zoomCompensation = currentPixelRatio / (basePixelRatio || currentPixelRatio || 1);
+  const unzoomedWidth = window.innerWidth * zoomCompensation;
+
+  return Math.max(0.35, unzoomedWidth / DESIGN_VIEWPORT_WIDTH);
 }
 
 function AppRoutes() {
@@ -121,8 +116,9 @@ function AppRoutes() {
 export default function App() {
   const location = useLocation();
   const designViewportRef = useRef<HTMLDivElement | null>(null);
+  const basePixelRatioRef = useRef(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
   const [, setSyncVersion] = useState(0);
-  const [screenLayoutClasses, setScreenLayoutClasses] = useState(resolveScreenLayoutClasses);
+  const [viewportScale, setViewportScale] = useState(() => resolveViewportScale(basePixelRatioRef.current));
   const [sharedReady, setSharedReady] = useState(false);
   const [externalResourceGroups, setExternalResourceGroups] = useState<ExternalResourceGroup[]>([]);
   const categories = useDashboardCategories();
@@ -229,19 +225,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const updateScreenLayout = () => setScreenLayoutClasses(resolveScreenLayoutClasses());
-    window.addEventListener('resize', updateScreenLayout);
-    window.addEventListener('orientationchange', updateScreenLayout);
+    const updateViewportScale = () => setViewportScale(resolveViewportScale(basePixelRatioRef.current));
+    window.addEventListener('resize', updateViewportScale);
+    window.addEventListener('orientationchange', updateViewportScale);
+    window.visualViewport?.addEventListener('resize', updateViewportScale);
     return () => {
-      window.removeEventListener('resize', updateScreenLayout);
-      window.removeEventListener('orientationchange', updateScreenLayout);
+      window.removeEventListener('resize', updateViewportScale);
+      window.removeEventListener('orientationchange', updateViewportScale);
+      window.visualViewport?.removeEventListener('resize', updateViewportScale);
     };
   }, []);
 
   return (
-    <div className="app-scale-shell">
+    <div
+      className="app-scale-shell"
+      style={{
+        '--app-scale': String(viewportScale)
+      } as CSSProperties}
+    >
       <ConfigProvider getPopupContainer={() => designViewportRef.current ?? document.body}>
-        <div ref={designViewportRef} className={`app-design-viewport ${screenLayoutClasses}`}>
+        <div
+          ref={designViewportRef}
+          className="app-design-viewport"
+        >
           {!sharedReady ? (
             <Layout className="app-shell app-shell-sidebar">
               <Layout.Content className="app-content app-content-sidebar">

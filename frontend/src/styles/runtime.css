@@ -29,8 +29,8 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   align-self: start;
-  height: calc(100vh - 188px);
-  max-height: calc(100vh - 188px);
+  height: 1012px;
+  max-height: 1012px;
   overflow: hidden;
 }
 
@@ -44,7 +44,7 @@
 
 .runtime-toc-scroll {
   min-height: 0;
-  max-height: calc(100vh - 252px);
+  max-height: 948px;
   overflow: auto;
   padding: 12px;
   display: grid;
@@ -231,7 +231,7 @@
 .convertible-research-stage {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: calc(100vh - 188px);
+  min-height: 1012px;
   padding: 0;
   overflow: hidden;
 }

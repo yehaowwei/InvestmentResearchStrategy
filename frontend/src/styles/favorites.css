@@ -567,9 +567,9 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   gap: 14px;
-  height: calc(100vh - 32px);
+  height: 1168px;
   min-height: 620px;
-  max-height: calc(100vh - 32px);
+  max-height: 1168px;
   padding: 16px;
   border-radius: 18px;
   overflow: hidden;
@@ -1264,8 +1264,8 @@
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 14px;
   width: 380px;
-  max-width: calc(100vw - 48px);
-  height: min(778px, 760px);
+  max-width: 1872px;
+  height: 760px;
   padding: 18px;
   border: 1px solid rgba(191, 219, 254, 0.82);
   border-radius: 24px;

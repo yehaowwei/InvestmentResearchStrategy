@@ -335,15 +335,23 @@ export default function ChartRendererCore(props: {
     [compactMode, props.activeLayerId, props.dense, props.forceDataZoom, props.forceSlider, props.preview, template, thumbnailMode]
   );
 
-  const resizeChart = useCallback(() => {
-    window.requestAnimationFrame(() => {
+  const resizeChart = useCallback((reapplyOption = false) => {
+    const runResize = () => {
       const host = hostRef.current;
       if (!host || host.clientWidth === 0 || host.clientHeight === 0) {
         return;
       }
       chartRef.current?.resize({ width: host.clientWidth, height: host.clientHeight });
-    });
-  }, []);
+      if (reapplyOption && option && chartRef.current) {
+        chartRef.current.setOption(option, true);
+      }
+    };
+
+    window.requestAnimationFrame(runResize);
+    window.setTimeout(runResize, 60);
+    window.setTimeout(runResize, 180);
+    window.setTimeout(runResize, 360);
+  }, [option]);
 
   const updateZoomRange = useCallback((next: { start: number; end: number }) => {
     zoomRangeRef.current = next;
@@ -446,19 +454,24 @@ export default function ChartRendererCore(props: {
     };
 
     chart.on('datazoom', syncZoom);
-    const observer = new ResizeObserver(resizeChart);
+    const observer = new ResizeObserver(() => resizeChart());
     observer.observe(hostRef.current);
     if (hostRef.current.parentElement) {
       observer.observe(hostRef.current.parentElement);
     }
     observerRef.current = observer;
-    window.addEventListener('resize', resizeChart);
+    const handleViewportResize = () => resizeChart(true);
+    window.addEventListener('resize', handleViewportResize);
+    window.addEventListener('orientationchange', handleViewportResize);
+    window.visualViewport?.addEventListener('resize', handleViewportResize);
 
     return () => {
       chart.off('datazoom', syncZoom);
       observer.disconnect();
       observerRef.current = null;
-      window.removeEventListener('resize', resizeChart);
+      window.removeEventListener('resize', handleViewportResize);
+      window.removeEventListener('orientationchange', handleViewportResize);
+      window.visualViewport?.removeEventListener('resize', handleViewportResize);
     };
   }, [shouldRenderChart, resizeChart]);
 

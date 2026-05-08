@@ -104,7 +104,7 @@
 .single-chart-panel {
   width: 100%;
   min-height: 640px;
-  height: calc(100vh - 148px);
+  height: 1052px;
 }
 
 .single-chart-empty-shell {
@@ -130,7 +130,7 @@
 .config-panel-shell {
   position: relative;
   top: 0;
-  height: calc(100vh - 148px);
+  height: 1052px;
   min-height: 0;
 }
 
