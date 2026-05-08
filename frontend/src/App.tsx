@@ -7,7 +7,7 @@ import {
   StarOutlined
 } from '@ant-design/icons';
 import { ConfigProvider, Layout, Menu } from 'antd';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api/client';
 import ExternalResourceConfigPage from './pages/ExternalResourceConfigPage';
@@ -39,9 +39,6 @@ const TEXT = {
   designer: '指标配置',
   brand: '策略工作台'
 };
-
-const DESIGN_VIEWPORT_WIDTH = 1920;
-const DESIGN_VIEWPORT_HEIGHT = 1080;
 
 function renderMenuIcon(Icon: typeof StarOutlined, color: string) {
   return <Icon style={{ color, fontSize: 18 }} />;
@@ -107,8 +104,6 @@ export default function App() {
   const location = useLocation();
   const designViewportRef = useRef<HTMLDivElement | null>(null);
   const [, setSyncVersion] = useState(0);
-  const [viewportScale, setViewportScale] = useState(1);
-  const [viewportHeight, setViewportHeight] = useState(DESIGN_VIEWPORT_HEIGHT);
   const [sharedReady, setSharedReady] = useState(false);
   const [externalResourceGroups, setExternalResourceGroups] = useState<ExternalResourceGroup[]>([]);
   const categories = useDashboardCategories();
@@ -174,27 +169,6 @@ export default function App() {
     }
   ];
 
-  useLayoutEffect(() => {
-    const updateViewport = () => {
-      const widthScale = window.innerWidth / DESIGN_VIEWPORT_WIDTH;
-      const heightScale = window.innerHeight / DESIGN_VIEWPORT_HEIGHT;
-      const nextScale = Math.min(widthScale, heightScale);
-      setViewportScale(Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1);
-      setViewportHeight(Math.max(DESIGN_VIEWPORT_HEIGHT, designViewportRef.current?.scrollHeight ?? DESIGN_VIEWPORT_HEIGHT));
-    };
-
-    updateViewport();
-    const observer = new ResizeObserver(updateViewport);
-    if (designViewportRef.current) {
-      observer.observe(designViewportRef.current);
-    }
-    window.addEventListener('resize', updateViewport);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', updateViewport);
-    };
-  }, [location.pathname, sharedReady]);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -235,19 +209,10 @@ export default function App() {
     };
   }, []);
 
-  const viewportStyle = {
-    width: DESIGN_VIEWPORT_WIDTH,
-    minHeight: DESIGN_VIEWPORT_HEIGHT,
-    zoom: viewportScale
-  };
-
   return (
-    <div
-      className="app-scale-shell"
-      style={{ width: DESIGN_VIEWPORT_WIDTH * viewportScale, height: viewportHeight * viewportScale }}
-    >
+    <div className="app-scale-shell">
       <ConfigProvider getPopupContainer={() => designViewportRef.current ?? document.body}>
-        <div ref={designViewportRef} className="app-design-viewport" style={viewportStyle}>
+        <div ref={designViewportRef} className="app-design-viewport">
           {!sharedReady ? (
             <Layout className="app-shell app-shell-sidebar">
               <Layout.Content className="app-content app-content-sidebar">

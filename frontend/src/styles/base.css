@@ -19,6 +19,8 @@
 html,
 body,
 #root {
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
 }
 
@@ -33,25 +35,28 @@ body {
 }
 
 #root {
-  display: flex;
-  justify-content: center;
+  display: block;
   min-width: 0;
 }
 
 .app-scale-shell {
   position: relative;
-  flex: 0 0 auto;
-  overflow: visible;
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: hidden;
 }
 
 .app-design-viewport {
   position: relative;
-  min-width: 1920px;
-  overflow: visible;
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: hidden;
 }
 
 .app-shell {
-  min-height: 1080px;
+  min-height: 100vh;
 }
 
 .app-shell-sidebar {
@@ -65,7 +70,7 @@ body {
   top: 0;
   left: 0;
   height: 100%;
-  min-height: 1080px;
+  min-height: 100vh;
   width: 84px;
   padding: 18px 12px;
   background: linear-gradient(180deg, #e5ebf1 0%, #edf2f6 52%, #f6f8fb 100%);
@@ -145,4 +150,7 @@ body {
 
 .app-content-sidebar {
   padding: 20px;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: auto;
 }
