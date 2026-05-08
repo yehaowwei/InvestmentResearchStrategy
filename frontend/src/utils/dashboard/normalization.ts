@@ -36,7 +36,8 @@ export function normalizeDslConfig(
     dimensionConfigDsl: {
       stackBySecondDimension: dslConfig.dimensionConfigDsl?.stackBySecondDimension ?? false,
       layerIds: dslConfig.dimensionConfigDsl?.layerIds?.length ? dslConfig.dimensionConfigDsl.layerIds : defaultLayerIds,
-      enableScrollWindow: dslConfig.dimensionConfigDsl?.enableScrollWindow ?? true
+      enableScrollWindow: dslConfig.dimensionConfigDsl?.enableScrollWindow ?? true,
+      scrollWindowRange: dslConfig.dimensionConfigDsl?.scrollWindowRange ?? ['', '']
     },
     visualDsl: {
       title: normalizeDisplayText(dslConfig.visualDsl.title),

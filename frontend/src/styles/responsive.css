@@ -1,4 +1,4 @@
-@media (max-width: 1200px) {
+@media (max-width: 0px) {
   .app-shell-sidebar {
     display: block;
     padding-left: 0;
@@ -63,7 +63,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 0px) {
   .page-header,
   .chart-card-header,
   .favorites-board-card-head,

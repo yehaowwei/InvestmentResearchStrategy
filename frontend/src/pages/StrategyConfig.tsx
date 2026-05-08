@@ -1,4 +1,4 @@
-import {
+﻿import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -12,6 +12,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import AppSearchInput from '../components/AppSearchInput';
 import ChartRendererCore from '../components/ChartRendererCore';
+import FloatingConfigAssistant from '../components/FloatingConfigAssistant';
 import type { ChartCatalogItem } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
 import { buildChartRuntimeCards, type ChartRuntimeCard } from '../utils/chartLibrary';
@@ -437,6 +438,35 @@ function StrategyConfigOverview(props: {
     navigate(`/strategy/config${query}`);
   };
 
+  const createDraftFromAssistant = (prompt: string) => {
+    const keyword = normalizeSearchKeyword(prompt);
+    const matchedCharts = props.availableCharts
+      .filter(card => normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode).toLowerCase().includes(keyword))
+      .slice(0, 4);
+    const selectedIds = matchedCharts.length > 0
+      ? matchedCharts.map(card => `${card.chartCode}:${card.component.componentCode}`)
+      : props.availableCharts.slice(0, 2).map(card => `${card.chartCode}:${card.component.componentCode}`);
+    const strategyName = prompt
+      .replace(/(帮我|请|创建|新建|配置|一个|策略|方案|把|设置为|改成|修改为)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 28) || `AI策略${drafts.length + 1}`;
+    const draft = createDraft(props.scope, {
+      strategyName,
+      selectedChartIds: selectedIds
+    });
+    setDrafts(listDrafts(props.scope));
+    return (
+      <div>
+        <div>已生成策略配置草稿，尚未发布。</div>
+        <div style={{ marginTop: 4 }}>已选 {selectedIds.length} 个指标，可进入后继续调整。</div>
+        <Button size="small" type="primary" style={{ marginTop: 8 }} onClick={() => openDraft(draft.draftId)}>
+          进入配置
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -603,6 +633,13 @@ function StrategyConfigOverview(props: {
         nameValue={createName}
         namePlaceholder={TEXT.namePlaceholder}
         onNameChange={setCreateName}
+      />
+      <FloatingConfigAssistant
+        storageKey={`strategy-config-overview-${props.scope}`}
+        pageTitle="策略配置"
+        placeholder="例如：新建一个资金动量策略，加入融资余额和风险溢价指标"
+        quickActions={[{ label: '新建策略草稿', prompt: '新建一个策略草稿，加入前两个指标' }]}
+        onSubmitPrompt={createDraftFromAssistant}
       />
 
       <Modal
@@ -791,6 +828,41 @@ function StrategyConfigEditor(props: {
     });
     setAddChartOpen(false);
     setAddSelectedChartIds([]);
+  };
+
+  const applyAssistantToStrategyDraft = (prompt: string) => {
+    if (!draft) {
+      return '请先进入一个具体策略配置页。';
+    }
+    const nameMatch = prompt.match(/(?:策略名称|名称|命名为|改成|修改为)([^，。\n]{2,32})/);
+    const nextName = nameMatch?.[1]?.trim() || (/重命名|改名|名称/.test(prompt) ? strategyName : undefined);
+    const keyword = normalizeSearchKeyword(prompt);
+    const currentIds = new Set(draft.selectedChartIds);
+    let nextSelectedIds = [...draft.selectedChartIds];
+
+    if (/移除|删除|去掉/.test(prompt) && nextSelectedIds.length > 0) {
+      nextSelectedIds = nextSelectedIds.slice(0, -1);
+    }
+    if (/添加|加入|新增|选择/.test(prompt)) {
+      const matched = props.availableCharts
+        .filter(card => !currentIds.has(`${card.chartCode}:${card.component.componentCode}`))
+        .filter(card => normalizeDisplayText(card.component.dslConfig.visualDsl.title || card.component.title, card.component.componentCode).toLowerCase().includes(keyword))
+        .slice(0, 3);
+      const fallback = matched.length > 0
+        ? matched
+        : props.availableCharts.filter(card => !currentIds.has(`${card.chartCode}:${card.component.componentCode}`)).slice(0, 1);
+      nextSelectedIds = [...nextSelectedIds, ...fallback.map(card => `${card.chartCode}:${card.component.componentCode}`)];
+    }
+
+    persistDraft({
+      strategyName: nextName || strategyName || draft.strategyName,
+      selectedChartIds: Array.from(new Set(nextSelectedIds)),
+      savedAt: new Date().toISOString()
+    });
+    if (nextName) {
+      setStrategyName(nextName);
+    }
+    return '已按提示词修改策略配置草稿，尚未发布。你可以继续调整，确认后再保存或发布。';
   };
 
   const finishChartDrag = () => {
@@ -1031,6 +1103,16 @@ function StrategyConfigEditor(props: {
           />
         ) : null}
       </Modal>
+      <FloatingConfigAssistant
+        storageKey={`strategy-config-edit-${draft.draftId}`}
+        pageTitle={`策略配置：${strategyName || draft.strategyName}`}
+        placeholder="例如：把策略名称改成资金动量策略，添加融资余额指标，或移除最后一个指标"
+        quickActions={[
+          { label: '添加指标', prompt: '添加一个匹配的指标' },
+          { label: '移除最后一个', prompt: '移除最后一个指标' }
+        ]}
+        onSubmitPrompt={applyAssistantToStrategyDraft}
+      />
     </div>
   );
 }
@@ -1102,3 +1184,4 @@ export default function StrategyConfig() {
     ? <StrategyConfigEditor scope={scope} draftId={draftId} availableCharts={availableCharts} />
     : <StrategyConfigOverview scope={scope} backPath={backPath} availableCharts={availableCharts} />;
 }
+

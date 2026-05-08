@@ -69,16 +69,14 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
   const hasRightAxis = metrics.some(metric => metric.yAxis === 'right') || hasStatisticOnRightAxis(preview, activeLayerId);
   const zoom = normalizeZoomRange(context);
   const enableStack = preview.dslConfig.dimensionConfigDsl.stackBySecondDimension && dimensions.length >= 2;
-  const hasScrollWindowConfig = preview.dslConfig.dimensionConfigDsl.enableScrollWindow !== undefined || metrics.some(metric => metric.enableScrollWindow !== undefined);
-  const enableScrollWindow = preview.dslConfig.dimensionConfigDsl.enableScrollWindow || metrics.some(metric => metric.enableScrollWindow);
-  const scrollWindowEnabled = hasScrollWindowConfig ? enableScrollWindow : interactionDsl.dataZoom;
+  const scrollWindowEnabled = Boolean(preview.dslConfig.dimensionConfigDsl.enableScrollWindow);
   const compact = Boolean(context?.compact);
   const dense = !compact && Boolean(context?.dense);
   const thumbnail = Boolean(context?.thumbnail);
   const forceSlider = scrollWindowEnabled && Boolean(context?.forceSlider);
   const forceDataZoom = scrollWindowEnabled && (Boolean(context?.forceDataZoom) || forceSlider);
   const enableSlider = forceSlider || (scrollWindowEnabled && interactionDsl.slider);
-  const enableDataZoom = forceDataZoom || scrollWindowEnabled;
+  const enableDataZoom = forceDataZoom || (scrollWindowEnabled && interactionDsl.dataZoom) || enableSlider;
   const showThumbnailSlider = thumbnail && enableDataZoom && enableSlider;
   let sliderStart = zoom.start;
   let sliderEnd = zoom.end;
@@ -123,7 +121,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
         itemStyle: { color: itemColor as never },
         lineStyle: { width: styleDsl.lineWidth, color: metric.color },
         smooth: type === 'line' ? metric.smooth : false,
-        showSymbol: type === 'line' ? styleDsl.showSymbol : undefined
+        showSymbol: type === 'line' ? (metric.showSymbol ?? styleDsl.showSymbol) : undefined
       };
 
       if (metric.chartType === 'area') {
@@ -135,6 +133,9 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
     ...buildStatisticItemSeries(preview, xField, xValues, activeLayerId, context)
   ];
   const seriesByName = new Map(series.map(item => [String(item.name ?? ''), item]));
+  const legendData = series
+    .map(item => String(item.name ?? ''))
+    .filter(name => name && !name.startsWith('__helper__'));
 
   return {
     animationDuration: compact ? 0 : 300,
@@ -175,6 +176,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
       left: dense ? 8 : 12,
       right: legendRightPadding,
       type: 'scroll',
+      data: legendData,
       itemWidth: dense ? 10 : 14,
       itemHeight: dense ? 7 : 10,
       pageIconColor: '#475569',
@@ -198,6 +200,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
             type: 'slider' as const,
             start: sliderStart,
             end: sliderEnd,
+            filterMode: 'filter' as const,
             height: sliderHeight,
             bottom: sliderBottom,
             showDetail: !thumbnail,
@@ -232,7 +235,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
             textStyle: { color: '#475569', fontSize: thumbnail ? 9 : dense ? 9 : 11 },
             labelFormatter: (value: string | number) => formatTimeLabel(value, xValues)
           }] : []),
-          ...(scrollWindowEnabled ? [{ type: 'inside' as const, start: sliderStart, end: sliderEnd, zoomOnMouseWheel: !thumbnail }] : [])
+          ...(scrollWindowEnabled ? [{ type: 'inside' as const, start: sliderStart, end: sliderEnd, filterMode: 'filter' as const, zoomOnMouseWheel: !thumbnail }] : [])
         ]
         : [],
     xAxis: {
@@ -249,6 +252,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
     yAxis: [
       {
         type: 'value',
+        scale: true,
         name: compact ? '' : visualDsl.leftAxisName,
         axisLabel: compact ? { fontSize: 10, margin: 8, color: '#475569', formatter: value => formatNumberMax3(value) } : { fontSize: dense ? 10 : undefined, color: '#475569', margin: dense ? 8 : 10, hideOverlap: true, formatter: value => formatNumberMax3(value) },
         axisTick: { show: true },
@@ -257,6 +261,7 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
       },
       {
         type: 'value',
+        scale: true,
         name: compact ? '' : visualDsl.rightAxisName,
         show: hasRightAxis,
         axisLabel: compact ? { fontSize: 10, margin: 8, color: '#475569', formatter: value => formatNumberMax3(value) } : { fontSize: dense ? 10 : undefined, color: '#475569', margin: dense ? 8 : 10, hideOverlap: true, formatter: value => formatNumberMax3(value) },

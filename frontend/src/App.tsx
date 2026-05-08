@@ -6,8 +6,8 @@ import {
   MenuFoldOutlined,
   StarOutlined
 } from '@ant-design/icons';
-import { Layout, Menu } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
+import { ConfigProvider, Layout, Menu } from 'antd';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api/client';
 import ExternalResourceConfigPage from './pages/ExternalResourceConfigPage';
@@ -39,6 +39,9 @@ const TEXT = {
   designer: '指标配置',
   brand: '策略工作台'
 };
+
+const DESIGN_VIEWPORT_WIDTH = 1920;
+const DESIGN_VIEWPORT_HEIGHT = 1080;
 
 function renderMenuIcon(Icon: typeof StarOutlined, color: string) {
   return <Icon style={{ color, fontSize: 18 }} />;
@@ -76,9 +79,36 @@ function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   return '/favorites';
 }
 
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/favorites" replace />} />
+      <Route path="/designer" element={<IndicatorConfigPage />} />
+      <Route path="/designer/:categoryKey" element={<IndicatorConfigPage />} />
+      <Route path="/designer/:categoryKey/:chartCode" element={<IndicatorConfigPage />} />
+      <Route path="/runtime" element={<IndicatorCenterPage />} />
+      <Route path="/runtime/:categoryKey" element={<IndicatorCenterPage />} />
+      <Route path="/runtime/:categoryKey/:chartCode" element={<IndicatorCenterPage />} />
+      <Route path="/favorites" element={<MyIndicatorsPage />} />
+      <Route path="/favorites/:chartId" element={<MyIndicatorsPage />} />
+      <Route path="/my-strategy" element={<MyStrategy />} />
+      <Route path="/my-strategy/:strategyId" element={<MyStrategy />} />
+      <Route path="/strategy-center" element={<StrategyCenter />} />
+      <Route path="/strategy-center/:strategyId" element={<StrategyCenter />} />
+      <Route path="/strategy/config" element={<StrategyConfig />} />
+      <Route path="/external-resource-config" element={<ExternalResourceConfigPage />} />
+      <Route path="/external-resource-config/:groupId" element={<ExternalResourceGroupConfigPage />} />
+      <Route path="/external-resource/:groupSlug" element={<ExternalResourcePage />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   const location = useLocation();
+  const designViewportRef = useRef<HTMLDivElement | null>(null);
   const [, setSyncVersion] = useState(0);
+  const [viewportScale, setViewportScale] = useState(1);
+  const [viewportHeight, setViewportHeight] = useState(DESIGN_VIEWPORT_HEIGHT);
   const [sharedReady, setSharedReady] = useState(false);
   const [externalResourceGroups, setExternalResourceGroups] = useState<ExternalResourceGroup[]>([]);
   const categories = useDashboardCategories();
@@ -144,6 +174,27 @@ export default function App() {
     }
   ];
 
+  useLayoutEffect(() => {
+    const updateViewport = () => {
+      const widthScale = window.innerWidth / DESIGN_VIEWPORT_WIDTH;
+      const heightScale = window.innerHeight / DESIGN_VIEWPORT_HEIGHT;
+      const nextScale = Math.min(widthScale, heightScale);
+      setViewportScale(Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1);
+      setViewportHeight(Math.max(DESIGN_VIEWPORT_HEIGHT, designViewportRef.current?.scrollHeight ?? DESIGN_VIEWPORT_HEIGHT));
+    };
+
+    updateViewport();
+    const observer = new ResizeObserver(updateViewport);
+    if (designViewportRef.current) {
+      observer.observe(designViewportRef.current);
+    }
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, [location.pathname, sharedReady]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -184,57 +235,51 @@ export default function App() {
     };
   }, []);
 
-  if (!sharedReady) {
-    return (
-      <Layout className="app-shell app-shell-sidebar">
-        <Layout.Content className="app-content app-content-sidebar">
-          <div className="panel-card canvas-card canvas-empty">正在同步共享配置...</div>
-        </Layout.Content>
-      </Layout>
-    );
-  }
+  const viewportStyle = {
+    width: DESIGN_VIEWPORT_WIDTH,
+    minHeight: DESIGN_VIEWPORT_HEIGHT,
+    zoom: viewportScale
+  };
 
   return (
-    <Layout className="app-shell app-shell-sidebar">
-      <aside
-        className="app-sidebar"
-        onMouseEnter={event => event.currentTarget.classList.add('expanded')}
-        onMouseLeave={event => event.currentTarget.classList.remove('expanded')}
-      >
-        <div className="app-sidebar-brand">
-          <LineChartOutlined />
-          <span className="app-sidebar-brand-text">{TEXT.brand}</span>
-          <MenuFoldOutlined className="app-sidebar-fold" />
+    <div
+      className="app-scale-shell"
+      style={{ width: DESIGN_VIEWPORT_WIDTH * viewportScale, height: viewportHeight * viewportScale }}
+    >
+      <ConfigProvider getPopupContainer={() => designViewportRef.current ?? document.body}>
+        <div ref={designViewportRef} className="app-design-viewport" style={viewportStyle}>
+          {!sharedReady ? (
+            <Layout className="app-shell app-shell-sidebar">
+              <Layout.Content className="app-content app-content-sidebar">
+                <div className="panel-card canvas-card canvas-empty">正在同步共享配置...</div>
+              </Layout.Content>
+            </Layout>
+          ) : (
+            <Layout className="app-shell app-shell-sidebar">
+              <aside
+                className="app-sidebar"
+                onMouseEnter={event => event.currentTarget.classList.add('expanded')}
+                onMouseLeave={event => event.currentTarget.classList.remove('expanded')}
+              >
+                <div className="app-sidebar-brand">
+                  <LineChartOutlined />
+                  <span className="app-sidebar-brand-text">{TEXT.brand}</span>
+                  <MenuFoldOutlined className="app-sidebar-fold" />
+                </div>
+                <Menu
+                  mode="inline"
+                  selectedKeys={[selectedKey]}
+                  items={items}
+                  className="app-sidebar-menu"
+                />
+              </aside>
+              <Layout.Content className="app-content app-content-sidebar">
+                <AppRoutes />
+              </Layout.Content>
+            </Layout>
+          )}
         </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          defaultOpenKeys={['runtime-group', 'external-resource-group']}
-          items={items}
-          className="app-sidebar-menu"
-        />
-      </aside>
-      <Layout.Content className="app-content app-content-sidebar">
-        <Routes>
-          <Route path="/" element={<Navigate to="/favorites" replace />} />
-          <Route path="/designer" element={<IndicatorConfigPage />} />
-          <Route path="/designer/:categoryKey" element={<IndicatorConfigPage />} />
-          <Route path="/designer/:categoryKey/:chartCode" element={<IndicatorConfigPage />} />
-          <Route path="/runtime" element={<IndicatorCenterPage />} />
-          <Route path="/runtime/:categoryKey" element={<IndicatorCenterPage />} />
-          <Route path="/runtime/:categoryKey/:chartCode" element={<IndicatorCenterPage />} />
-          <Route path="/favorites" element={<MyIndicatorsPage />} />
-          <Route path="/favorites/:chartId" element={<MyIndicatorsPage />} />
-          <Route path="/my-strategy" element={<MyStrategy />} />
-          <Route path="/my-strategy/:strategyId" element={<MyStrategy />} />
-          <Route path="/strategy-center" element={<StrategyCenter />} />
-          <Route path="/strategy-center/:strategyId" element={<StrategyCenter />} />
-          <Route path="/strategy/config" element={<StrategyConfig />} />
-          <Route path="/external-resource-config" element={<ExternalResourceConfigPage />} />
-          <Route path="/external-resource-config/:groupId" element={<ExternalResourceGroupConfigPage />} />
-          <Route path="/external-resource/:groupSlug" element={<ExternalResourcePage />} />
-        </Routes>
-      </Layout.Content>
-    </Layout>
+      </ConfigProvider>
+    </div>
   );
 }

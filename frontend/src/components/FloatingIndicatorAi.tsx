@@ -1,4 +1,4 @@
-import { CloseOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
+import { CloseOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { Button, Input } from 'antd';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api/client';
@@ -25,12 +25,23 @@ type DragState =
   | { mode: 'resize'; pointerId: number; start: Point; origin: Bounds }
   | null;
 
+type AiConversation = {
+  id: string;
+  title: string;
+  messages: IndicatorAiMessage[];
+  updatedAt: number;
+};
+
 const STORAGE_KEY = 'strategy-dashboard-indicator-ai-floating-v6';
-const TRIGGER_SIZE = 59;
-const PANEL_WIDTH = 380;
-const PANEL_HEIGHT = 680;
-const MIN_PANEL_WIDTH = 320;
-const MIN_PANEL_HEIGHT = 340;
+const HISTORY_KEY_PREFIX = 'strategy-dashboard-indicator-ai-history';
+const TRIGGER_SIZE = 88.5;
+const PANEL_WIDTH = 400;
+const PANEL_HEIGHT = 700;
+const MIN_PANEL_WIDTH = 340;
+const MIN_PANEL_HEIGHT = 360;
+const PANEL_OFFSET_Y = 96;
+const VIEWPORT_WIDTH = 1920;
+const VIEWPORT_HEIGHT = 1080;
 
 const TEXT = {
   title: 'TKF智能体助手',
@@ -132,16 +143,16 @@ function buildFallbackReply(pageTitle: string, charts: IndicatorAiChartContext[]
 
 function normalizeTrigger(point: Point) {
   return {
-    x: clamp(point.x, 16, window.innerWidth - TRIGGER_SIZE - 16),
-    y: clamp(point.y, 16, window.innerHeight - TRIGGER_SIZE - 16)
+    x: clamp(point.x, 16, VIEWPORT_WIDTH - TRIGGER_SIZE - 16),
+    y: clamp(point.y, 16, VIEWPORT_HEIGHT - TRIGGER_SIZE - 16)
   };
 }
 
 function normalizePanel(bounds: Bounds) {
-  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, window.innerWidth - 32));
-  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, window.innerHeight - 96));
-  const x = clamp(bounds.x, 16, Math.max(16, window.innerWidth - width - 16));
-  const y = clamp(bounds.y, 72, Math.max(72, window.innerHeight - height - 16));
+  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, VIEWPORT_WIDTH - 32));
+  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, VIEWPORT_HEIGHT - 96));
+  const x = clamp(bounds.x, 16, Math.max(16, VIEWPORT_WIDTH - width - 16));
+  const y = clamp(bounds.y, 72, Math.max(72, VIEWPORT_HEIGHT - height - 16));
   return { x, y, width, height };
 }
 
@@ -173,6 +184,40 @@ function writeLayout(trigger: Point, panel: Bounds) {
   }));
 }
 
+function initialIndicatorMessages(storageKey: string): IndicatorAiMessage[] {
+  return [{ id: `assistant-initial-${storageKey}`, role: 'assistant', content: TEXT.greeting }];
+}
+
+function historyStorageKey(storageKey: string) {
+  return `${HISTORY_KEY_PREFIX}:${storageKey}`;
+}
+
+function readConversations(storageKey: string): AiConversation[] {
+  try {
+    const raw = window.localStorage.getItem(historyStorageKey(storageKey));
+    const parsed = raw ? JSON.parse(raw) as AiConversation[] : [];
+    return Array.isArray(parsed) && parsed.length > 0
+      ? parsed
+      : [{
+          id: `conversation-${Date.now()}`,
+          title: '新对话',
+          messages: initialIndicatorMessages(storageKey),
+          updatedAt: Date.now()
+        }];
+  } catch {
+    return [{
+      id: `conversation-${Date.now()}`,
+      title: '新对话',
+      messages: initialIndicatorMessages(storageKey),
+      updatedAt: Date.now()
+    }];
+  }
+}
+
+function writeConversations(storageKey: string, conversations: AiConversation[]) {
+  window.localStorage.setItem(historyStorageKey(storageKey), JSON.stringify(conversations.slice(0, 20)));
+}
+
 function resolveDefaultLayout() {
   const search = document.querySelector<HTMLElement>('.page-toc-width-search');
   const trigger = search
@@ -181,13 +226,13 @@ function resolveDefaultLayout() {
         y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_SIZE) / 2)
       })
     : normalizeTrigger({
-        x: window.innerWidth - TRIGGER_SIZE - 320,
+        x: VIEWPORT_WIDTH - TRIGGER_SIZE - 320,
         y: 118
       });
 
   const panel = normalizePanel({
     x: trigger.x,
-    y: trigger.y + 58,
+    y: trigger.y + PANEL_OFFSET_Y,
     width: PANEL_WIDTH,
     height: PANEL_HEIGHT
   });
@@ -201,10 +246,12 @@ export default function FloatingIndicatorAi(props: {
   charts: IndicatorAiChartContext[];
 }) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<IndicatorAiMessage[]>([
-    { id: 'assistant-initial', role: 'assistant', content: TEXT.greeting }
-  ]);
+  const [conversations, setConversations] = useState<AiConversation[]>(() => readConversations(props.storageKey));
+  const [activeConversationId, setActiveConversationId] = useState(() => readConversations(props.storageKey)[0]?.id ?? `conversation-${Date.now()}`);
+  const activeConversation = conversations.find(item => item.id === activeConversationId) ?? conversations[0];
+  const messages = activeConversation?.messages ?? initialIndicatorMessages(props.storageKey);
   const [input, setInput] = useState('');
+  const [selectedCommand, setSelectedCommand] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [autoTriggered, setAutoTriggered] = useState(false);
   const [triggerPos, setTriggerPos] = useState<Point>({ x: 16, y: 16 });
@@ -224,7 +271,7 @@ export default function FloatingIndicatorAi(props: {
       const trigger = normalizeTrigger({ x: Number(layout.x), y: Number(layout.y) });
       const panel = normalizePanel({
         x: trigger.x,
-        y: trigger.y + 58,
+        y: trigger.y + PANEL_OFFSET_Y,
         width: Number.isFinite(layout.width) ? Number(layout.width) : PANEL_WIDTH,
         height: Number.isFinite(layout.height) ? Number(layout.height) : PANEL_HEIGHT
       });
@@ -256,12 +303,19 @@ export default function FloatingIndicatorAi(props: {
   }, []);
 
   useEffect(() => {
-    setMessages([{ id: `assistant-initial-${props.storageKey}`, role: 'assistant', content: TEXT.greeting }]);
+    const nextConversations = readConversations(props.storageKey);
+    setConversations(nextConversations);
+    setActiveConversationId(nextConversations[0]?.id ?? `conversation-${Date.now()}`);
     setInput('');
+    setSelectedCommand(undefined);
     setLoading(false);
     setAutoTriggered(false);
     setOpen(false);
   }, [props.storageKey]);
+
+  useEffect(() => {
+    writeConversations(props.storageKey, conversations);
+  }, [conversations, props.storageKey]);
 
   useEffect(() => {
     if (!messagesRef.current) {
@@ -271,7 +325,7 @@ export default function FloatingIndicatorAi(props: {
   }, [messages, loading]);
 
   useEffect(() => {
-    if (!open || autoTriggered || availableCharts.length === 0) {
+    if (true || !open || autoTriggered || availableCharts.length === 0) {
       return;
     }
     setAutoTriggered(true);
@@ -334,11 +388,75 @@ export default function FloatingIndicatorAi(props: {
   }, [panelBounds, triggerPos]);
 
   const appendMessage = (message: IndicatorAiMessage) => {
-    setMessages(current => [...current, message]);
+    setConversations(current => current.map(conversation => (
+      conversation.id === activeConversationId
+        ? {
+            ...conversation,
+            title: conversation.title === '新对话' && message.role === 'user'
+              ? message.content.slice(0, 18)
+              : conversation.title,
+            messages: [...conversation.messages, message],
+            updatedAt: Date.now()
+          }
+        : conversation
+    )));
+  };
+
+  const updateAssistantMessage = (messageId: string, updater: (content: string) => string) => {
+    setConversations(current => current.map(conversation => (
+      conversation.id === activeConversationId
+        ? {
+            ...conversation,
+            messages: conversation.messages.map(item => (
+              item.id === messageId ? { ...item, content: updater(item.content) } : item
+            )),
+            updatedAt: Date.now()
+          }
+        : conversation
+    )));
+  };
+
+  const createConversation = () => {
+    const conversation: AiConversation = {
+      id: `conversation-${Date.now()}`,
+      title: '新对话',
+      messages: initialIndicatorMessages(props.storageKey),
+      updatedAt: Date.now()
+    };
+    setConversations(current => [conversation, ...current]);
+    setActiveConversationId(conversation.id);
+    setInput('');
+    setSelectedCommand(undefined);
+  };
+
+  const deleteConversation = () => {
+    setConversations(current => {
+      const next = current.filter(item => item.id !== activeConversationId);
+      if (next.length > 0) {
+        setActiveConversationId(next[0].id);
+        return next;
+      }
+      const fallback: AiConversation = {
+        id: `conversation-${Date.now()}`,
+        title: '新对话',
+        messages: initialIndicatorMessages(props.storageKey),
+        updatedAt: Date.now()
+      };
+      setActiveConversationId(fallback.id);
+      return [fallback];
+    });
+    setInput('');
+    setSelectedCommand(undefined);
+  };
+
+  const applyCommand = (label: string) => {
+    setSelectedCommand(label);
+    setInput('');
   };
 
   const submitPrompt = async (prompt: string) => {
-    const trimmed = prompt.trim();
+    const rawPrompt = prompt.trim();
+    const trimmed = selectedCommand ? `【${selectedCommand}】${rawPrompt}` : rawPrompt;
     if (!trimmed || availableCharts.length === 0 || loading) {
       return;
     }
@@ -349,6 +467,7 @@ export default function FloatingIndicatorAi(props: {
       content: trimmed
     });
     setInput('');
+    setSelectedCommand(undefined);
 
     const assistantMessageId = `assistant-${Date.now()}`;
     appendMessage({
@@ -370,19 +489,11 @@ export default function FloatingIndicatorAi(props: {
         prompt: trimmed,
         charts: chartContexts
       }, chunk => {
-        setMessages(current => current.map(item => (
-          item.id === assistantMessageId
-            ? { ...item, content: item.content + chunk }
-            : item
-        )));
+        updateAssistantMessage(assistantMessageId, content => content + chunk);
       });
     } catch (error) {
       console.error(error);
-      setMessages(current => current.map(item => (
-        item.id === assistantMessageId
-          ? { ...item, content: buildFallbackReply(props.pageTitle, availableCharts, trimmed) }
-          : item
-      )));
+      updateAssistantMessage(assistantMessageId, () => buildFallbackReply(props.pageTitle, availableCharts, trimmed));
     } finally {
       setLoading(false);
     }
@@ -473,7 +584,25 @@ export default function FloatingIndicatorAi(props: {
             />
           </div>
 
-          <div className="floating-indicator-ai-subtitle">{props.pageTitle}</div>
+          <div className="floating-ai-session-bar">
+            <select
+              className="floating-ai-session-select"
+              value={activeConversationId}
+              onChange={event => setActiveConversationId(event.target.value)}
+            >
+              {conversations.map(conversation => (
+                <option key={conversation.id} value={conversation.id}>
+                  {conversation.title}
+                </option>
+              ))}
+            </select>
+            <Button size="small" icon={<PlusOutlined />} onClick={createConversation}>
+              新对话
+            </Button>
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={deleteConversation}>
+              删除
+            </Button>
+          </div>
 
           <div className="floating-indicator-ai-actions">
             <Button size="small" onClick={() => void submitPrompt('请对当前页面现有指标做一次全局分析')}>
@@ -490,9 +619,27 @@ export default function FloatingIndicatorAi(props: {
           </div>
 
           <div className="floating-indicator-ai-compose">
+            {input.trim() === '/' ? (
+              <div className="floating-ai-command-menu">
+                <button type="button" onClick={() => applyCommand('全局分析')}>
+                  <span>全局分析</span>
+                  <small>汇总当前页面指标变化和观察重点</small>
+                </button>
+                <button type="button" onClick={() => applyCommand('风险机会')}>
+                  <span>风险机会</span>
+                  <small>输出更适合演示讲解的结论</small>
+                </button>
+              </div>
+            ) : null}
+            {selectedCommand ? (
+              <div className="floating-ai-selected-command">
+                <span>{selectedCommand}</span>
+                <button type="button" onClick={() => setSelectedCommand(undefined)}>取消</button>
+              </div>
+            ) : null}
             <Input.TextArea
               value={input}
-              placeholder={TEXT.placeholder}
+              placeholder={`${TEXT.placeholder}，输入 / 选择功能`}
               autoSize={{ minRows: 3, maxRows: 5 }}
               disabled={loading || availableCharts.length === 0}
               onChange={event => setInput(event.target.value)}

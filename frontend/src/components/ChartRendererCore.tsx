@@ -1,5 +1,7 @@
 import { EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons';
-import { Button, Empty } from 'antd';
+import { Button, DatePicker, Empty } from 'antd';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import * as echarts from 'echarts';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { getChartTemplate } from '../charting/templateRegistry';
@@ -21,6 +23,12 @@ function readZoomRange(chart: echarts.EChartsType) {
   const start = typeof dataZoom?.start === 'number' ? dataZoom.start : 0;
   const end = typeof dataZoom?.end === 'number' ? dataZoom.end : 100;
   return { start, end };
+}
+
+function parseDateTime(value: unknown) {
+  if (value == null) return Number.NaN;
+  const time = new Date(String(value)).getTime();
+  return Number.isFinite(time) ? time : Number.NaN;
 }
 
 type TableRegion = 'body';
@@ -261,6 +269,7 @@ export default function ChartRendererCore(props: {
   const chartRef = useRef<echarts.EChartsType | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const zoomRangeRef = useRef<{ start: number; end: number }>({ start: 0, end: 100 });
+  const [zoomRange, setZoomRange] = useState<{ start: number; end: number }>({ start: 0, end: 100 });
   const [thumbnailLegendVisible, setThumbnailLegendVisible] = useState(false);
   const [thumbnailLegendPosition, setThumbnailLegendPosition] = useState<LegendPosition>({ x: 10, y: 34 });
   const thumbnailMode = Boolean(props.thumbnail);
@@ -275,6 +284,41 @@ export default function ChartRendererCore(props: {
   const thumbnailLegendItems = useMemo(
     () => (thumbnailMode && props.preview ? buildThumbnailLegendItems(props.preview, props.activeLayerId) : []),
     [props.activeLayerId, props.preview, thumbnailMode]
+  );
+  const windowAxisValues = useMemo(() => {
+    const xField = props.preview?.queryDsl.dimensionFields?.[0];
+    if (!props.preview || !xField) {
+      return [];
+    }
+    return Array.from(new Set(props.preview.rows.map(row => String(row[xField] ?? ''))))
+      .filter(value => Number.isFinite(parseDateTime(value)));
+  }, [props.preview]);
+  const windowDateBounds = useMemo(() => {
+    const times = windowAxisValues
+      .map(value => parseDateTime(value))
+      .filter(value => Number.isFinite(value));
+    if (times.length === 0) {
+      return undefined;
+    }
+    return {
+      min: dayjs(Math.min(...times)),
+      max: dayjs(Math.max(...times))
+    };
+  }, [windowAxisValues]);
+  const windowDateValue = useMemo(() => {
+    if (!windowDateBounds || windowAxisValues.length === 0) {
+      return null;
+    }
+    const startIndex = Math.max(0, Math.min(windowAxisValues.length - 1, Math.floor((zoomRange.start / 100) * (windowAxisValues.length - 1))));
+    const endIndex = Math.max(startIndex, Math.min(windowAxisValues.length - 1, Math.ceil((zoomRange.end / 100) * (windowAxisValues.length - 1))));
+    return [dayjs(windowAxisValues[startIndex]), dayjs(windowAxisValues[endIndex])] as [Dayjs, Dayjs];
+  }, [windowAxisValues, windowDateBounds, zoomRange]);
+  const showWindowPicker = Boolean(
+    props.preview?.dslConfig.dimensionConfigDsl.enableScrollWindow
+    && !thumbnailMode
+    && !compactMode
+    && effectiveViewMode === 'chart'
+    && windowAxisValues.length > 1
   );
   const option = useMemo(
     () => props.preview && template.buildOption
@@ -301,6 +345,52 @@ export default function ChartRendererCore(props: {
     });
   }, []);
 
+  const updateZoomRange = useCallback((next: { start: number; end: number }) => {
+    zoomRangeRef.current = next;
+    setZoomRange(current => (
+      current.start === next.start && current.end === next.end
+        ? current
+        : next
+    ));
+    chartRef.current?.dispatchAction({
+      type: 'dataZoom',
+      start: next.start,
+      end: next.end
+    });
+  }, []);
+
+  const handleWindowDateChange = useCallback((values: [Dayjs | null, Dayjs | null] | null) => {
+    if (!values?.[0] || !values?.[1] || windowAxisValues.length <= 1) {
+      updateZoomRange({ start: 0, end: 100 });
+      return;
+    }
+
+    const startTime = values[0].startOf('day').valueOf();
+    const endTime = values[1].endOf('day').valueOf();
+    const firstVisibleIndex = windowAxisValues.findIndex(value => {
+      const time = parseDateTime(value);
+      return Number.isFinite(time) && time >= startTime;
+    });
+    let lastVisibleIndex = -1;
+    for (let index = windowAxisValues.length - 1; index >= 0; index -= 1) {
+      const time = parseDateTime(windowAxisValues[index]);
+      if (Number.isFinite(time) && time <= endTime) {
+        lastVisibleIndex = index;
+        break;
+      }
+    }
+
+    if (firstVisibleIndex < 0 || lastVisibleIndex < firstVisibleIndex) {
+      return;
+    }
+
+    const denominator = windowAxisValues.length - 1;
+    updateZoomRange({
+      start: (firstVisibleIndex / denominator) * 100,
+      end: (lastVisibleIndex / denominator) * 100
+    });
+  }, [updateZoomRange, windowAxisValues]);
+
   const clampLegendPosition = useCallback((position: LegendPosition) => {
     const shell = shellRef.current;
     if (!shell) {
@@ -320,9 +410,8 @@ export default function ChartRendererCore(props: {
   const shouldRenderChart = effectiveViewMode !== 'table' && template.renderer !== 'table' && Boolean(option);
 
   useEffect(() => {
-    if (!props.preview) {
-      zoomRangeRef.current = { start: 0, end: 100 };
-    }
+    zoomRangeRef.current = { start: 0, end: 100 };
+    setZoomRange({ start: 0, end: 100 });
   }, [props.preview]);
 
   useEffect(() => {
@@ -349,6 +438,11 @@ export default function ChartRendererCore(props: {
     const syncZoom = () => {
       const next = readZoomRange(chart);
       zoomRangeRef.current = next;
+      setZoomRange(current => (
+        current.start === next.start && current.end === next.end
+          ? current
+          : next
+      ));
     };
 
     chart.on('datazoom', syncZoom);
@@ -369,10 +463,42 @@ export default function ChartRendererCore(props: {
   }, [shouldRenderChart, resizeChart]);
 
   useEffect(() => {
+    const host = hostRef.current;
+    if (!shouldRenderChart || !host) {
+      return;
+    }
+
+    const correctPointer = (event: MouseEvent | PointerEvent | WheelEvent) => {
+      const rect = host.getBoundingClientRect();
+      const scaleX = rect.width > 0 && host.clientWidth > 0 ? rect.width / host.clientWidth : 1;
+      const scaleY = rect.height > 0 && host.clientHeight > 0 ? rect.height / host.clientHeight : 1;
+      if (Math.abs(scaleX - 1) < 0.001 && Math.abs(scaleY - 1) < 0.001) {
+        return;
+      }
+      const mutableEvent = event as typeof event & { zrX?: number; zrY?: number };
+      mutableEvent.zrX = (event.clientX - rect.left) / scaleX;
+      mutableEvent.zrY = (event.clientY - rect.top) / scaleY;
+    };
+
+    const eventNames = ['mousedown', 'mousemove', 'mouseup', 'click', 'dblclick', 'wheel', 'pointerdown', 'pointermove', 'pointerup'];
+    eventNames.forEach(name => host.addEventListener(name, correctPointer as EventListener, true));
+    return () => {
+      eventNames.forEach(name => host.removeEventListener(name, correctPointer as EventListener, true));
+    };
+  }, [shouldRenderChart]);
+
+  useEffect(() => {
     if (!shouldRenderChart || !option || !chartRef.current) {
       return;
     }
     chartRef.current.setOption(option, true);
+    const nextZoom = readZoomRange(chartRef.current);
+    zoomRangeRef.current = nextZoom;
+    setZoomRange(current => (
+      current.start === nextZoom.start && current.end === nextZoom.end
+        ? current
+        : nextZoom
+    ));
     resizeChart();
   }, [option, resizeChart, shouldRenderChart]);
 
@@ -438,7 +564,22 @@ export default function ChartRendererCore(props: {
   };
 
   return (
-    <div ref={shellRef} className={`chart-renderer-shell${props.thumbnail ? ' chart-renderer-thumbnail' : ''}`}>
+    <div ref={shellRef} className={`chart-renderer-shell${props.thumbnail ? ' chart-renderer-thumbnail' : ''}${showWindowPicker ? ' chart-renderer-with-window-picker' : ''}`}>
+      {showWindowPicker ? (
+        <div className="chart-window-range-picker" onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
+          <DatePicker.RangePicker
+            size="small"
+            allowClear={false}
+            value={windowDateValue}
+            disabledDate={current => Boolean(
+              current
+              && windowDateBounds
+              && (current.isBefore(windowDateBounds.min, 'day') || current.isAfter(windowDateBounds.max, 'day'))
+            )}
+            onChange={handleWindowDateChange}
+          />
+        </div>
+      ) : null}
       {thumbnailMode && shouldRenderChart && thumbnailLegendItems.length > 0 ? (
         <div className="chart-thumbnail-toolbar">
           <Button

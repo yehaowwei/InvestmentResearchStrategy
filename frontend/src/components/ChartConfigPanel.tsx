@@ -1,4 +1,4 @@
-﻿import { Button, Card, Collapse, ColorPicker, Empty, Input, InputNumber, Select, Space, Switch } from 'antd';
+﻿import { Button, Card, Collapse, ColorPicker, DatePicker, Empty, Input, InputNumber, Select, Space, Switch } from 'antd';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type {
@@ -191,13 +191,6 @@ function buildLinePanel(
             />
           </div>
         ) : null}
-        <Space>
-          <span className="metric-field-label">启用滚动窗口</span>
-          <Switch
-            checked={Boolean(config.enableScrollWindow)}
-            onChange={checked => updateStatisticConfig(index, scope, key, { enableScrollWindow: checked })}
-          />
-        </Space>
         <Space wrap style={{ width: '100%' }}>
           <Space>
             <span className="metric-field-label">启用</span>
@@ -242,13 +235,6 @@ function buildBandPanel(
             <InputNumber style={{ width: '100%' }} min={0.5} step={0.5} value={component.dslConfig.statisticalItemsDsl[index].rollingWindowYears} onChange={value => updateStatistic(index, currentItem => ({ ...currentItem, rollingWindowYears: Number(value ?? currentItem.rollingWindowYears ?? 3) }))} />
           </div>
         ) : null}
-        <Space>
-          <span className="metric-field-label">启用滚动窗口</span>
-          <Switch
-            checked={Boolean(config.enableScrollWindow)}
-            onChange={checked => updateStatisticConfig(index, scope, key, { enableScrollWindow: checked })}
-          />
-        </Space>
         <Space wrap style={{ width: '100%' }}>
           <Space>
             <span className="metric-field-label">启用</span>
@@ -446,12 +432,14 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                       </Space.Compact>
                       {metric.chartType === 'bar' ? <div><FieldLabel>负值颜色</FieldLabel><ColorBoard value={metric.negativeColor || '#dc2626'} onChange={hex => updateMetric(index, currentMetric => ({ ...currentMetric, negativeColor: hex }))} /></div> : null}
                       <div><FieldLabel>图层</FieldLabel><Select mode="multiple" style={{ width: '100%' }} value={metric.layerIds} options={layerOptions} placeholder="选择图层" onChange={value => updateMetric(index, currentMetric => ({ ...currentMetric, layerIds: value }))} /></div>
-                      <Space><span className="metric-field-label">启用滚动窗口</span><Switch checked={Boolean(metric.enableScrollWindow)} onChange={checked => updateMetric(index, currentMetric => ({ ...currentMetric, enableScrollWindow: checked }))} /></Space>
-                      <Space><span className="metric-field-label">平滑</span><Switch checked={metric.smooth} onChange={checked => updateMetric(index, currentMetric => ({ ...currentMetric, smooth: checked }))} /></Space>
+                      <Space wrap>
+                        <Space><span className="metric-field-label">平滑</span><Switch checked={metric.smooth} onChange={checked => updateMetric(index, currentMetric => ({ ...currentMetric, smooth: checked }))} /></Space>
+                        <Space><span className="metric-field-label">显示数据点</span><Switch checked={metric.showSymbol} onChange={checked => updateMetric(index, currentMetric => ({ ...currentMetric, showSymbol: checked }))} /></Space>
+                      </Space>
                     </Space>
                   </Card>
                 ))}
-                <Button block onClick={() => { const field = metricFields[0]; if (!field) return; applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, metrics: [...current.dslConfig.queryDsl.metrics, { fieldCode: field.fieldCode, displayName: field.fieldName || field.fieldCode, aggType: field.aggType || 'sum', chartType: 'line', yAxis: 'left', color: '#1d4ed8', negativeColor: '#dc2626', smooth: false, layerIds: current.dslConfig.chartLayersDsl[0] ? [current.dslConfig.chartLayersDsl[0].id] : [] }] } } })); }}>新增指标</Button>
+                <Button block onClick={() => { const field = metricFields[0]; if (!field) return; applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, queryDsl: { ...current.dslConfig.queryDsl, metrics: [...current.dslConfig.queryDsl.metrics, { fieldCode: field.fieldCode, displayName: field.fieldName || field.fieldCode, aggType: field.aggType || 'sum', chartType: 'line', yAxis: 'left', color: '#1d4ed8', negativeColor: '#dc2626', smooth: false, showSymbol: false, layerIds: current.dslConfig.chartLayersDsl[0] ? [current.dslConfig.chartLayersDsl[0].id] : [] }] } } })); }}>新增指标</Button>
               </Space></div>
             </>
           ) : null}
@@ -462,7 +450,7 @@ export default function ChartConfigPanel(props: { component?: DashboardComponent
                 <Card key={item.id} size="small" extra={<Button size="small" danger onClick={() => applyComponent(current => ({ ...current, dslConfig: { ...current.dslConfig, statisticalItemsDsl: current.dslConfig.statisticalItemsDsl.filter((_, itemIndex) => itemIndex !== index) } }))}>删除</Button>}>
                   <Space direction="vertical" size={12} style={{ width: '100%' }}>
                     <Select style={{ width: '100%' }} value={item.metricFieldCode} options={metricBindingOptions} onChange={value => updateStatistic(index, currentItem => ({ ...currentItem, metricFieldCode: value }))} />
-                    <Collapse items={statisticPanelItems(item, index)} defaultActiveKey={statisticPanelItems(item, index).map(panel => panel.key)} />
+                    <Collapse items={statisticPanelItems(item, index)} defaultActiveKey={[]} />
                   </Space>
                 </Card>
               ))}

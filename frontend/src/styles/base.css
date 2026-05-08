@@ -22,14 +22,36 @@ body,
   min-height: 100%;
 }
 
+html {
+  overflow: auto;
+}
+
 body {
   margin: 0;
   background: radial-gradient(circle at top left, #f8fcff 0, #eef4f8 40%, #e8eff5 100%);
   color: var(--ink);
 }
 
+#root {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.app-scale-shell {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.app-design-viewport {
+  position: relative;
+  min-width: 1920px;
+  overflow: visible;
+}
+
 .app-shell {
-  min-height: 100vh;
+  min-height: 1080px;
 }
 
 .app-shell-sidebar {
@@ -39,10 +61,11 @@ body {
 }
 
 .app-sidebar {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  height: 100vh;
+  height: 100%;
+  min-height: 1080px;
   width: 84px;
   padding: 18px 12px;
   background: linear-gradient(180deg, #e5ebf1 0%, #edf2f6 52%, #f6f8fb 100%);
@@ -110,6 +133,10 @@ body {
 
 .app-sidebar-menu .ant-menu-sub {
   background: transparent !important;
+}
+
+.app-sidebar.expanded .app-sidebar-menu .ant-menu-sub .ant-menu-item {
+  padding-left: 62px !important;
 }
 
 .app-content {

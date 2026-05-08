@@ -1,4 +1,4 @@
-import type { LineSeriesOption } from 'echarts';
+﻿import type { LineSeriesOption } from 'echarts';
 import type {
   ChartPreview,
   MetricSetting,
@@ -73,7 +73,7 @@ function buildBandSeries(params: {
 
   return [
     {
-      name: `${params.namePrefix}-fill-base`,
+      name: `__helper__${params.id}-fill-base`,
       type: 'line',
       yAxisIndex: params.yAxisIndex,
       data: params.lower,
@@ -86,7 +86,7 @@ function buildBandSeries(params: {
       tooltip: { show: false }
     },
     {
-      name: `${params.namePrefix}-band`,
+      name: `__helper__${params.id}-band`,
       type: 'line',
       yAxisIndex: params.yAxisIndex,
       data: span,

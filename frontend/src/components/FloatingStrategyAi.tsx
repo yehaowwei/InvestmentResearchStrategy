@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { Button, Input, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api/client';
@@ -27,6 +27,13 @@ type DragState =
   | { mode: 'resize'; pointerId: number; start: Point; origin: Bounds }
   | null;
 
+type AiConversation = {
+  id: string;
+  title: string;
+  messages: StrategyAiMessage[];
+  updatedAt: number;
+};
+
 type StrategyProposal = {
   id: string;
   strategyName: string;
@@ -35,11 +42,15 @@ type StrategyProposal = {
 };
 
 const STORAGE_KEY = 'strategy-dashboard-strategy-ai-floating-v2';
-const TRIGGER_SIZE = 59;
+const HISTORY_KEY_PREFIX = 'strategy-dashboard-strategy-ai-history';
+const TRIGGER_SIZE = 88.5;
 const PANEL_WIDTH = 400;
 const PANEL_HEIGHT = 700;
 const MIN_PANEL_WIDTH = 340;
 const MIN_PANEL_HEIGHT = 360;
+const PANEL_OFFSET_Y = 96;
+const VIEWPORT_WIDTH = 1920;
+const VIEWPORT_HEIGHT = 1080;
 
 const TEXT = {
   title: 'TKF智能体助手',
@@ -62,16 +73,16 @@ function clamp(value: number, min: number, max: number) {
 
 function normalizeTrigger(point: Point) {
   return {
-    x: clamp(point.x, 16, window.innerWidth - TRIGGER_SIZE - 16),
-    y: clamp(point.y, 16, window.innerHeight - TRIGGER_SIZE - 16)
+    x: clamp(point.x, 16, VIEWPORT_WIDTH - TRIGGER_SIZE - 16),
+    y: clamp(point.y, 16, VIEWPORT_HEIGHT - TRIGGER_SIZE - 16)
   };
 }
 
 function normalizePanel(bounds: Bounds) {
-  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, window.innerWidth - 32));
-  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, window.innerHeight - 96));
-  const x = clamp(bounds.x, 16, Math.max(16, window.innerWidth - width - 16));
-  const y = clamp(bounds.y, 72, Math.max(72, window.innerHeight - height - 16));
+  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, VIEWPORT_WIDTH - 32));
+  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, VIEWPORT_HEIGHT - 96));
+  const x = clamp(bounds.x, 16, Math.max(16, VIEWPORT_WIDTH - width - 16));
+  const y = clamp(bounds.y, 72, Math.max(72, VIEWPORT_HEIGHT - height - 16));
   return { x, y, width, height };
 }
 
@@ -103,6 +114,40 @@ function writeLayout(trigger: Point, panel: Bounds) {
   }));
 }
 
+function initialStrategyMessages(storageKey: string): StrategyAiMessage[] {
+  return [{ id: `assistant-initial-${storageKey}`, role: 'assistant', content: TEXT.greeting }];
+}
+
+function historyStorageKey(storageKey: string) {
+  return `${HISTORY_KEY_PREFIX}:${storageKey}`;
+}
+
+function readConversations(storageKey: string): AiConversation[] {
+  try {
+    const raw = window.localStorage.getItem(historyStorageKey(storageKey));
+    const parsed = raw ? JSON.parse(raw) as AiConversation[] : [];
+    return Array.isArray(parsed) && parsed.length > 0
+      ? parsed
+      : [{
+          id: `conversation-${Date.now()}`,
+          title: '新对话',
+          messages: initialStrategyMessages(storageKey),
+          updatedAt: Date.now()
+        }];
+  } catch {
+    return [{
+      id: `conversation-${Date.now()}`,
+      title: '新对话',
+      messages: initialStrategyMessages(storageKey),
+      updatedAt: Date.now()
+    }];
+  }
+}
+
+function writeConversations(storageKey: string, conversations: AiConversation[]) {
+  window.localStorage.setItem(historyStorageKey(storageKey), JSON.stringify(conversations.slice(0, 20)));
+}
+
 function resolveDefaultLayout() {
   const search = document.querySelector<HTMLElement>('.page-toc-width-search');
   const trigger = search
@@ -111,7 +156,7 @@ function resolveDefaultLayout() {
         y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_SIZE) / 2)
       })
     : normalizeTrigger({
-        x: window.innerWidth - TRIGGER_SIZE - 332,
+        x: VIEWPORT_WIDTH - TRIGGER_SIZE - 332,
         y: 118
       });
 
@@ -119,7 +164,7 @@ function resolveDefaultLayout() {
     trigger,
     panel: normalizePanel({
       x: trigger.x,
-      y: trigger.y + 58,
+      y: trigger.y + PANEL_OFFSET_Y,
       width: PANEL_WIDTH,
       height: PANEL_HEIGHT
     })
@@ -217,10 +262,12 @@ export default function FloatingStrategyAi(props: {
   charts: StrategyAiChartContext[];
 }) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<StrategyAiMessage[]>([
-    { id: 'assistant-initial', role: 'assistant', content: TEXT.greeting }
-  ]);
+  const [conversations, setConversations] = useState<AiConversation[]>(() => readConversations(props.storageKey));
+  const [activeConversationId, setActiveConversationId] = useState(() => readConversations(props.storageKey)[0]?.id ?? `conversation-${Date.now()}`);
+  const activeConversation = conversations.find(item => item.id === activeConversationId) ?? conversations[0];
+  const messages = activeConversation?.messages ?? initialStrategyMessages(props.storageKey);
   const [input, setInput] = useState('');
+  const [selectedCommand, setSelectedCommand] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [triggerPos, setTriggerPos] = useState<Point>({ x: 16, y: 16 });
   const [panelBounds, setPanelBounds] = useState<Bounds>({ x: 16, y: 72, width: PANEL_WIDTH, height: PANEL_HEIGHT });
@@ -240,7 +287,7 @@ export default function FloatingStrategyAi(props: {
       const trigger = normalizeTrigger({ x: Number(layout.x), y: Number(layout.y) });
       const panel = normalizePanel({
         x: trigger.x,
-        y: trigger.y + 58,
+        y: trigger.y + PANEL_OFFSET_Y,
         width: Number.isFinite(layout.width) ? Number(layout.width) : PANEL_WIDTH,
         height: Number.isFinite(layout.height) ? Number(layout.height) : PANEL_HEIGHT
       });
@@ -272,12 +319,19 @@ export default function FloatingStrategyAi(props: {
   }, []);
 
   useEffect(() => {
-    setMessages([{ id: `assistant-${props.storageKey}`, role: 'assistant', content: TEXT.greeting }]);
+    const nextConversations = readConversations(props.storageKey);
+    setConversations(nextConversations);
+    setActiveConversationId(nextConversations[0]?.id ?? `conversation-${Date.now()}`);
     setInput('');
+    setSelectedCommand(undefined);
     setLoading(false);
     setOpen(false);
     setProposal(undefined);
   }, [props.storageKey]);
+
+  useEffect(() => {
+    writeConversations(props.storageKey, conversations);
+  }, [conversations, props.storageKey]);
 
   useEffect(() => {
     if (!messagesRef.current) {
@@ -341,7 +395,72 @@ export default function FloatingStrategyAi(props: {
   }, [panelBounds, triggerPos]);
 
   const appendMessage = (messageItem: StrategyAiMessage) => {
-    setMessages(current => [...current, messageItem]);
+    setConversations(current => current.map(conversation => (
+      conversation.id === activeConversationId
+        ? {
+            ...conversation,
+            title: conversation.title === '新对话' && messageItem.role === 'user'
+              ? messageItem.content.slice(0, 18)
+              : conversation.title,
+            messages: [...conversation.messages, messageItem],
+            updatedAt: Date.now()
+          }
+        : conversation
+    )));
+  };
+
+  const updateAssistantMessage = (messageId: string, updater: (content: string) => string) => {
+    setConversations(current => current.map(conversation => (
+      conversation.id === activeConversationId
+        ? {
+            ...conversation,
+            messages: conversation.messages.map(item => (
+              item.id === messageId ? { ...item, content: updater(item.content) } : item
+            )),
+            updatedAt: Date.now()
+          }
+        : conversation
+    )));
+  };
+
+  const createConversation = () => {
+    const conversation: AiConversation = {
+      id: `conversation-${Date.now()}`,
+      title: '新对话',
+      messages: initialStrategyMessages(props.storageKey),
+      updatedAt: Date.now()
+    };
+    setConversations(current => [conversation, ...current]);
+    setActiveConversationId(conversation.id);
+    setInput('');
+    setSelectedCommand(undefined);
+    setProposal(undefined);
+  };
+
+  const deleteConversation = () => {
+    setConversations(current => {
+      const next = current.filter(item => item.id !== activeConversationId);
+      if (next.length > 0) {
+        setActiveConversationId(next[0].id);
+        return next;
+      }
+      const fallback: AiConversation = {
+        id: `conversation-${Date.now()}`,
+        title: '新对话',
+        messages: initialStrategyMessages(props.storageKey),
+        updatedAt: Date.now()
+      };
+      setActiveConversationId(fallback.id);
+      return [fallback];
+    });
+    setInput('');
+    setSelectedCommand(undefined);
+    setProposal(undefined);
+  };
+
+  const applyCommand = (label: string) => {
+    setSelectedCommand(label);
+    setInput('');
   };
 
   const saveProposal = () => {
@@ -364,7 +483,8 @@ export default function FloatingStrategyAi(props: {
   };
 
   const submitPrompt = async (prompt: string) => {
-    const trimmed = prompt.trim();
+    const rawPrompt = prompt.trim();
+    const trimmed = selectedCommand ? `【${selectedCommand}】${rawPrompt}` : rawPrompt;
     if (!trimmed || loading) {
       return;
     }
@@ -375,6 +495,7 @@ export default function FloatingStrategyAi(props: {
       content: trimmed
     });
     setInput('');
+    setSelectedCommand(undefined);
     setProposal(undefined);
 
     if (isCreateCycleStrategyPrompt(trimmed)) {
@@ -427,19 +548,11 @@ export default function FloatingStrategyAi(props: {
         prompt: trimmed,
         charts: chartContexts
       }, chunk => {
-        setMessages(current => current.map(item => (
-          item.id === assistantMessageId
-            ? { ...item, content: item.content + chunk }
-            : item
-        )));
+        updateAssistantMessage(assistantMessageId, content => content + chunk);
       });
     } catch (error) {
       console.error(error);
-      setMessages(current => current.map(item => (
-        item.id === assistantMessageId
-          ? { ...item, content: buildFallbackReply(props.pageTitle, availableCharts, trimmed) }
-          : item
-      )));
+      updateAssistantMessage(assistantMessageId, () => buildFallbackReply(props.pageTitle, availableCharts, trimmed));
     } finally {
       setLoading(false);
     }
@@ -530,7 +643,25 @@ export default function FloatingStrategyAi(props: {
             />
           </div>
 
-          <div className="floating-indicator-ai-subtitle">{props.pageTitle || TEXT.pageTitle}</div>
+          <div className="floating-ai-session-bar">
+            <select
+              className="floating-ai-session-select"
+              value={activeConversationId}
+              onChange={event => setActiveConversationId(event.target.value)}
+            >
+              {conversations.map(conversation => (
+                <option key={conversation.id} value={conversation.id}>
+                  {conversation.title}
+                </option>
+              ))}
+            </select>
+            <Button size="small" icon={<PlusOutlined />} onClick={createConversation}>
+              新对话
+            </Button>
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={deleteConversation}>
+              删除
+            </Button>
+          </div>
 
           <div className="floating-indicator-ai-actions">
             <Button size="small" onClick={() => void submitPrompt('创建一个风格周期定位策略')}>
@@ -564,9 +695,27 @@ export default function FloatingStrategyAi(props: {
           ) : null}
 
           <div className="floating-indicator-ai-compose">
+            {input.trim() === '/' ? (
+              <div className="floating-ai-command-menu">
+                <button type="button" onClick={() => applyCommand('演示策略')}>
+                  <span>演示策略</span>
+                  <small>生成可保存到我的策略的演示方案</small>
+                </button>
+                <button type="button" onClick={() => applyCommand('策略总结')}>
+                  <span>策略总结</span>
+                  <small>基于当前图表输出演示解读</small>
+                </button>
+              </div>
+            ) : null}
+            {selectedCommand ? (
+              <div className="floating-ai-selected-command">
+                <span>{selectedCommand}</span>
+                <button type="button" onClick={() => setSelectedCommand(undefined)}>取消</button>
+              </div>
+            ) : null}
             <Input.TextArea
               value={input}
-              placeholder={TEXT.placeholder}
+              placeholder={`${TEXT.placeholder}，输入 / 选择功能`}
               autoSize={{ minRows: 3, maxRows: 5 }}
               disabled={loading}
               onChange={event => setInput(event.target.value)}

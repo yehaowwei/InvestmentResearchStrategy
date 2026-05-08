@@ -62,6 +62,25 @@ export function resolveVisibleIndexRange(length: number, context?: { zoomRange?:
   return { startIndex, endIndex };
 }
 
+export function resolveScrollWindowBounds(
+  context?: { scrollWindowRange?: [string, string] },
+  values: string[] = []
+) {
+  const [start, end] = context?.scrollWindowRange ?? ['', ''];
+  const startTime = start ? new Date(start).getTime() : Number.NaN;
+  const endTime = end ? new Date(end).getTime() : Number.NaN;
+  const finiteValues = values
+    .map(value => new Date(value).getTime())
+    .filter(value => Number.isFinite(value));
+  return {
+    hasRange: Boolean(start && end && Number.isFinite(startTime) && Number.isFinite(endTime)),
+    startTime,
+    endTime,
+    minTime: finiteValues.length > 0 ? Math.min(...finiteValues) : Number.NaN,
+    maxTime: finiteValues.length > 0 ? Math.max(...finiteValues) : Number.NaN
+  };
+}
+
 export function parseTime(value: unknown) {
   if (value == null) return Number.NaN;
   const time = new Date(String(value)).getTime();

@@ -42,8 +42,10 @@ export interface MetricSetting {
   color: string;
   negativeColor?: string;
   smooth: boolean;
+  showSymbol: boolean;
   layerIds: string[];
   enableScrollWindow?: boolean;
+  scrollWindowRange?: [string, string];
 }
 
 export interface FilterCondition {
@@ -102,6 +104,7 @@ export interface DimensionConfigDsl {
   stackBySecondDimension: boolean;
   layerIds: string[];
   enableScrollWindow?: boolean;
+  scrollWindowRange?: [string, string];
 }
 
 export interface StatisticLineConfig {
@@ -111,6 +114,7 @@ export interface StatisticLineConfig {
   lineStyle: StatisticalLineStyle;
   layerIds: string[];
   enableScrollWindow?: boolean;
+  scrollWindowRange?: [string, string];
 }
 
 export interface StatisticBandConfig extends StatisticLineConfig {
@@ -137,6 +141,7 @@ export interface StatisticalItemDsl {
   itemName: string;
   metricFieldCode?: string;
   rollingWindowYears?: number;
+  scrollWindowRange?: [string, string];
   visible: MetricStatisticScopeDsl;
   rolling: MetricStatisticScopeDsl;
 }

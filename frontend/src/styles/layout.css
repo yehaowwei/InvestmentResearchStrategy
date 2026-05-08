@@ -103,7 +103,7 @@
 .single-chart-panel {
   width: 100%;
   min-height: 720px;
-  height: calc(100vh - 148px);
+  height: calc(1080px - 148px);
 }
 
 .single-chart-empty-shell {
@@ -129,7 +129,7 @@
 .config-panel-shell {
   position: relative;
   top: 0;
-  height: calc(100vh - 148px);
+  height: calc(1080px - 148px);
   min-height: 0;
 }
 
@@ -254,9 +254,32 @@
 
 .chart-renderer-shell {
   display: flex;
+  position: relative;
   flex: 1 1 auto;
   height: 100%;
   min-height: 0;
+}
+
+.chart-renderer-with-window-picker {
+  padding-top: 34px;
+  box-sizing: border-box;
+}
+
+.chart-window-range-picker {
+  position: absolute;
+  top: 0;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+}
+
+.chart-window-range-picker .ant-picker {
+  width: 216px;
 }
 
 .chart-renderer-host {

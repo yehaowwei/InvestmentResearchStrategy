@@ -15,6 +15,7 @@ import AppSearchInput from '../components/AppSearchInput';
 import ChartConfigPanel from '../components/ChartConfigPanel';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
+import FloatingConfigAssistant from '../components/FloatingConfigAssistant';
 import type {
   ChartCatalogItem,
   ChartDefinition,
@@ -561,6 +562,108 @@ export default function IndicatorConfigPage() {
     }
   };
 
+  const createChartFromAssistant = async (prompt: string) => {
+    if (templates.length === 0 || dataPools.length === 0) {
+      return '当前缺少模板或数据池，暂时无法创建指标草稿。';
+    }
+    const title = prompt
+      .replace(/(帮我|请|创建|新建|配置|一个|指标|图表|把|设置为|改成|修改为)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 28) || `AI指标${charts.length + 1}`;
+    const template =
+      templates.find(item => (item.capability?.renderer ?? item.rendererCode) === 'cartesian_combo')
+      ?? templates[0];
+    const baseComponent = createComponentFromTemplate(template, dataPools[0].modelCode, 0);
+    const component: DashboardComponent = {
+      ...baseComponent,
+      title,
+      dslConfig: {
+        ...baseComponent.dslConfig,
+        visualDsl: {
+          ...baseComponent.dslConfig.visualDsl,
+          title,
+          indicatorTag: '配置助手'
+        },
+        dimensionConfigDsl: {
+          ...baseComponent.dslConfig.dimensionConfigDsl,
+          enableScrollWindow: /滚动|窗口|区间/.test(prompt)
+        },
+        queryDsl: {
+          ...baseComponent.dslConfig.queryDsl,
+          metrics: baseComponent.dslConfig.queryDsl.metrics.map(metric => ({
+            ...metric,
+            showSymbol: /数据点|点位|显示点/.test(prompt) ? true : metric.showSymbol
+          }))
+        }
+      }
+    };
+    const nextDraft: ChartDefinition = {
+      chartCode: '',
+      chartName: resolveComponentChartName(component, title),
+      status: 'DRAFT',
+      publishedVersion: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      components: [component]
+    };
+    const savedDraft = normalizeChartDefinition(await api.saveChartDraft(nextDraft));
+    const savedChartCode = savedDraft.chartCode;
+    const refreshedCharts = await refreshCharts();
+    ensureDashboardMeta(savedChartCode, {
+      category: routeCategory,
+      order: filterChartsByCategory(refreshedCharts, routeCategory, false).length
+    });
+    updateChartDraftMeta(savedChartCode, { draftSavedAt: new Date().toISOString() });
+    return (
+      <div>
+        <div>已按提示词生成指标配置草稿，尚未发布。</div>
+        <Button size="small" type="primary" style={{ marginTop: 8 }} onClick={() => navigate(`/designer/${routeCategory}/${savedChartCode}`)}>
+          进入配置
+        </Button>
+      </div>
+    );
+  };
+
+  const applyAssistantToCurrentIndicator = (prompt: string) => {
+    if (!selectedChart || !draft) {
+      return '请先进入一个具体指标配置页。';
+    }
+    const titleMatch = prompt.match(/(?:标题|名称|命名为|改成|修改为|叫)([^，。,\n]{2,32})/);
+    const nextTitle = titleMatch?.[1]?.trim();
+    const nextComponent: DashboardComponent = {
+      ...selectedChart,
+      title: nextTitle || selectedChart.title,
+      dslConfig: {
+        ...selectedChart.dslConfig,
+        visualDsl: {
+          ...selectedChart.dslConfig.visualDsl,
+          title: nextTitle || selectedChart.dslConfig.visualDsl.title,
+          indicatorTag: /标签|tag/i.test(prompt) ? '配置助手' : selectedChart.dslConfig.visualDsl.indicatorTag
+        },
+        dimensionConfigDsl: {
+          ...selectedChart.dslConfig.dimensionConfigDsl,
+          enableScrollWindow: /关闭.*滚动|不要.*滚动/.test(prompt)
+            ? false
+            : (/滚动|窗口/.test(prompt) ? true : selectedChart.dslConfig.dimensionConfigDsl.enableScrollWindow)
+        },
+        queryDsl: {
+          ...selectedChart.dslConfig.queryDsl,
+          metrics: selectedChart.dslConfig.queryDsl.metrics.map(metric => ({
+            ...metric,
+            showSymbol: /隐藏.*数据点|不要.*数据点/.test(prompt)
+              ? false
+              : (/数据点|点位/.test(prompt) ? true : metric.showSymbol),
+            smooth: /平滑/.test(prompt) ? true : metric.smooth
+          }))
+        }
+      }
+    };
+    applyDraftComponent(nextComponent);
+    void previewComponent(nextComponent);
+    return '已按提示词修改当前指标草稿，尚未发布。你可以继续检查配置，确认后再保存或发布。';
+  };
+
   const deleteChart = async (targetChartCode: string) => {
     await api.deleteChartDraft(targetChartCode);
     removeDashboardMeta(targetChartCode);
@@ -808,6 +911,13 @@ export default function IndicatorConfigPage() {
             />
           ) : null}
         </Modal>
+        <FloatingConfigAssistant
+          storageKey={`indicator-config-list-${routeCategory}`}
+          pageTitle="指标配置"
+          placeholder="例如：新建一个市场融资余额指标，启用滚动窗口，显示数据点"
+          quickActions={[{ label: '新建指标草稿', prompt: '新建一个指标草稿，启用滚动窗口' }]}
+          onSubmitPrompt={createChartFromAssistant}
+        />
       </>
     );
   }
@@ -975,8 +1085,18 @@ export default function IndicatorConfigPage() {
             forceSlider
             forceDataZoom
           />
-        ) : null}
+          ) : null}
       </Modal>
+      <FloatingConfigAssistant
+        storageKey={`indicator-config-edit-${draft?.chartCode ?? 'new'}`}
+        pageTitle={draft ? `指标配置：${resolveComponentChartName(selectedChart, draft.chartName)}` : '指标配置'}
+        placeholder="例如：把标题改成市场融资余额变化，启用滚动窗口，显示数据点"
+        quickActions={[
+          { label: '显示数据点', prompt: '显示数据点' },
+          { label: '启用滚动窗口', prompt: '启用滚动窗口' }
+        ]}
+        onSubmitPrompt={applyAssistantToCurrentIndicator}
+      />
     </>
   );
 }

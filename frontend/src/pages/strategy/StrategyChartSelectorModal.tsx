@@ -88,9 +88,10 @@ export default function StrategyChartSelectorModal(props: {
       <div className="strategy-manage-sections">
         {props.onNameChange ? (
           <section className="strategy-manage-block">
-            <div className="strategy-info-row">
+            <div className="strategy-info-row strategy-create-name-row">
               <span className="strategy-selection-title">{TEXT.name}</span>
               <Input
+                className="strategy-create-name-input"
                 value={props.nameValue}
                 placeholder={props.namePlaceholder}
                 onChange={event => props.onNameChange?.(event.target.value)}

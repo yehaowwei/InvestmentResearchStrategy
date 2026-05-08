@@ -6,6 +6,7 @@ export type ChartRenderContext = ChartLayerContext & {
     start: number;
     end: number;
   };
+  scrollWindowRange?: [string, string];
   compact?: boolean;
   dense?: boolean;
   thumbnail?: boolean;

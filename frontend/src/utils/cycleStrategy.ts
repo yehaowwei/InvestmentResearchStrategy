@@ -47,6 +47,7 @@ function normalizeCycleMetrics(metrics: MetricSetting[]) {
     color: '#ee6666',
     negativeColor: '#dc2626',
     smooth: false,
+    showSymbol: false,
     layerIds
   };
   const bondMetric: MetricSetting = {
@@ -58,6 +59,7 @@ function normalizeCycleMetrics(metrics: MetricSetting[]) {
     color: '#73c0de',
     negativeColor: '#73c0de',
     smooth: false,
+    showSymbol: false,
     layerIds
   };
   const industrialMetric: MetricSetting = {
@@ -69,6 +71,7 @@ function normalizeCycleMetrics(metrics: MetricSetting[]) {
     color: '#f59e0b',
     negativeColor: '#f59e0b',
     smooth: false,
+    showSymbol: false,
     layerIds
   };
   return [m1Metric, bondMetric, industrialMetric];
