@@ -6,6 +6,36 @@
   min-height: 0;
 }
 
+.runtime-chart-modal-root {
+  position: fixed !important;
+  inset: 0 !important;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.runtime-chart-modal-root .ant-modal {
+  top: auto !important;
+  width: min(96vw, 1800px) !important;
+  padding-bottom: 0;
+  margin: 0;
+  transform: none !important;
+}
+
+.runtime-chart-modal-root .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 88vh;
+  max-height: 88vh;
+}
+
+.runtime-chart-modal-root .ant-modal-body {
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 0;
+  padding: 16px !important;
+}
+
 .runtime-chart-modal .component-card,
 .runtime-chart-modal .component-card > .ant-card-body,
 .runtime-chart-modal .chart-host,

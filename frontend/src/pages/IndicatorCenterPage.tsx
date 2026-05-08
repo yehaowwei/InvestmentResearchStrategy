@@ -349,9 +349,9 @@ export default function IndicatorCenterPage() {
         open={Boolean(expandedChart)}
         footer={null}
         destroyOnHidden
+        focusTriggerAfterClose={false}
+        wrapClassName="runtime-chart-modal-root"
         onCancel={() => setExpandedChart(undefined)}
-        width="90vw"
-        styles={{ body: { height: '78vh', padding: 16 } }}
       >
         {expandedChart ? (
           <div className="runtime-chart-modal">

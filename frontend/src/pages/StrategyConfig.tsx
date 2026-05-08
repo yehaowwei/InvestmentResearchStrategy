@@ -647,9 +647,9 @@ function StrategyConfigOverview(props: {
         open={Boolean(expandedChart)}
         footer={null}
         destroyOnHidden
+        focusTriggerAfterClose={false}
+        wrapClassName="runtime-chart-modal-root"
         onCancel={() => setExpandedChart(undefined)}
-        width="90vw"
-        styles={{ body: { height: '72vh', padding: 16 } }}
       >
         {expandedChart ? (
           <ChartRendererCore
@@ -1083,9 +1083,9 @@ function StrategyConfigEditor(props: {
         open={Boolean(expandedChart)}
         footer={null}
         destroyOnHidden
+        focusTriggerAfterClose={false}
+        wrapClassName="runtime-chart-modal-root"
         onCancel={() => setExpandedChart(undefined)}
-        width="90vw"
-        styles={{ body: { height: '72vh', padding: 16 } }}
       >
         {expandedChart ? (
           <ChartRendererCore

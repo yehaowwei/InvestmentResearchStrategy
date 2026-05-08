@@ -30,12 +30,9 @@ type DragState =
   | { mode: 'resize'; pointerId: number; start: Point; origin: Bounds }
   | null;
 
-const TRIGGER_SIZE = 88.5;
-const PANEL_WIDTH = 400;
-const PANEL_HEIGHT = 700;
-const MIN_PANEL_WIDTH = 340;
-const MIN_PANEL_HEIGHT = 360;
-const PANEL_OFFSET_Y = 96;
+const TRIGGER_SIZE = 70.8;
+const PANEL_WIDTH = 465;
+const PANEL_HEIGHT = 626;
 const VIEWPORT_WIDTH = 1920;
 const VIEWPORT_HEIGHT = 1080;
 const HISTORY_KEY_PREFIX = 'tkf-config-assistant-history';
@@ -43,6 +40,18 @@ const DEFAULT_TITLE = 'TKF配置助手';
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function readAppScale() {
+  if (typeof window === 'undefined') {
+    return 1;
+  }
+  const shell = document.querySelector<HTMLElement>('.app-scale-shell');
+  const raw = (shell ? window.getComputedStyle(shell).getPropertyValue('--app-scale') : '')
+    || window.getComputedStyle(document.documentElement).getPropertyValue('--app-scale')
+    || window.getComputedStyle(document.body).getPropertyValue('--app-scale');
+  const parsed = Number(raw.trim());
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function normalizeTrigger(point: Point) {
@@ -53,14 +62,22 @@ function normalizeTrigger(point: Point) {
 }
 
 function normalizePanel(bounds: Bounds) {
-  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, VIEWPORT_WIDTH - 32));
-  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, VIEWPORT_HEIGHT - 96));
+  const width = PANEL_WIDTH;
+  const height = PANEL_HEIGHT;
   return {
     width,
     height,
     x: clamp(bounds.x, 16, Math.max(16, VIEWPORT_WIDTH - width - 16)),
     y: clamp(bounds.y, 72, Math.max(72, VIEWPORT_HEIGHT - height - 16))
   };
+}
+
+function positionPanelNearTrigger(trigger: Point) {
+  const rightX = trigger.x + TRIGGER_SIZE + 16;
+  const leftX = trigger.x - PANEL_WIDTH - 16;
+  const x = rightX + PANEL_WIDTH <= VIEWPORT_WIDTH - 16 ? rightX : leftX;
+  const y = trigger.y + TRIGGER_SIZE + 16;
+  return normalizePanel({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT });
 }
 
 function defaultLayout() {
@@ -77,12 +94,7 @@ function defaultLayout() {
 
   return {
     trigger,
-    panel: normalizePanel({
-      x: trigger.x,
-      y: trigger.y + PANEL_OFFSET_Y,
-      width: PANEL_WIDTH,
-      height: PANEL_HEIGHT
-    })
+    panel: positionPanelNearTrigger(trigger)
   };
 }
 
@@ -217,12 +229,7 @@ export default function FloatingConfigAssistant(props: {
     if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
       const trigger = normalizeTrigger({ x: Number(saved.x), y: Number(saved.y) });
       setTriggerPos(trigger);
-      setPanelBounds(normalizePanel({
-        x: trigger.x,
-        y: trigger.y + PANEL_OFFSET_Y,
-        width: Number.isFinite(saved.width) ? Number(saved.width) : PANEL_WIDTH,
-        height: Number.isFinite(saved.height) ? Number(saved.height) : PANEL_HEIGHT
-      }));
+      setPanelBounds(positionPanelNearTrigger(trigger));
       return;
     }
     const apply = () => {
@@ -270,8 +277,9 @@ export default function FloatingConfigAssistant(props: {
     const onPointerMove = (event: PointerEvent) => {
       const state = dragStateRef.current;
       if (!state || state.pointerId !== event.pointerId) return;
-      const dx = event.clientX - state.start.x;
-      const dy = event.clientY - state.start.y;
+      const appScale = readAppScale();
+      const dx = (event.clientX - state.start.x) / appScale;
+      const dy = (event.clientY - state.start.y) / appScale;
 
       if (state.mode === 'trigger') {
         suppressClickRef.current = suppressClickRef.current || Math.abs(dx) > 4 || Math.abs(dy) > 4;
@@ -411,6 +419,7 @@ export default function FloatingConfigAssistant(props: {
             suppressClickRef.current = false;
             return;
           }
+          setPanelBounds(positionPanelNearTrigger(triggerPos));
           setOpen(current => !current);
         }}
       >

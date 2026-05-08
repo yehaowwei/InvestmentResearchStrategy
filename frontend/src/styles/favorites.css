@@ -1201,7 +1201,7 @@
 }
 
 .floating-indicator-ai-trigger {
-  --floating-ai-trigger-size: 88.5px;
+  --floating-ai-trigger-size: 70.8px;
   position: fixed;
   left: 0;
   top: 0;
@@ -1223,12 +1223,13 @@
   overflow: hidden;
   user-select: none;
   touch-action: none;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: box-shadow 0.18s ease;
   opacity: 1;
   filter: none;
   backface-visibility: hidden;
-  transform: translateZ(0);
-  will-change: transform;
+  transform: scale(var(--app-inverse-scale, 1));
+  transform-origin: top left;
+  will-change: auto;
 }
 
 .floating-indicator-ai-trigger::before {
@@ -1246,12 +1247,13 @@
   pointer-events: none;
   opacity: 1;
   filter: none;
-  transform: translateZ(0);
+  transform: none;
+  image-rendering: auto;
 }
 
 .floating-indicator-ai-trigger:hover,
 .floating-indicator-ai-trigger.open {
-  transform: translateY(-3px) scale(1.02);
+  z-index: 1098;
   box-shadow: 0 24px 44px rgba(17, 32, 51, 0.24);
 }
 
@@ -1259,13 +1261,13 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1099;
+  z-index: 1101;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 14px;
-  width: 380px;
+  width: 465px;
   max-width: 1872px;
-  height: 760px;
+  height: 626px;
   padding: 18px;
   border: 1px solid rgba(191, 219, 254, 0.82);
   border-radius: 24px;
@@ -1276,7 +1278,8 @@
   opacity: 1;
   filter: none;
   backface-visibility: hidden;
-  transform: translateZ(0);
+  transform: scale(var(--app-inverse-scale, 1));
+  transform-origin: top left;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
 }
@@ -1375,22 +1378,22 @@
 
 .floating-ai-session-bar {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
   justify-content: stretch;
 }
 
 .floating-ai-session-bar .ant-btn:nth-of-type(1) {
-  grid-column: 3;
+  grid-column: 2;
 }
 
 .floating-ai-session-bar .ant-btn:nth-of-type(2) {
-  grid-column: 4;
+  grid-column: 3;
 }
 
 .floating-ai-session-select {
-  width: 230px;
+  width: 100%;
   min-width: 0;
   height: 28px;
   padding: 0 8px;
@@ -1487,17 +1490,7 @@
 }
 
 .floating-indicator-ai-resize-handle {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 18px;
-  height: 18px;
-  border: none;
-  background:
-    linear-gradient(135deg, transparent 0 48%, rgba(148, 163, 184, 0.7) 48% 56%, transparent 56% 100%),
-    linear-gradient(135deg, transparent 0 64%, rgba(148, 163, 184, 0.7) 64% 72%, transparent 72% 100%);
-  cursor: nwse-resize;
-  opacity: 0.9;
+  display: none;
 }
 
 .floating-strategy-ai-trigger {

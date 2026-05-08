@@ -34,12 +34,9 @@ type AiConversation = {
 
 const STORAGE_KEY = 'strategy-dashboard-indicator-ai-floating-v6';
 const HISTORY_KEY_PREFIX = 'strategy-dashboard-indicator-ai-history';
-const TRIGGER_SIZE = 88.5;
-const PANEL_WIDTH = 400;
-const PANEL_HEIGHT = 700;
-const MIN_PANEL_WIDTH = 340;
-const MIN_PANEL_HEIGHT = 360;
-const PANEL_OFFSET_Y = 96;
+const TRIGGER_SIZE = 70.8;
+const PANEL_WIDTH = 465;
+const PANEL_HEIGHT = 626;
 const VIEWPORT_WIDTH = 1920;
 const VIEWPORT_HEIGHT = 1080;
 
@@ -54,6 +51,18 @@ const TEXT = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function readAppScale() {
+  if (typeof window === 'undefined') {
+    return 1;
+  }
+  const shell = document.querySelector<HTMLElement>('.app-scale-shell');
+  const raw = (shell ? window.getComputedStyle(shell).getPropertyValue('--app-scale') : '')
+    || window.getComputedStyle(document.documentElement).getPropertyValue('--app-scale')
+    || window.getComputedStyle(document.body).getPropertyValue('--app-scale');
+  const parsed = Number(raw.trim());
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function toFiniteNumber(value: unknown) {
@@ -149,11 +158,19 @@ function normalizeTrigger(point: Point) {
 }
 
 function normalizePanel(bounds: Bounds) {
-  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, VIEWPORT_WIDTH - 32));
-  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, VIEWPORT_HEIGHT - 96));
+  const width = PANEL_WIDTH;
+  const height = PANEL_HEIGHT;
   const x = clamp(bounds.x, 16, Math.max(16, VIEWPORT_WIDTH - width - 16));
   const y = clamp(bounds.y, 72, Math.max(72, VIEWPORT_HEIGHT - height - 16));
   return { x, y, width, height };
+}
+
+function positionPanelNearTrigger(trigger: Point) {
+  const rightX = trigger.x + TRIGGER_SIZE + 16;
+  const leftX = trigger.x - PANEL_WIDTH - 16;
+  const x = rightX + PANEL_WIDTH <= VIEWPORT_WIDTH - 16 ? rightX : leftX;
+  const y = trigger.y + TRIGGER_SIZE + 16;
+  return normalizePanel({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT });
 }
 
 function readLayout() {
@@ -230,12 +247,7 @@ function resolveDefaultLayout() {
         y: 118
       });
 
-  const panel = normalizePanel({
-    x: trigger.x,
-    y: trigger.y + PANEL_OFFSET_Y,
-    width: PANEL_WIDTH,
-    height: PANEL_HEIGHT
-  });
+  const panel = positionPanelNearTrigger(trigger);
 
   return { trigger, panel };
 }
@@ -269,12 +281,7 @@ export default function FloatingIndicatorAi(props: {
     const layout = readLayout();
     if (layout && Number.isFinite(layout.x) && Number.isFinite(layout.y)) {
       const trigger = normalizeTrigger({ x: Number(layout.x), y: Number(layout.y) });
-      const panel = normalizePanel({
-        x: trigger.x,
-        y: trigger.y + PANEL_OFFSET_Y,
-        width: Number.isFinite(layout.width) ? Number(layout.width) : PANEL_WIDTH,
-        height: Number.isFinite(layout.height) ? Number(layout.height) : PANEL_HEIGHT
-      });
+      const panel = positionPanelNearTrigger(trigger);
       setTriggerPos(trigger);
       setPanelBounds(panel);
       return;
@@ -340,8 +347,9 @@ export default function FloatingIndicatorAi(props: {
         return;
       }
 
-      const dx = event.clientX - state.start.x;
-      const dy = event.clientY - state.start.y;
+      const appScale = readAppScale();
+      const dx = (event.clientX - state.start.x) / appScale;
+      const dy = (event.clientY - state.start.y) / appScale;
 
       if (state.mode === 'trigger') {
         suppressClickRef.current = suppressClickRef.current || Math.abs(dx) > 4 || Math.abs(dy) > 4;
@@ -550,6 +558,7 @@ export default function FloatingIndicatorAi(props: {
             suppressClickRef.current = false;
             return;
           }
+          setPanelBounds(positionPanelNearTrigger(triggerPos));
           setOpen(current => !current);
         }}
       >

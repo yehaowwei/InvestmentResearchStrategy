@@ -240,7 +240,8 @@ export default function App() {
     <div
       className="app-scale-shell"
       style={{
-        '--app-scale': String(viewportScale)
+        '--app-scale': String(viewportScale),
+        '--app-inverse-scale': String(1 / viewportScale)
       } as CSSProperties}
     >
       <ConfigProvider getPopupContainer={() => designViewportRef.current ?? document.body}>

@@ -891,9 +891,9 @@ export default function IndicatorConfigPage() {
           open={Boolean(expandedPreview)}
           footer={null}
           destroyOnHidden
+          focusTriggerAfterClose={false}
+          wrapClassName="runtime-chart-modal-root"
           onCancel={() => setExpandedPreview(undefined)}
-          width="90vw"
-          styles={{ body: { height: '72vh', padding: 16 } }}
         >
           {expandedPreview ? (
             <ChartRendererCore
@@ -1067,9 +1067,9 @@ export default function IndicatorConfigPage() {
         open={Boolean(expandedPreview)}
         footer={null}
         destroyOnHidden
+        focusTriggerAfterClose={false}
+        wrapClassName="runtime-chart-modal-root"
         onCancel={() => setExpandedPreview(undefined)}
-        width="90vw"
-        styles={{ body: { height: '72vh', padding: 16 } }}
       >
         {expandedPreview ? (
           <ChartRendererCore
