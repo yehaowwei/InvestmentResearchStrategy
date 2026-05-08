@@ -36,6 +36,7 @@
   grid-template-columns: minmax(0, 1fr) 390px;
   gap: 16px;
   align-items: start;
+  min-width: 0;
 }
 
 .page-shell.runtime {
@@ -70,7 +71,7 @@
 
 .canvas-card {
   padding: 16px;
-  min-height: 720px;
+  min-height: 640px;
 }
 
 .single-chart-stage {
@@ -102,8 +103,8 @@
 
 .single-chart-panel {
   width: 100%;
-  min-height: 720px;
-  height: calc(1080px - 148px);
+  min-height: 640px;
+  height: calc(100vh - 148px);
 }
 
 .single-chart-empty-shell {
@@ -129,7 +130,7 @@
 .config-panel-shell {
   position: relative;
   top: 0;
-  height: calc(1080px - 148px);
+  height: calc(100vh - 148px);
   min-height: 0;
 }
 
@@ -245,7 +246,7 @@
 
 .adaptive-canvas-item {
   min-width: 0;
-  min-height: 360px;
+  min-height: 320px;
 }
 
 .adaptive-canvas-item .component-card {

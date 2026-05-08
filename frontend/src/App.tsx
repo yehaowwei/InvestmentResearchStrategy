@@ -76,6 +76,24 @@ function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   return '/favorites';
 }
 
+function resolveScreenLayoutClasses() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  const screenWidth = window.screen?.availWidth || window.screen?.width || window.innerWidth;
+  const classes = [] as string[];
+  if (screenWidth <= 1440) {
+    classes.push('screen-lte-1440');
+  }
+  if (screenWidth <= 1180) {
+    classes.push('screen-lte-1180');
+  }
+  if (screenWidth <= 768) {
+    classes.push('screen-lte-768');
+  }
+  return classes.join(' ');
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -104,6 +122,7 @@ export default function App() {
   const location = useLocation();
   const designViewportRef = useRef<HTMLDivElement | null>(null);
   const [, setSyncVersion] = useState(0);
+  const [screenLayoutClasses, setScreenLayoutClasses] = useState(resolveScreenLayoutClasses);
   const [sharedReady, setSharedReady] = useState(false);
   const [externalResourceGroups, setExternalResourceGroups] = useState<ExternalResourceGroup[]>([]);
   const categories = useDashboardCategories();
@@ -209,10 +228,20 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const updateScreenLayout = () => setScreenLayoutClasses(resolveScreenLayoutClasses());
+    window.addEventListener('resize', updateScreenLayout);
+    window.addEventListener('orientationchange', updateScreenLayout);
+    return () => {
+      window.removeEventListener('resize', updateScreenLayout);
+      window.removeEventListener('orientationchange', updateScreenLayout);
+    };
+  }, []);
+
   return (
     <div className="app-scale-shell">
       <ConfigProvider getPopupContainer={() => designViewportRef.current ?? document.body}>
-        <div ref={designViewportRef} className="app-design-viewport">
+        <div ref={designViewportRef} className={`app-design-viewport ${screenLayoutClasses}`}>
           {!sharedReady ? (
             <Layout className="app-shell app-shell-sidebar">
               <Layout.Content className="app-content app-content-sidebar">

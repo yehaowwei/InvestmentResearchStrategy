@@ -1,108 +1,272 @@
-@media (max-width: 0px) {
-  .app-shell-sidebar {
-    display: block;
-    padding-left: 0;
-  }
-
-  .app-sidebar {
-    position: relative;
-    width: 100%;
-    height: auto;
-    left: auto;
-  }
-
-  .app-sidebar.expanded {
-    width: 100%;
-  }
-
-  .app-sidebar-brand-text,
-  .app-sidebar-fold,
-  .app-sidebar-menu .ant-menu-submenu-arrow,
-  .app-sidebar-menu .ant-menu-title-content {
-    opacity: 1;
-  }
-
-  .page-shell,
-  .runtime-library-shell,
-  .table-designer-stage {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .adaptive-canvas {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  .config-panel-shell,
-  .runtime-toc-card {
-    position: static;
-  }
-
-  .property-panel,
-  .runtime-toc-card {
-    max-height: none;
-  }
-
-  .app-content-sidebar {
-    padding-left: 20px;
-  }
-
-  .public-chart-grid,
-  .personal-chart-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .drag-sort-grid,
-  .strategy-config-grid,
-  .strategy-center-grid,
-  .external-config-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .convertible-board-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.screen-lte-1440 {
+  --runtime-toc-width: 248px;
 }
 
-@media (max-width: 0px) {
-  .page-header,
-  .chart-card-header,
-  .favorites-board-card-head,
-  .external-config-card-head,
-  .external-config-file-item {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.screen-lte-1440 .page-title {
+  font-size: 24px;
+}
 
-  .favorites-filter-nav {
-    justify-content: flex-end;
-  }
+.screen-lte-1440 .page-shell {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
 
-  .page-toc-width-search {
-    width: min(var(--runtime-toc-width, 280px), 100%) !important;
-    flex-basis: min(var(--runtime-toc-width, 280px), 100%);
-    max-width: 100%;
-  }
+.screen-lte-1440 .runtime-library-shell {
+  grid-template-columns: minmax(0, 1fr) 248px;
+}
 
-  .metric-card-grid,
-  .page-shell {
-    display: grid;
-  }
+.screen-lte-1440 .adaptive-canvas {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
 
-  .adaptive-canvas,
-  .favorites-board-grid,
-  .public-chart-grid,
-  .personal-chart-grid,
-  .convertible-board-grid,
-  .drag-sort-grid,
-  .strategy-config-grid,
-  .strategy-center-grid,
-  .external-config-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.screen-lte-1440 .adaptive-canvas-item {
+  min-height: 300px;
+}
 
-  .adaptive-canvas-item {
-    grid-column: span 1 !important;
-    grid-row: span 1 !important;
-    min-height: 280px;
-  }
+.screen-lte-1440 .strategy-detail-grid,
+.screen-lte-1440 .strategy-config-grid,
+.screen-lte-1440 .convertible-board-grid,
+.screen-lte-1440 .favorites-board-grid.drag-sort-grid,
+.screen-lte-1440 .external-config-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.screen-lte-1440 .favorites-board-card {
+  height: auto;
+  min-height: 420px;
+}
+
+.screen-lte-1440 .public-board-card {
+  height: auto;
+  min-height: 440px;
+}
+
+.screen-lte-1440 .strategy-overview-card {
+  height: auto;
+  min-height: 540px;
+}
+
+.screen-lte-1440 .favorites-board-thumb {
+  height: 280px;
+  flex-basis: 280px;
+  min-height: 280px;
+}
+
+.screen-lte-1440 .public-board-card .favorites-board-thumb {
+  height: 340px;
+  min-height: 340px;
+}
+
+.screen-lte-1440 .public-board-card .library-chart-preview .chart-renderer-host,
+.screen-lte-1440 .public-board-card .library-chart-preview .table-designer-preview {
+  min-height: 300px !important;
+}
+
+.screen-lte-1180 .app-shell-sidebar {
+  padding-left: 0;
+}
+
+.screen-lte-1180 .app-sidebar {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+.screen-lte-1180 .app-sidebar.expanded {
+  width: 100%;
+}
+
+.screen-lte-1180 .app-sidebar-brand-text,
+.screen-lte-1180 .app-sidebar-fold,
+.screen-lte-1180 .app-sidebar-menu .ant-menu-submenu-arrow,
+.screen-lte-1180 .app-sidebar-menu .ant-menu-title-content {
+  opacity: 1;
+}
+
+.screen-lte-1180 .app-sidebar-menu .ant-menu-sub .ant-menu-item {
+  padding-left: 56px !important;
+}
+
+.screen-lte-1180 .app-content-sidebar {
+  min-height: 0;
+  padding: 16px;
+}
+
+.screen-lte-1180 .page-header,
+.screen-lte-1180 .page-header.compact,
+.screen-lte-1180 .chart-card-header,
+.screen-lte-1180 .favorites-board-card-head,
+.screen-lte-1180 .external-config-card-head,
+.screen-lte-1180 .external-config-file-item {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.screen-lte-1180 .page-shell,
+.screen-lte-1180 .runtime-library-shell,
+.screen-lte-1180 .table-designer-stage {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.screen-lte-1180 .single-chart-panel,
+.screen-lte-1180 .config-panel-shell {
+  height: auto;
+}
+
+.screen-lte-1180 .runtime-toc-card,
+.screen-lte-1180 .config-panel-shell {
+  position: static;
+  height: auto;
+  max-height: none;
+}
+
+.screen-lte-1180 .property-panel,
+.screen-lte-1180 .runtime-toc-card,
+.screen-lte-1180 .runtime-toc-scroll {
+  max-height: none;
+}
+
+.screen-lte-1180 .runtime-toc-scroll {
+  overflow: visible;
+}
+
+.screen-lte-1180 .adaptive-canvas {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.screen-lte-1180 .strategy-config-grid,
+.screen-lte-1180 .strategy-detail-grid,
+.screen-lte-1180 .favorites-board-grid.drag-sort-grid,
+.screen-lte-1180 .convertible-board-grid,
+.screen-lte-1180 .external-config-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.screen-lte-1180 .strategy-info-compact,
+.screen-lte-1180 .strategy-detail-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.screen-lte-1180 .strategy-info-actions {
+  justify-items: start;
+  grid-auto-flow: column;
+  justify-content: flex-start;
+}
+
+.screen-lte-1180 .strategy-ai-panel {
+  position: static;
+  height: auto;
+  min-height: 540px;
+  max-height: none;
+}
+
+.screen-lte-1180 .strategy-detail-header-actions {
+  justify-content: flex-start;
+}
+
+.screen-lte-1180 .favorites-filter-nav {
+  justify-content: flex-start;
+}
+
+.screen-lte-1180 .page-toc-width-search,
+.screen-lte-1180 .app-search-input {
+  width: min(100%, var(--runtime-toc-width, 280px)) !important;
+  flex-basis: min(100%, var(--runtime-toc-width, 280px));
+  max-width: 100%;
+}
+
+.screen-lte-768 {
+  --runtime-toc-width: 100%;
+}
+
+.screen-lte-768 .app-sidebar {
+  padding: 12px;
+}
+
+.screen-lte-768 .app-sidebar-brand {
+  padding: 8px 8px 14px;
+  font-size: 16px;
+}
+
+.screen-lte-768 .app-content-sidebar {
+  padding: 12px;
+}
+
+.screen-lte-768 .page-title {
+  font-size: 22px;
+}
+
+.screen-lte-768 .page-subtitle {
+  font-size: 12px;
+}
+
+.screen-lte-768 .page-shell,
+.screen-lte-768 .runtime-library-shell,
+.screen-lte-768 .adaptive-canvas,
+.screen-lte-768 .strategy-config-grid,
+.screen-lte-768 .strategy-detail-grid,
+.screen-lte-768 .favorites-board-grid.drag-sort-grid,
+.screen-lte-768 .convertible-board-grid,
+.screen-lte-768 .external-config-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.screen-lte-768 .adaptive-canvas-item {
+  grid-column: span 1 !important;
+  grid-row: span 1 !important;
+  min-height: 280px;
+}
+
+.screen-lte-768 .canvas-card,
+.screen-lte-768 .single-chart-panel {
+  min-height: 480px;
+}
+
+.screen-lte-768 .favorites-board-card,
+.screen-lte-768 .public-board-card,
+.screen-lte-768 .strategy-overview-card {
+  min-height: 0;
+  height: auto;
+}
+
+.screen-lte-768 .favorites-board-thumb,
+.screen-lte-768 .public-board-card .favorites-board-thumb {
+  height: 260px;
+  min-height: 260px;
+  flex-basis: 260px;
+}
+
+.screen-lte-768 .public-board-card .library-chart-preview .chart-renderer-host,
+.screen-lte-768 .public-board-card .library-chart-preview .table-designer-preview {
+  min-height: 220px !important;
+}
+
+.screen-lte-768 .strategy-chip-list {
+  height: auto;
+  flex-basis: auto;
+  overflow: visible;
+}
+
+.screen-lte-768 .strategy-header-name-input,
+.screen-lte-768 .strategy-detail-header-actions {
+  width: 100%;
+}
+
+.screen-lte-768 .floating-ai-session-bar {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.screen-lte-768 .floating-ai-session-select {
+  width: 100%;
+}
+
+.public-chart-grid,
+.personal-chart-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.strategy-center-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
