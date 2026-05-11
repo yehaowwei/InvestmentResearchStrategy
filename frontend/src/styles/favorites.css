@@ -459,8 +459,8 @@
 }
 
 .strategy-overview-card {
-  height: 496px;
-  min-height: 496px;
+  height: 560px;
+  min-height: 560px;
 }
 
 .strategy-overview-head {
@@ -946,9 +946,9 @@
 }
 
 .strategy-overview-card .favorites-board-thumb {
-  height: 344px;
-  flex-basis: 344px;
-  min-height: 344px;
+  height: 400px;
+  flex-basis: 400px;
+  min-height: 400px;
 }
 
 .strategy-overview-card .favorites-board-title {
@@ -961,11 +961,11 @@
 }
 
 .strategy-overview-card .library-chart-preview .chart-renderer-host {
-  min-height: 328px !important;
+  min-height: 384px !important;
 }
 
 .strategy-overview-card .library-chart-preview .table-designer-preview {
-  min-height: 328px;
+  min-height: 384px;
 }
 
 .personal-chart-card-sortable:active {

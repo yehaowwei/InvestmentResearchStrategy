@@ -89,14 +89,14 @@ export function buildCartesianComboOption(preview: ChartPreview, context?: Chart
     sliderEnd = 100;
   }
   const legendRightPadding = dense ? 112 : 140;
-  const sliderBottom = thumbnail ? 14 : 0;
-  const sliderHeight = thumbnail ? 24 : dense ? 28 : 36;
+  const sliderBottom = thumbnail ? 18 : 0;
+  const sliderHeight = thumbnail ? 26 : dense ? 28 : 36;
   const gridBottom = enableSlider ? (compact ? 52 : dense ? 48 : 64) : (compact ? 38 : dense ? 28 : 40);
   const thumbnailGrid = {
     left: 40,
     right: hasRightAxis ? 44 : 20,
     top: 16,
-    bottom: showThumbnailSlider ? 84 : 34,
+    bottom: showThumbnailSlider ? 104 : 34,
     containLabel: true
   };
   const series = [
