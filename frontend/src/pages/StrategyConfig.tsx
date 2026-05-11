@@ -133,6 +133,20 @@ function isLinkedDraft(scope: StrategyConfigScope, draft: StrategyConfigDraft) {
   return draft.draftId.startsWith(`strategy-config-linked-${scope}-`);
 }
 
+function createLinkedDraft(scope: StrategyConfigScope, strategy: ReturnType<typeof listStrategies>[number], order: number): StrategyConfigDraft {
+  return {
+    draftId: `strategy-config-linked-${scope}-${strategy.strategyId}`,
+    strategyId: strategy.strategyId,
+    strategyName: strategy.strategyName,
+    selectedChartIds: strategy.charts.map(chart => chart.chartId),
+    order,
+    createdAt: strategy.createdAt,
+    updatedAt: strategy.updatedAt,
+    savedAt: strategy.updatedAt,
+    publishedAt: strategy.updatedAt
+  };
+}
+
 function syncDraftsWithStrategies(scope: StrategyConfigScope, drafts: StrategyConfigDraft[]) {
   const strategies = listStrategies(scope);
   const filteredDrafts = drafts
@@ -177,20 +191,30 @@ function syncDraftsWithStrategies(scope: StrategyConfigScope, drafts: StrategyCo
   let changed = dedupedDrafts.length !== drafts.length;
 
   strategies.forEach(strategy => {
-    if (linkedStrategyIds.has(strategy.strategyId)) {
+    const existingIndex = dedupedDrafts.findIndex(draft => draft.strategyId === strategy.strategyId);
+    if (existingIndex >= 0) {
+      const existingDraft = dedupedDrafts[existingIndex];
+      const nextSelectedChartIds = strategy.charts.map(chart => chart.chartId);
+      const currentSelectedSet = new Set(existingDraft.selectedChartIds);
+      const missingCurrentStrategyChart = nextSelectedChartIds.some(chartId => !currentSelectedSet.has(chartId));
+      const linkedDraftIsStale = isLinkedDraft(scope, existingDraft)
+        && strategy.updatedAt >= existingDraft.updatedAt
+        && (
+          existingDraft.strategyName !== strategy.strategyName
+          || existingDraft.selectedChartIds.length !== nextSelectedChartIds.length
+          || missingCurrentStrategyChart
+        );
+      if (linkedDraftIsStale) {
+        dedupedDrafts[existingIndex] = {
+          ...createLinkedDraft(scope, strategy, existingDraft.order),
+          draftId: existingDraft.draftId,
+          createdAt: existingDraft.createdAt || strategy.createdAt
+        };
+        changed = true;
+      }
       return;
     }
-    dedupedDrafts.push({
-      draftId: `strategy-config-linked-${scope}-${strategy.strategyId}`,
-      strategyId: strategy.strategyId,
-      strategyName: strategy.strategyName,
-      selectedChartIds: strategy.charts.map(chart => chart.chartId),
-      order: dedupedDrafts.length + 1,
-      createdAt: strategy.createdAt,
-      updatedAt: strategy.updatedAt,
-      savedAt: strategy.updatedAt,
-      publishedAt: strategy.updatedAt
-    });
+    dedupedDrafts.push(createLinkedDraft(scope, strategy, dedupedDrafts.length + 1));
     changed = true;
   });
 
@@ -374,6 +398,38 @@ function StrategyConfigOverview(props: {
       return accumulator;
     }, {}));
   }, [filteredDrafts, props.availableCharts]);
+
+  useEffect(() => {
+    if (props.availableCharts.length === 0 || drafts.length === 0) {
+      return;
+    }
+    let changed = false;
+    const availableChartIds = new Set(props.availableCharts.map(chartRuntimeCardId));
+    const strategies = listStrategies(props.scope);
+    const repairedDrafts = drafts.map(draft => {
+      if (!draft.strategyId || !isLinkedDraft(props.scope, draft)) {
+        return draft;
+      }
+      const hasVisibleChart = draft.selectedChartIds.some(chartId => availableChartIds.has(chartId));
+      if (hasVisibleChart) {
+        return draft;
+      }
+      const strategy = strategies.find(item => item.strategyId === draft.strategyId);
+      if (!strategy || strategy.charts.length === 0) {
+        return draft;
+      }
+      changed = true;
+      return {
+        ...createLinkedDraft(props.scope, strategy, draft.order),
+        draftId: draft.draftId,
+        createdAt: draft.createdAt || strategy.createdAt
+      };
+    });
+    if (changed) {
+      writeDrafts(props.scope, repairedDrafts);
+      setDrafts(listDrafts(props.scope));
+    }
+  }, [drafts, props.availableCharts, props.scope]);
 
   useEffect(() => {
     if (filteredDrafts.length === 0) {
