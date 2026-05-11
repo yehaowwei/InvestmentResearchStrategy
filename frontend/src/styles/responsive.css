@@ -162,7 +162,7 @@
   .strategy-ai-panel {
     position: static;
     height: auto;
-    min-height: 540px;
+    min-height: 480px;
     max-height: none;
   }
 

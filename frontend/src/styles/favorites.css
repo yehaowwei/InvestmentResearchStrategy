@@ -566,11 +566,11 @@
   top: 16px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
-  gap: 14px;
-  height: 1168px;
-  min-height: 620px;
-  max-height: 1168px;
-  padding: 16px;
+  gap: 10px;
+  height: min(780px, calc(100vh - 32px));
+  min-height: min(560px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 12px;
   border-radius: 18px;
   overflow: hidden;
   background:
@@ -636,7 +636,7 @@
 .strategy-ai-messages {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
   min-height: 0;
   max-height: 100%;
   overflow: auto;
@@ -657,13 +657,13 @@
 
 .strategy-ai-bubble {
   max-width: 100%;
-  padding: 12px 14px;
+  padding: 9px 11px;
   border: 1px solid rgba(203, 213, 225, 0.9);
   border-radius: 16px;
   background: rgba(248, 250, 252, 0.96);
   color: #243447;
-  font-size: 13px;
-  line-height: 1.75;
+  font-size: 12px;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -674,8 +674,8 @@
 
 .strategy-ai-compose {
   display: grid;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 8px;
+  padding-top: 10px;
   border-top: 1px solid rgba(203, 213, 225, 0.9);
   background: linear-gradient(180deg, rgba(248, 250, 252, 0), rgba(248, 250, 252, 0.96));
 }
@@ -691,10 +691,10 @@
 
 .strategy-skill-drafts {
   display: grid;
-  gap: 10px;
-  max-height: 260px;
+  gap: 8px;
+  max-height: 180px;
   overflow: auto;
-  padding: 12px 4px 12px 0;
+  padding: 8px 4px 8px 0;
   border-top: 1px solid rgba(203, 213, 225, 0.9);
 }
 
@@ -850,8 +850,8 @@
 }
 
 .strategy-indicator-card {
-  height: 328px;
-  min-height: 280px;
+  height: 492px;
+  min-height: 420px;
   padding: 12px;
 }
 
@@ -877,8 +877,8 @@
 }
 
 .strategy-indicator-card .favorites-board-thumb {
-  height: 256px;
-  min-height: 256px;
+  height: 384px;
+  min-height: 384px;
 }
 
 .strategy-indicator-card .library-chart-preview {
@@ -891,11 +891,11 @@
 }
 
 .strategy-indicator-card .library-chart-preview .chart-renderer-host {
-  min-height: 236px !important;
+  min-height: 364px !important;
 }
 
 .strategy-indicator-card .library-chart-preview .table-designer-preview {
-  min-height: 236px;
+  min-height: 364px;
 }
 
 .strategy-sort-card-dragging {
