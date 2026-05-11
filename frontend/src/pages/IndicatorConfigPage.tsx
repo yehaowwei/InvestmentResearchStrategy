@@ -22,6 +22,7 @@ import type {
   ChartPreview,
   DashboardCategoryKey,
   DashboardComponent,
+  DashboardDraft,
   DataPool,
   TemplateDefinition
 } from '../types/dashboard';
@@ -42,6 +43,8 @@ import {
   removeDashboardMeta,
   useDashboardCategories
 } from '../utils/dashboardCatalog';
+import { removeDashboardFromFavorites, syncFavoriteComponentFromDashboard } from '../utils/favorites';
+import { removeDashboardFromStrategies, syncStrategyChartsFromDashboard } from '../utils/strategies';
 import {
   canPreview,
   formatDateTime,
@@ -57,6 +60,18 @@ import {
   resolveClosestSortIdFromPoint,
   scrollContainerItemToCenter
 } from './indicatorPageNavigation';
+
+function chartDefinitionToDashboardDraft(chart: ChartDefinition): DashboardDraft {
+  return {
+    dashboardCode: chart.chartCode,
+    name: chart.chartName,
+    status: chart.status,
+    publishedVersion: chart.publishedVersion,
+    createdAt: chart.createdAt,
+    updatedAt: chart.updatedAt,
+    components: chart.components
+  };
+}
 
 export default function IndicatorConfigPage() {
   const navigate = useNavigate();
@@ -504,6 +519,8 @@ export default function IndicatorConfigPage() {
     };
     setDraft(nextDraft);
     updateChartDraftMeta(normalized.chartCode, { draftSavedAt: new Date().toISOString() });
+    syncFavoriteComponentFromDashboard(chartDefinitionToDashboardDraft(nextDraft));
+    syncStrategyChartsFromDashboard(chartDefinitionToDashboardDraft(nextDraft));
     await refreshCharts();
     return nextDraft;
   };
@@ -668,6 +685,8 @@ export default function IndicatorConfigPage() {
     await api.deleteChartDraft(targetChartCode);
     removeDashboardMeta(targetChartCode);
     removeChartDraftMeta(targetChartCode);
+    removeDashboardFromFavorites(targetChartCode);
+    removeDashboardFromStrategies(targetChartCode);
     await refreshCharts();
     message.success('指标已删除');
     if (chartCode === targetChartCode) {

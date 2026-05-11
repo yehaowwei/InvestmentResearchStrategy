@@ -46,6 +46,8 @@ const HISTORY_KEY_PREFIX = 'strategy-dashboard-strategy-ai-history';
 const TRIGGER_SIZE = 70.8;
 const PANEL_WIDTH = 465;
 const PANEL_HEIGHT = 626;
+const MIN_PANEL_WIDTH = 360;
+const MIN_PANEL_HEIGHT = 420;
 const VIEWPORT_WIDTH = 1920;
 const VIEWPORT_HEIGHT = 1080;
 
@@ -88,8 +90,8 @@ function normalizeTrigger(point: Point) {
 }
 
 function normalizePanel(bounds: Bounds) {
-  const width = PANEL_WIDTH;
-  const height = PANEL_HEIGHT;
+  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, VIEWPORT_WIDTH - 32));
+  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, VIEWPORT_HEIGHT - 96));
   const x = clamp(bounds.x, 16, Math.max(16, VIEWPORT_WIDTH - width - 16));
   const y = clamp(bounds.y, 72, Math.max(72, VIEWPORT_HEIGHT - height - 16));
   return { x, y, width, height };
@@ -101,6 +103,14 @@ function positionPanelNearTrigger(trigger: Point) {
   const x = rightX + PANEL_WIDTH <= VIEWPORT_WIDTH - 16 ? rightX : leftX;
   const y = trigger.y + TRIGGER_SIZE + 16;
   return normalizePanel({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT });
+}
+
+function movePanelNearTrigger(trigger: Point, panel: Bounds) {
+  const rightX = trigger.x + TRIGGER_SIZE + 16;
+  const leftX = trigger.x - panel.width - 16;
+  const x = rightX + panel.width <= VIEWPORT_WIDTH - 16 ? rightX : leftX;
+  const y = trigger.y + TRIGGER_SIZE + 16;
+  return normalizePanel({ ...panel, x, y });
 }
 
 function readLayout() {
@@ -617,7 +627,7 @@ export default function FloatingStrategyAi(props: {
             suppressClickRef.current = false;
             return;
           }
-          setPanelBounds(positionPanelNearTrigger(triggerPos));
+          setPanelBounds(current => movePanelNearTrigger(triggerPos, current));
           setOpen(current => !current);
         }}
       >

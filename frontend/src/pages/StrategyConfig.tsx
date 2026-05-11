@@ -20,7 +20,9 @@ import {
   createStrategy,
   deleteStrategy,
   listStrategies,
+  removeStrategyFromFavorites,
   strategyChangeEventName,
+  syncStrategyToFavorites,
   toStrategyChartSnapshot,
   updateStrategy
 } from '../utils/strategies';
@@ -275,6 +277,7 @@ function deleteDraft(scope: StrategyConfigScope, draftId: string) {
   const targetDraft = drafts.find(draft => draft.draftId === draftId);
   if (targetDraft?.strategyId) {
     deleteStrategy(targetDraft.strategyId, scope);
+    removeStrategyFromFavorites(targetDraft.strategyId, scope);
   }
   const nextDrafts = drafts
     .filter(draft => draft.draftId !== draftId)
@@ -752,6 +755,7 @@ function StrategyConfigEditor(props: {
           strategyName: nextName,
           charts: nextCharts
         }, props.scope);
+        syncStrategyToFavorites(draft.strategyId, props.scope);
       }
       persistDraft({
         strategyName: nextName,
@@ -787,6 +791,7 @@ function StrategyConfigEditor(props: {
           charts: nextCharts
         }).strategyId;
       }
+      syncStrategyToFavorites(strategyId, props.scope);
       persistDraft({
         strategyId,
         strategyName: nextName,

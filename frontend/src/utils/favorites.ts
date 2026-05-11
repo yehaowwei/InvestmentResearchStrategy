@@ -283,6 +283,32 @@ export function saveFavoriteLayouts(boardId: string, components: DashboardCompon
   }));
 }
 
+export function syncFavoriteComponentFromDashboard(dashboard: DashboardDraft) {
+  const component = dashboard.components[0];
+  if (!component) {
+    removeComponentFromAllBoards(dashboard.dashboardCode);
+    return;
+  }
+
+  const nextFavorite = toFavoriteChart(dashboard.dashboardCode, dashboard.name, component);
+  updateBoards(boards => boards.map(board => {
+    if (!board.components.some(item => item.dashboardCode === dashboard.dashboardCode || item.componentCode === component.componentCode)) {
+      return board;
+    }
+    return {
+      ...board,
+      boardName: nextFavorite.componentTitle,
+      secondaryLabel: nextFavorite.componentTitle,
+      updatedAt: new Date().toISOString(),
+      components: [nextFavorite]
+    };
+  }));
+}
+
+export function removeDashboardFromFavorites(dashboardCode: string) {
+  updateBoards(boards => boards.filter(board => !board.components.some(item => item.dashboardCode === dashboardCode)));
+}
+
 export async function syncFavoritesFromServer() {
   if (typeof window === 'undefined') {
     return [] as PersonalBoard[];

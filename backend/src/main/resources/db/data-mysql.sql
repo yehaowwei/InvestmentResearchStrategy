@@ -536,3 +536,8 @@ INSERT INTO `shared_state` (`state_key`, `state_json`, `updated_at`) VALUES ('st
 
 
 
+
+UPDATE `dashboard_component`
+SET `dsl_config_json` = JSON_SET(CAST(`dsl_config_json` AS JSON), '$.dimensionConfigDsl.enableScrollWindow', false)
+WHERE `dashboard_code` = 'chart_11'
+  AND `component_code` = 'cmp-1777259533761-0';

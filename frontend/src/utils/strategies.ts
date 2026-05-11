@@ -1,5 +1,6 @@
 import { api } from '../api/client';
 import type { ComponentDslConfig } from '../types/dashboard';
+import type { DashboardDraft } from '../types/dashboard';
 import type { ChartRuntimeCard } from './chartLibrary';
 import { repairCycleStrategyDsl } from './cycleStrategy';
 import { deepClone, normalizeDisplayText, normalizeDslConfig } from './dashboard';
@@ -223,6 +224,84 @@ export function favoriteStrategy(strategyId: string) {
     charts: strategy.charts.map(normalizeChartSnapshot),
     sourceStrategyId: strategy.strategyId
   });
+}
+
+export function syncStrategyChartsFromDashboard(dashboard: DashboardDraft) {
+  const component = dashboard.components[0];
+  const now = new Date().toISOString();
+
+  (['public', 'personal'] as StrategyScope[]).forEach(scope => {
+    updateStrategies(scope, strategies => strategies.map(strategy => {
+      const hasDashboard = strategy.charts.some(chart => chart.chartCode === dashboard.dashboardCode);
+      if (!hasDashboard) {
+        return strategy;
+      }
+      if (!component) {
+        return {
+          ...strategy,
+          charts: strategy.charts.filter(chart => chart.chartCode !== dashboard.dashboardCode),
+          updatedAt: now
+        };
+      }
+      const nextChart = normalizeChartSnapshot({
+        chartId: `${dashboard.dashboardCode}:${component.componentCode}`,
+        chartCode: dashboard.dashboardCode,
+        chartName: normalizeDisplayText(dashboard.name, dashboard.dashboardCode),
+        componentCode: component.componentCode,
+        componentTitle: normalizeDisplayText(component.dslConfig.visualDsl.title || component.title, component.componentCode),
+        templateCode: component.templateCode,
+        modelCode: component.modelCode,
+        dslConfig: normalizeDslConfig(deepClone(component.dslConfig)),
+        addedAt: now
+      });
+      return {
+        ...strategy,
+        charts: strategy.charts.map(chart => (chart.chartCode === dashboard.dashboardCode ? nextChart : chart)),
+        updatedAt: now
+      };
+    }).filter(strategy => strategy.charts.length > 0));
+  });
+}
+
+export function removeDashboardFromStrategies(dashboardCode: string) {
+  const now = new Date().toISOString();
+  (['public', 'personal'] as StrategyScope[]).forEach(scope => {
+    updateStrategies(scope, strategies => strategies
+      .map(strategy => ({
+        ...strategy,
+        charts: strategy.charts.filter(chart => chart.chartCode !== dashboardCode),
+        updatedAt: strategy.charts.some(chart => chart.chartCode === dashboardCode) ? now : strategy.updatedAt
+      }))
+      .filter(strategy => strategy.charts.length > 0));
+  });
+}
+
+export function syncStrategyToFavorites(strategyId: string, scope: StrategyScope) {
+  if (scope !== 'public') {
+    return;
+  }
+  const source = getStrategy(strategyId, 'public');
+  if (!source) {
+    return;
+  }
+  updateStrategies('personal', strategies => strategies.map(strategy => (
+    strategy.sourceStrategyId === strategyId
+      ? {
+          ...strategy,
+          strategyName: source.strategyName,
+          description: source.description,
+          charts: source.charts.map(normalizeChartSnapshot),
+          updatedAt: new Date().toISOString()
+        }
+      : strategy
+  )));
+}
+
+export function removeStrategyFromFavorites(strategyId: string, scope: StrategyScope) {
+  if (scope !== 'public') {
+    return;
+  }
+  updateStrategies('personal', strategies => strategies.filter(strategy => strategy.sourceStrategyId !== strategyId));
 }
 
 export async function syncStrategiesFromServer(scope: StrategyScope) {
