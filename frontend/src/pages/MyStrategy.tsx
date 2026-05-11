@@ -520,6 +520,20 @@ function buildComponent(snapshot: StrategyChartSnapshot) {
   };
 }
 
+function isVisualStrategyChart(chart: StrategyChartSnapshot) {
+  return chart.templateCode !== 'table';
+}
+
+function getDefaultStrategyChartId(charts: StrategyChartSnapshot[]) {
+  return charts.find(isVisualStrategyChart)?.chartId ?? charts[0]?.chartId ?? '';
+}
+
+function resolveActiveStrategyChart(strategy: StrategyRecord, activeChartId?: string) {
+  return strategy.charts.find(item => item.chartId === activeChartId)
+    ?? strategy.charts.find(isVisualStrategyChart)
+    ?? strategy.charts[0];
+}
+
 function matchStrategyKeyword(strategy: StrategyRecord, keyword: string) {
   if (!keyword) {
     return true;
@@ -658,7 +672,7 @@ function MyStrategyOverview() {
       const currentActive = current[strategy.strategyId];
       accumulator[strategy.strategyId] = strategy.charts.some(item => item.chartId === currentActive)
         ? currentActive
-        : strategy.charts[0]?.chartId ?? '';
+        : getDefaultStrategyChartId(strategy.charts);
       return accumulator;
     }, {}));
   }, [filteredStrategies]);
@@ -862,7 +876,7 @@ function MyStrategyOverview() {
             <div className="favorites-board-grid strategy-center-grid drag-sort-grid">
               {orderedStrategies.map(strategy => {
                 const activeChartId = activeChartMap[strategy.strategyId];
-                const activeChart = strategy.charts.find(item => item.chartId === activeChartId) ?? strategy.charts[0];
+                const activeChart = resolveActiveStrategyChart(strategy, activeChartId);
                 const preview = activeChart ? previewMap[activeChart.chartId] : undefined;
                 return (
                   <article

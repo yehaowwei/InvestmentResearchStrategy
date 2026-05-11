@@ -304,6 +304,31 @@ function matchDraftKeyword(draft: StrategyConfigDraft, cards: ChartRuntimeCard[]
   return [draft.strategyName, ...titlePool].some(value => value.toLowerCase().includes(normalizedKeyword));
 }
 
+function chartRuntimeCardId(card: ChartRuntimeCard) {
+  return `${card.chartCode}:${card.component.componentCode}`;
+}
+
+function isVisualRuntimeCard(card: ChartRuntimeCard) {
+  return card.component.templateCode !== 'table' && card.component.componentType !== 'table';
+}
+
+function resolveDefaultDraftChartId(draft: StrategyConfigDraft, cards: ChartRuntimeCard[]) {
+  const selectedCards = cards.filter(item => draft.selectedChartIds.includes(chartRuntimeCardId(item)));
+  const visualCard = selectedCards.find(isVisualRuntimeCard);
+  return visualCard
+    ? chartRuntimeCardId(visualCard)
+    : selectedCards[0]
+      ? chartRuntimeCardId(selectedCards[0])
+      : draft.selectedChartIds[0] ?? '';
+}
+
+function resolveActiveDraftCard(draft: StrategyConfigDraft, cards: ChartRuntimeCard[], activeChartId?: string) {
+  const selectedCards = cards.filter(item => draft.selectedChartIds.includes(chartRuntimeCardId(item)));
+  return selectedCards.find(item => chartRuntimeCardId(item) === activeChartId)
+    ?? selectedCards.find(isVisualRuntimeCard)
+    ?? selectedCards[0];
+}
+
 function StrategyConfigOverview(props: {
   scope: StrategyConfigScope;
   backPath: string;
@@ -345,10 +370,10 @@ function StrategyConfigOverview(props: {
       const currentActive = current[draft.draftId];
       accumulator[draft.draftId] = draft.selectedChartIds.includes(currentActive)
         ? currentActive
-        : draft.selectedChartIds[0] ?? '';
+        : resolveDefaultDraftChartId(draft, props.availableCharts);
       return accumulator;
     }, {}));
-  }, [filteredDrafts]);
+  }, [filteredDrafts, props.availableCharts]);
 
   useEffect(() => {
     if (filteredDrafts.length === 0) {
@@ -500,8 +525,7 @@ function StrategyConfigOverview(props: {
             <div className="favorites-board-grid strategy-center-grid">
               {filteredDrafts.map(draft => {
                 const activeChartId = activeChartMap[draft.draftId];
-                const activeCard = props.availableCharts.find(item => `${item.chartCode}:${item.component.componentCode}` === activeChartId)
-                  ?? props.availableCharts.find(item => draft.selectedChartIds.includes(`${item.chartCode}:${item.component.componentCode}`));
+                const activeCard = resolveActiveDraftCard(draft, props.availableCharts, activeChartId);
 
                 return (
                   <article
@@ -540,7 +564,7 @@ function StrategyConfigOverview(props: {
 
                     <div className="strategy-chip-list">
                       {draft.selectedChartIds.map(chartId => {
-                        const card = props.availableCharts.find(item => `${item.chartCode}:${item.component.componentCode}` === chartId);
+                        const card = props.availableCharts.find(item => chartRuntimeCardId(item) === chartId);
                         if (!card) {
                           return null;
                         }

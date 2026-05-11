@@ -44,12 +44,12 @@ const BUILTIN_META: Record<string, DashboardMeta> = {
   chart_171: {
     dashboardCode: 'chart_171',
     category: 'cycle',
-    order: 0
+    order: 2
   },
   chart_91: {
     dashboardCode: 'chart_91',
     category: 'cycle',
-    order: 0
+    order: 1
   },
   margin_financing_dashboard: {
     dashboardCode: 'margin_financing_dashboard',
