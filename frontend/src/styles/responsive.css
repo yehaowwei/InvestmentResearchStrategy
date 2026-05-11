@@ -33,33 +33,33 @@
 
   .favorites-board-card {
     height: auto;
-    min-height: 420px;
+    min-height: 336px;
   }
 
   .public-board-card {
     height: auto;
-    min-height: 440px;
+    min-height: 352px;
   }
 
   .strategy-overview-card {
     height: auto;
-    min-height: 540px;
+    min-height: 432px;
   }
 
   .favorites-board-thumb {
-    height: 280px;
-    flex-basis: 280px;
-    min-height: 280px;
+    height: 224px;
+    flex-basis: 224px;
+    min-height: 224px;
   }
 
   .public-board-card .favorites-board-thumb {
-    height: 340px;
-    min-height: 340px;
+    height: 272px;
+    min-height: 272px;
   }
 
   .public-board-card .library-chart-preview .chart-renderer-host,
   .public-board-card .library-chart-preview .table-designer-preview {
-    min-height: 300px !important;
+    min-height: 240px !important;
   }
 }
 
@@ -239,14 +239,14 @@
 
   .favorites-board-thumb,
   .public-board-card .favorites-board-thumb {
-    height: 260px;
-    min-height: 260px;
-    flex-basis: 260px;
+    height: 208px;
+    min-height: 208px;
+    flex-basis: 208px;
   }
 
   .public-board-card .library-chart-preview .chart-renderer-host,
   .public-board-card .library-chart-preview .table-designer-preview {
-    min-height: 220px !important;
+    min-height: 176px !important;
   }
 
   .strategy-chip-list {
