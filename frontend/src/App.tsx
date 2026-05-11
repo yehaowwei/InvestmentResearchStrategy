@@ -57,6 +57,9 @@ function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   if (pathname.startsWith('/favorites')) {
     return '/favorites';
   }
+  if (pathname.startsWith('/designer')) {
+    return '/designer';
+  }
   if (pathname.startsWith('/strategy/config')) {
     return '/strategy/config';
   }
