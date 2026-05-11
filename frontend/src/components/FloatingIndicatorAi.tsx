@@ -39,9 +39,6 @@ const PANEL_WIDTH = 465;
 const PANEL_HEIGHT = 626;
 const MIN_PANEL_WIDTH = 360;
 const MIN_PANEL_HEIGHT = 420;
-const VIEWPORT_WIDTH = 1920;
-const VIEWPORT_HEIGHT = 1080;
-
 const TEXT = {
   title: 'TKF智能体助手',
   placeholder: '例如：帮我分析当前页面指标的整体状态和重点变化',
@@ -56,15 +53,17 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function readAppScale() {
+  return 1;
+}
+
+function viewportSize() {
   if (typeof window === 'undefined') {
-    return 1;
+    return { width: 1920, height: 1080 };
   }
-  const shell = document.querySelector<HTMLElement>('.app-scale-shell');
-  const raw = (shell ? window.getComputedStyle(shell).getPropertyValue('--app-scale') : '')
-    || window.getComputedStyle(document.documentElement).getPropertyValue('--app-scale')
-    || window.getComputedStyle(document.body).getPropertyValue('--app-scale');
-  const parsed = Number(raw.trim());
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  return {
+    width: window.visualViewport?.width ?? window.innerWidth,
+    height: window.visualViewport?.height ?? window.innerHeight
+  };
 }
 
 function toFiniteNumber(value: unknown) {
@@ -153,32 +152,36 @@ function buildFallbackReply(pageTitle: string, charts: IndicatorAiChartContext[]
 }
 
 function normalizeTrigger(point: Point) {
+  const viewport = viewportSize();
   return {
-    x: clamp(point.x, 16, VIEWPORT_WIDTH - TRIGGER_SIZE - 16),
-    y: clamp(point.y, 16, VIEWPORT_HEIGHT - TRIGGER_SIZE - 16)
+    x: clamp(point.x, 16, Math.max(16, viewport.width - TRIGGER_SIZE - 16)),
+    y: clamp(point.y, 16, Math.max(16, viewport.height - TRIGGER_SIZE - 16))
   };
 }
 
 function normalizePanel(bounds: Bounds) {
-  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, VIEWPORT_WIDTH - 32));
-  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, VIEWPORT_HEIGHT - 96));
-  const x = clamp(bounds.x, 16, Math.max(16, VIEWPORT_WIDTH - width - 16));
-  const y = clamp(bounds.y, 72, Math.max(72, VIEWPORT_HEIGHT - height - 16));
+  const viewport = viewportSize();
+  const width = clamp(bounds.width, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, viewport.width - 32));
+  const height = clamp(bounds.height, MIN_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, viewport.height - 96));
+  const x = clamp(bounds.x, 16, Math.max(16, viewport.width - width - 16));
+  const y = clamp(bounds.y, 72, Math.max(72, viewport.height - height - 16));
   return { x, y, width, height };
 }
 
 function positionPanelNearTrigger(trigger: Point) {
+  const viewport = viewportSize();
   const rightX = trigger.x + TRIGGER_SIZE + 16;
   const leftX = trigger.x - PANEL_WIDTH - 16;
-  const x = rightX + PANEL_WIDTH <= VIEWPORT_WIDTH - 16 ? rightX : leftX;
+  const x = rightX + PANEL_WIDTH <= viewport.width - 16 ? rightX : leftX;
   const y = trigger.y + TRIGGER_SIZE + 16;
   return normalizePanel({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT });
 }
 
 function movePanelNearTrigger(trigger: Point, panel: Bounds) {
+  const viewport = viewportSize();
   const rightX = trigger.x + TRIGGER_SIZE + 16;
   const leftX = trigger.x - panel.width - 16;
-  const x = rightX + panel.width <= VIEWPORT_WIDTH - 16 ? rightX : leftX;
+  const x = rightX + panel.width <= viewport.width - 16 ? rightX : leftX;
   const y = trigger.y + TRIGGER_SIZE + 16;
   return normalizePanel({ ...panel, x, y });
 }
@@ -253,7 +256,7 @@ function resolveDefaultLayout() {
         y: search.getBoundingClientRect().top + ((search.getBoundingClientRect().height - TRIGGER_SIZE) / 2)
       })
     : normalizeTrigger({
-        x: VIEWPORT_WIDTH - TRIGGER_SIZE - 320,
+        x: viewportSize().width - TRIGGER_SIZE - 320,
         y: 118
       });
 

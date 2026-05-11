@@ -1227,7 +1227,7 @@
   opacity: 1;
   filter: none;
   backface-visibility: hidden;
-  transform: scale(var(--app-inverse-scale, 1));
+  transform: none;
   transform-origin: top left;
   will-change: auto;
 }
@@ -1265,9 +1265,10 @@
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 14px;
-  width: 465px;
-  max-width: 1872px;
-  height: 626px;
+  width: min(465px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  height: min(626px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
   padding: 18px 18px 42px;
   border: 1px solid rgba(191, 219, 254, 0.82);
   border-radius: 24px;
@@ -1278,7 +1279,7 @@
   opacity: 1;
   filter: none;
   backface-visibility: hidden;
-  transform: scale(var(--app-inverse-scale, 1));
+  transform: none;
   transform-origin: top left;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;

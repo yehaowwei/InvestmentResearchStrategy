@@ -16,7 +16,7 @@
 
 .runtime-chart-modal-root .ant-modal {
   top: auto !important;
-  width: min(96vw, 1800px) !important;
+  width: min(1344px, calc(100vw - 48px)) !important;
   padding-bottom: 0;
   margin: 0;
   transform: none !important;
@@ -25,8 +25,8 @@
 .runtime-chart-modal-root .ant-modal-content {
   display: flex;
   flex-direction: column;
-  height: 88vh;
-  max-height: 88vh;
+  height: min(720px, calc(100vh - 48px));
+  max-height: calc(100vh - 48px);
 }
 
 .runtime-chart-modal-root .ant-modal-body {

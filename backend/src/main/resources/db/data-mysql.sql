@@ -541,3 +541,12 @@ UPDATE `dashboard_component`
 SET `dsl_config_json` = JSON_SET(CAST(`dsl_config_json` AS JSON), '$.dimensionConfigDsl.enableScrollWindow', false)
 WHERE `dashboard_code` = 'chart_11'
   AND `component_code` = 'cmp-1777259533761-0';
+
+UPDATE `shared_state`
+SET `state_json` = REPLACE(
+  `state_json`,
+  '"dimensionConfigDsl":{"layerIds":["chart-layer-1"],"stackBySecondDimension":false}',
+  '"dimensionConfigDsl":{"layerIds":["chart-layer-1"],"enableScrollWindow":false,"stackBySecondDimension":false}'
+)
+WHERE `state_key` = 'strategy-dashboard-personal-boards'
+  AND `state_json` LIKE '%favorite-chart_11%';
