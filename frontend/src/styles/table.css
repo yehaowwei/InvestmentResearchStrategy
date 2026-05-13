@@ -167,6 +167,11 @@
   overflow: hidden;
 }
 
+.library-chart-preview .chart-renderer-table,
+.library-chart-preview .table-designer-preview {
+  min-height: 100%;
+}
+
 .chart-renderer-thumbnail .designer-grid-table,
 .library-chart-preview .designer-grid-table {
   height: 100%;
@@ -179,4 +184,53 @@
   padding: 4px 6px;
   height: 26px;
   font-size: 11px;
+}
+
+.chart-renderer-thumbnail.chart-renderer-table {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+}
+
+.chart-renderer-thumbnail .designer-grid-table {
+  min-height: 208px;
+}
+
+.chart-renderer-thumbnail .designer-grid-table tr:first-child .designer-cell {
+  background: #eef6ff;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.cycle-rule-table {
+  min-height: 100%;
+  background: #fff;
+}
+
+.cycle-rule-table .table-designer-preview {
+  width: 100%;
+}
+
+.cycle-rule-table .designer-grid-table {
+  min-height: 100%;
+}
+
+.cycle-rule-table .designer-grid-table td {
+  text-align: center;
+}
+
+.cycle-rule-table .cycle-rule-header-cell {
+  background: #eef6ff !important;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.cycle-rule-table .cycle-rule-up-cell {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.cycle-rule-table .cycle-rule-down-cell {
+  background: #dcfce7;
+  color: #166534;
 }

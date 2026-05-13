@@ -6,6 +6,8 @@ import type { DashboardComponent } from '../../types/dashboard';
 
 export type AvailableChartCard = ChartRuntimeCard;
 
+const FORCE_SCROLL_WINDOW_DASHBOARDS = new Set(['chart_6', 'chart_8', 'chart_10']);
+
 export function matchChartKeyword(entry: PersonalChartEntry, keyword: string) {
   if (!keyword) return true;
   const normalizedKeyword = normalizeSearchKeyword(keyword);
@@ -16,13 +18,22 @@ export function matchChartKeyword(entry: PersonalChartEntry, keyword: string) {
 }
 
 export function toComponent(entry: PersonalChartEntry): DashboardComponent {
+  const forceScrollWindow = FORCE_SCROLL_WINDOW_DASHBOARDS.has(entry.chart.dashboardCode);
   return {
     componentCode: entry.chart.componentCode,
     componentType: entry.chart.templateCode === 'table' ? 'table' : 'chart',
     templateCode: entry.chart.templateCode,
     modelCode: entry.chart.modelCode,
     title: entry.chart.componentTitle,
-    dslConfig: entry.chart.dslConfig
+    dslConfig: forceScrollWindow
+      ? {
+        ...entry.chart.dslConfig,
+        dimensionConfigDsl: {
+          ...entry.chart.dslConfig.dimensionConfigDsl,
+          enableScrollWindow: true
+        }
+      }
+      : entry.chart.dslConfig
   };
 }
 

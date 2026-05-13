@@ -64,6 +64,18 @@
 }
 
 @media (max-width: 1180px) {
+  .runtime-chart-modal-with-collab {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(480px, 1fr) minmax(320px, 38vh);
+  }
+
+  .chart-collaboration-panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 1180px) {
   .app-shell-sidebar {
     padding-left: 0;
   }

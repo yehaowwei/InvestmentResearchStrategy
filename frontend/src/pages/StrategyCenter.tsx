@@ -17,6 +17,7 @@ import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
 import FloatingStrategyAi from '../components/FloatingStrategyAi';
 import type { ChartPreview } from '../types/dashboard';
+import { loadComponentPreview } from '../utils/chartLibrary';
 import { buildCycleStrategyAiReply } from '../utils/cycleStrategy';
 import { normalizeDisplayText } from '../utils/dashboard';
 import {
@@ -33,7 +34,7 @@ import { normalizeSearchKeyword, resolveActiveRowCodes, scrollContainerItemToCen
 const TEXT = {
   previewLoadFailed: '\u7b56\u7565\u9884\u89c8\u52a0\u8f7d\u5931\u8d25',
   detailLoadFailed: '\u7b56\u7565\u8be6\u60c5\u52a0\u8f7d\u5931\u8d25',
-  title: '\u7b56\u7565\u4e2d\u5fc3',
+  title: '策略体系',
   searchPlaceholder: '\u641c\u7d22\u7b56\u7565\u540d\u79f0\u6216\u6307\u6807\u540d\u79f0',
   chartCountSuffix: '\u4e2a\u6307\u6807',
   openStrategy: '\u8fdb\u5165\u7b56\u7565',
@@ -42,11 +43,11 @@ const TEXT = {
   favoritedMessage: '\u7b56\u7565\u5df2\u6536\u85cf\u5230\u6211\u7684\u7b56\u7565',
   noPreview: '\u5f53\u524d\u7b56\u7565\u6682\u65e0\u9884\u89c8',
   noStrategy: '\u8fd8\u6ca1\u6709\u914d\u7f6e\u597d\u7684\u7b56\u7565',
-  toc: '\u7b56\u7565\u4e2d\u5fc3',
+  toc: '策略体系',
   notFound: '\u672a\u627e\u5230\u7b56\u7565',
   notFoundDescription: '\u8fd9\u4e2a\u7b56\u7565\u53ef\u80fd\u5df2\u7ecf\u88ab\u5220\u9664\u3002',
-  back: '\u8fd4\u56de\u7b56\u7565\u4e2d\u5fc3',
-  detailFallback: '\u6309\u6307\u6807\u4e2d\u5fc3\u7684\u7f29\u7565\u56fe\u5f62\u5f0f\u5c55\u793a\u5f53\u524d\u7b56\u7565\u4e0b\u7684\u6240\u6709\u6307\u6807\u3002',
+  back: '返回策略体系',
+  detailFallback: '按指标体系的缩略图形式展示当前策略下的所有指标。',
   enlarge: '\u653e\u5927\u67e5\u770b',
   chartDetail: '\u6307\u6807\u8be6\u60c5',
   noChartPreview: '\u5f53\u524d\u6307\u6807\u6682\u65e0\u9884\u89c8',
@@ -167,6 +168,10 @@ function buildComponent(snapshot: StrategyChartSnapshot) {
 
 function isVisualStrategyChart(chart: StrategyChartSnapshot) {
   return chart.templateCode !== 'table';
+}
+
+function canRenderStrategyPreview(chart: StrategyChartSnapshot, preview?: ChartPreview) {
+  return Boolean(preview) || chart.templateCode === 'table';
 }
 
 function getDefaultStrategyChartId(charts: StrategyChartSnapshot[]) {
@@ -346,10 +351,7 @@ function StrategyOverview() {
     Promise.all(
       filteredStrategies.flatMap(strategy => strategy.charts.map(async chart => [
         chart.chartId,
-        await api.previewComponent({
-          modelCode: chart.modelCode,
-          dslConfig: chart.dslConfig
-        })
+        await loadComponentPreview(buildComponent(chart))
       ] as const))
     )
       .then(entries => {
@@ -533,7 +535,7 @@ function StrategyOverview() {
                           <div className="library-chart-preview-title">{activeChart?.componentTitle}</div>
                         </div>
                         <div className="library-chart-preview-body">
-                          {activeChart && preview ? (
+                          {activeChart && canRenderStrategyPreview(activeChart, preview) ? (
                             <ChartRendererCore
                               key={activeChart.chartId}
                               component={buildComponent(activeChart)}
@@ -677,10 +679,7 @@ function StrategyDetail() {
     Promise.all(
       strategy.charts.map(async chart => [
         chart.chartId,
-        await api.previewComponent({
-          modelCode: chart.modelCode,
-          dslConfig: chart.dslConfig
-        })
+        await loadComponentPreview(buildComponent(chart))
       ] as const)
     )
       .then(entries => {
@@ -872,7 +871,7 @@ function StrategyDetail() {
                   <div className="favorites-board-thumb">
                     <div className="library-chart-preview">
                       <div className="library-chart-preview-body">
-                        {previewMap[chart.chartId] ? (
+                        {canRenderStrategyPreview(chart, previewMap[chart.chartId]) ? (
                           <ChartRendererCore
                             component={buildComponent(chart)}
                             preview={previewMap[chart.chartId]}

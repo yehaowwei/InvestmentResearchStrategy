@@ -26,6 +26,8 @@ export default function PersonalChartCard(props: {
   onRemove: () => void;
 }) {
   const { item } = props;
+  const component = toComponent(item);
+  const canRenderPreview = Boolean(props.preview) || component.templateCode === 'table' || component.componentType === 'table';
 
   return (
     <article
@@ -62,9 +64,9 @@ export default function PersonalChartCard(props: {
         <div className="favorites-board-thumb">
           <div className="library-chart-preview">
             <div className="library-chart-preview-body">
-            {props.preview ? (
+            {canRenderPreview ? (
               <ChartRendererCore
-                component={toComponent(item)}
+                component={component}
                 preview={props.preview}
                 templateCode={item.chart.templateCode}
                 viewMode="chart"

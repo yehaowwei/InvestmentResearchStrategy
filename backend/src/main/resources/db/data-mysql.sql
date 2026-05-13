@@ -554,3 +554,20 @@ SET `state_json` = REPLACE(
 )
 WHERE `state_key` = 'strategy-dashboard-personal-boards'
   AND `state_json` LIKE '%favorite-chart_11%';
+
+UPDATE `dashboard_component`
+SET `dsl_config_json` = JSON_SET(CAST(`dsl_config_json` AS JSON), '$.dimensionConfigDsl.enableScrollWindow', true)
+WHERE `dashboard_code` IN ('chart_6', 'chart_8', 'chart_10');
+
+UPDATE `shared_state`
+SET `state_json` = REPLACE(
+  `state_json`,
+  '"dimensionConfigDsl":{"layerIds":["chart-layer-1"],"stackBySecondDimension":false}',
+  '"dimensionConfigDsl":{"layerIds":["chart-layer-1"],"enableScrollWindow":true,"stackBySecondDimension":false}'
+)
+WHERE `state_key` = 'strategy-dashboard-personal-boards'
+  AND (
+    `state_json` LIKE '%favorite-chart_6:%'
+    OR `state_json` LIKE '%favorite-chart_8:%'
+    OR `state_json` LIKE '%favorite-chart_10:%'
+  );

@@ -16,17 +16,27 @@
 
 .runtime-chart-modal-root .ant-modal {
   top: auto !important;
-  width: min(1344px, calc(100vw - 48px)) !important;
+  width: min(1760px, calc(100vw - 28px)) !important;
   padding-bottom: 0;
   margin: 0;
   transform: none !important;
 }
 
+.runtime-chart-modal-root .ant-modal-close {
+  top: 13px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .runtime-chart-modal-root .ant-modal-content {
   display: flex;
   flex-direction: column;
-  height: min(720px, calc(100vh - 48px));
-  max-height: calc(100vh - 48px);
+  height: min(860px, calc(100vh - 28px));
+  max-height: calc(100vh - 28px);
 }
 
 .runtime-chart-modal-root .ant-modal-body {
@@ -51,6 +61,277 @@
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.runtime-chart-modal-with-collab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 16px;
+}
+
+.runtime-chart-modal-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.runtime-chart-modal-main .component-card {
+  width: 100%;
+}
+
+.chart-collaboration-panel {
+  display: grid;
+  grid-template-rows: auto 32px minmax(0, 1fr) auto;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 12px;
+  background: rgba(248, 251, 255, 0.96);
+  overflow: hidden;
+}
+
+.chart-collaboration-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #10243c;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.chart-collaboration-head .ant-segmented {
+  flex: 0 0 auto;
+}
+
+.chart-record-history {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+}
+
+.chart-comment-filter {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 32px;
+}
+
+.chart-comment-filter .ant-picker {
+  width: 216px;
+  height: 28px;
+}
+
+.chart-record-compose {
+  display: grid;
+  grid-template-rows: auto 112px;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  min-height: 164px;
+}
+
+.chart-comment-compose {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  height: 112px;
+  min-height: 112px;
+}
+
+.chart-comment-compose .ant-btn {
+  justify-self: end;
+}
+
+.chart-audio-compose {
+  display: grid;
+  grid-template-rows: auto 40px 18px;
+  gap: 10px;
+  justify-items: start;
+  align-content: start;
+  height: 112px;
+  min-height: 112px;
+}
+
+.chart-comment-compose .ant-input {
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
+  resize: none;
+}
+
+.chart-summary-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.chart-comment-item,
+.chart-recording-item {
+  position: relative;
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.chart-comment-meta,
+.chart-recording-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.chart-comment-meta span:first-child,
+.chart-recording-title {
+  color: #1e293b;
+  font-weight: 700;
+}
+
+.chart-comment-content,
+.chart-recording-summary {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.chart-comment-title {
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.chart-comment-expand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #1e293b;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.chart-expand-corner {
+  justify-self: end;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.chart-expand-corner:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.chart-record-publish-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.chart-recording-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.chart-record-actions {
+  display: grid;
+  grid-template-columns: 92px 82px 86px 68px;
+  gap: 6px;
+  align-items: center;
+  justify-content: end;
+}
+
+.chart-record-actions-public {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.chart-record-actions-public .ant-btn {
+  width: 100%;
+}
+
+.chart-record-actions-public > :first-child {
+  width: 72px;
+  margin-right: auto;
+}
+
+.chart-record-actions .ant-btn {
+  width: 100%;
+  padding-inline: 6px;
+}
+
+.chart-record-actions .ant-btn:nth-child(3),
+.chart-record-actions > span:nth-child(3) + .ant-btn {
+  justify-self: end;
+}
+
+.chart-comment-content.is-clamped,
+.chart-recording-summary .is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chart-recording-summary-toggle {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chart-record-audio {
+  width: 100%;
+  height: 32px;
+}
+
+.chart-recording-item audio {
+  width: 100%;
+  height: 32px;
+}
+
+.chart-recording-live {
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.model-placeholder-page {
+  min-height: 520px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+}
+
+.model-placeholder-icon {
+  color: #2563eb;
+  font-size: 42px;
 }
 
 .runtime-toc-card {

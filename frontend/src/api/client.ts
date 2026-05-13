@@ -84,13 +84,20 @@ function buildChartDraftPayload(chart: ChartDefinition): DashboardDraft {
   } as DashboardDraft);
 }
 
-function buildPreviewPayload(component: { modelCode: string; dslConfig: ComponentDslConfig }) {
+function buildPreviewPayload(component: {
+  modelCode: string;
+  dslConfig: ComponentDslConfig;
+  componentCode?: string;
+  componentType?: string;
+  templateCode?: string;
+  title?: string;
+}) {
   const normalizedComponent = normalizeComponentForTransport({
-    componentCode: 'preview-component',
-    componentType: 'chart',
-    templateCode: 'line',
+    componentCode: component.componentCode || 'preview-component',
+    componentType: component.componentType || (component.templateCode === 'table' ? 'table' : 'chart'),
+    templateCode: component.templateCode || 'line',
     modelCode: component.modelCode,
-    title: component.dslConfig.visualDsl?.title || '预览指标',
+    title: component.title || component.dslConfig.visualDsl?.title || '预览指标',
     dslConfig: component.dslConfig
   });
   return {

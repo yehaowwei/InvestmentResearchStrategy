@@ -15,6 +15,7 @@ import ExternalResourceGroupConfigPage from './pages/ExternalResourceGroupConfig
 import ExternalResourcePage from './pages/ExternalResourcePage';
 import IndicatorCenterPage from './pages/IndicatorCenterPage';
 import IndicatorConfigPage from './pages/IndicatorConfigPage';
+import ModelPlaceholderPage from './pages/ModelPlaceholderPage';
 import MyIndicatorsPage from './pages/MyIndicatorsPage';
 import MyStrategy from './pages/MyStrategy';
 import StrategyCenter from './pages/StrategyCenter';
@@ -31,8 +32,10 @@ import { syncStrategiesFromServer } from './utils/strategies';
 const TEXT = {
   myFavorites: '我的指标',
   myStrategy: '我的策略',
-  strategyCenter: '策略中心',
-  runtimeCenter: '指标中心',
+  myModel: '我的模型',
+  strategyCenter: '策略体系',
+  runtimeCenter: '指标体系',
+  modelCenter: '模型体系',
   strategyConfig: '策略配置',
   externalResourceCenter: '友情链接',
   externalResourceConfig: '链接配置',
@@ -57,6 +60,9 @@ function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   if (pathname.startsWith('/favorites')) {
     return '/favorites';
   }
+  if (pathname.startsWith('/my-model')) {
+    return '/my-model';
+  }
   if (pathname.startsWith('/designer')) {
     return '/designer';
   }
@@ -72,6 +78,9 @@ function resolveSelectedKey(pathname: string, categoryKeys: string[]) {
   }
   if (pathname.startsWith('/strategy-center')) {
     return '/strategy-center';
+  }
+  if (pathname.startsWith('/model-center')) {
+    return '/model-center';
   }
   if (pathname.startsWith('/my-strategy')) {
     return '/my-strategy';
@@ -93,8 +102,10 @@ function AppRoutes() {
       <Route path="/favorites/:chartId" element={<MyIndicatorsPage />} />
       <Route path="/my-strategy" element={<MyStrategy />} />
       <Route path="/my-strategy/:strategyId" element={<MyStrategy />} />
+      <Route path="/my-model" element={<ModelPlaceholderPage title="我的模型" />} />
       <Route path="/strategy-center" element={<StrategyCenter />} />
       <Route path="/strategy-center/:strategyId" element={<StrategyCenter />} />
+      <Route path="/model-center" element={<ModelPlaceholderPage title="模型体系" />} />
       <Route path="/strategy/config" element={<StrategyConfig />} />
       <Route path="/external-resource-config" element={<ExternalResourceConfigPage />} />
       <Route path="/external-resource-config/:groupId" element={<ExternalResourceGroupConfigPage />} />
@@ -136,6 +147,11 @@ export default function App() {
       label: <Link to="/my-strategy">{TEXT.myStrategy}</Link>
     },
     {
+      key: '/my-model',
+      icon: renderMenuIcon(StarOutlined, '#eab308'),
+      label: <Link to="/my-model">{TEXT.myModel}</Link>
+    },
+    {
       key: 'runtime-group',
       icon: renderMenuIcon(ClusterOutlined, '#2563eb'),
       label: TEXT.runtimeCenter,
@@ -148,6 +164,11 @@ export default function App() {
       key: '/strategy-center',
       icon: renderMenuIcon(ClusterOutlined, '#2563eb'),
       label: <Link to="/strategy-center">{TEXT.strategyCenter}</Link>
+    },
+    {
+      key: '/model-center',
+      icon: renderMenuIcon(ClusterOutlined, '#2563eb'),
+      label: <Link to="/model-center">{TEXT.modelCenter}</Link>
     },
     {
       key: 'external-resource-group',

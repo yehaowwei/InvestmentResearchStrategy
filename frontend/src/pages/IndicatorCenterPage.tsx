@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import AppSearchInput from '../components/AppSearchInput';
+import ChartCollaborationPanel from '../components/ChartCollaborationPanel';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
 import FloatingIndicatorAi from '../components/FloatingIndicatorAi';
@@ -15,6 +16,10 @@ import { filterChartsByCategory, getDashboardMeta, getCategoryLabel, normalizeCa
 import { normalizeSearchKeyword, resolveActiveRowCodes, scrollContainerItemToCenter } from './indicatorPageNavigation';
 
 type RuntimeCategoryKey = 'all' | DashboardCategoryKey;
+
+function canRenderChartPreview(item: ChartRuntimeCard) {
+  return Boolean(item.preview) || item.component.templateCode === 'table' || item.component.componentType === 'table';
+}
 
 export default function IndicatorCenterPage() {
   const navigate = useNavigate();
@@ -58,7 +63,7 @@ export default function IndicatorCenterPage() {
       .then(setCharts)
       .catch(loadError => {
         console.error(loadError);
-        setError(loadError instanceof Error ? loadError.message : '指标中心加载失败');
+        setError(loadError instanceof Error ? loadError.message : '指标体系加载失败');
       });
   }, []);
 
@@ -80,7 +85,7 @@ export default function IndicatorCenterPage() {
       .catch(loadError => {
         console.error(loadError);
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '指标中心加载失败');
+          setError(loadError instanceof Error ? loadError.message : '指标体系加载失败');
         }
       });
 
@@ -168,7 +173,7 @@ export default function IndicatorCenterPage() {
   };
 
   if (error) {
-    return <Alert type="error" showIcon message="指标中心加载失败" description={error} />;
+    return <Alert type="error" showIcon message="指标体系加载失败" description={error} />;
   }
 
   return (
@@ -265,7 +270,7 @@ export default function IndicatorCenterPage() {
                     <div className="favorites-board-thumb">
                       <div className="library-chart-preview">
                         <div className="library-chart-preview-body">
-                          {item.preview ? (
+                          {canRenderChartPreview(item) ? (
                             <ChartRendererCore
                               component={item.component}
                               preview={item.preview}
@@ -295,7 +300,7 @@ export default function IndicatorCenterPage() {
         </div>
 
         <aside className="panel-card runtime-toc-card">
-          <div className="runtime-toc-title">{category === 'all' ? '指标中心' : getCategoryLabel(category)}</div>
+          <div className="runtime-toc-title">{category === 'all' ? '指标体系' : getCategoryLabel(category)}</div>
           <div className="runtime-toc-scroll" ref={tocScrollRef}>
             {category === 'all' ? (
               categoryNavGroups.map(group => (
@@ -354,33 +359,42 @@ export default function IndicatorCenterPage() {
         onCancel={() => setExpandedChart(undefined)}
       >
         {expandedChart ? (
-          <div className="runtime-chart-modal">
-            <ChartContainer
-              title={normalizeDisplayText(
+          <div className="runtime-chart-modal runtime-chart-modal-with-collab">
+            <div className="runtime-chart-modal-main">
+              <ChartContainer
+                title={normalizeDisplayText(
+                  expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title,
+                  expandedChart.component.componentCode
+                )}
+                tag={normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.indicatorTag)}
+              >
+                <ChartRendererCore
+                  key={expandedChart.component.componentCode}
+                  component={expandedChart.component}
+                  preview={expandedChart.preview}
+                  templateCode={expandedChart.component.templateCode}
+                  viewMode="chart"
+                  editable={false}
+                  selected={false}
+                  forceSlider
+                  forceDataZoom
+                />
+              </ChartContainer>
+            </div>
+            <ChartCollaborationPanel
+              chartId={`${expandedChart.chartCode}:${expandedChart.component.componentCode}`}
+              chartTitle={normalizeDisplayText(
                 expandedChart.component.dslConfig.visualDsl.title || expandedChart.component.title,
                 expandedChart.component.componentCode
               )}
-              tag={normalizeDisplayText(expandedChart.component.dslConfig.visualDsl.indicatorTag)}
-            >
-              <ChartRendererCore
-                key={expandedChart.component.componentCode}
-                component={expandedChart.component}
-                preview={expandedChart.preview}
-                templateCode={expandedChart.component.templateCode}
-                viewMode="chart"
-                editable={false}
-                selected={false}
-                forceSlider
-                forceDataZoom
-              />
-            </ChartContainer>
+            />
           </div>
         ) : null}
       </Modal>
 
       <FloatingIndicatorAi
         storageKey={`indicator-center-${category}`}
-        pageTitle={category === 'all' ? '指标中心' : getCategoryLabel(category)}
+        pageTitle={category === 'all' ? '指标体系' : getCategoryLabel(category)}
         charts={runtimeCharts.map(item => ({
           id: `${item.chartCode}:${item.component.componentCode}`,
           title: normalizeDisplayText(

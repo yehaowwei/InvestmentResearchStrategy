@@ -3,12 +3,13 @@ import { Button, Empty, Modal, Space, message } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { api } from '../api/client';
 import AppSearchInput from '../components/AppSearchInput';
+import ChartCollaborationPanel from '../components/ChartCollaborationPanel';
 import ChartContainer from '../components/ChartContainer';
 import ChartRendererCore from '../components/ChartRendererCore';
 import FloatingIndicatorAi from '../components/FloatingIndicatorAi';
 import type { ChartCatalogItem, ChartPreview, DashboardCategoryKey } from '../types/dashboard';
 import { normalizeDisplayText } from '../utils/dashboard';
-import { buildChartRuntimeCards } from '../utils/chartLibrary';
+import { buildChartRuntimeCards, loadComponentPreview } from '../utils/chartLibrary';
 import { getCategoryLabel, getDashboardMeta, useDashboardCategories } from '../utils/dashboardCatalog';
 import {
   createFavoriteFromComponent,
@@ -132,10 +133,7 @@ export default function MyIndicatorsPage() {
       Promise.all(
         nextCharts.map(async item => [
           item.chart.componentCode,
-          await api.previewComponent({
-            modelCode: item.chart.modelCode,
-            dslConfig: item.chart.dslConfig
-          })
+          await loadComponentPreview(toComponent(item))
         ] as const)
       )
         .then(entries => setPreviews(Object.fromEntries(entries)))
@@ -485,23 +483,29 @@ export default function MyIndicatorsPage() {
         onCancel={() => setExpandedChart(undefined)}
       >
         {expandedChart ? (
-          <div className="runtime-chart-modal">
-            <ChartContainer
-              title={normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode)}
-              tag={normalizeDisplayText(expandedChart.chart.dslConfig.visualDsl.indicatorTag)}
-            >
-              <ChartRendererCore
-                key={expandedChart.chart.componentCode}
-                component={toComponent(expandedChart)}
-                preview={previews[expandedChart.chart.componentCode]}
-                templateCode={expandedChart.chart.templateCode}
-                viewMode="chart"
-                editable={false}
-                selected={false}
-                forceSlider
-                forceDataZoom
-              />
-            </ChartContainer>
+          <div className="runtime-chart-modal runtime-chart-modal-with-collab">
+            <div className="runtime-chart-modal-main">
+              <ChartContainer
+                title={normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode)}
+                tag={normalizeDisplayText(expandedChart.chart.dslConfig.visualDsl.indicatorTag)}
+              >
+                <ChartRendererCore
+                  key={expandedChart.chart.componentCode}
+                  component={toComponent(expandedChart)}
+                  preview={previews[expandedChart.chart.componentCode]}
+                  templateCode={expandedChart.chart.templateCode}
+                  viewMode="chart"
+                  editable={false}
+                  selected={false}
+                  forceSlider
+                  forceDataZoom
+                />
+              </ChartContainer>
+            </div>
+            <ChartCollaborationPanel
+              chartId={`personal:${expandedChart.chart.componentCode}`}
+              chartTitle={normalizeDisplayText(expandedChart.chart.componentTitle, expandedChart.chart.componentCode)}
+            />
           </div>
         ) : null}
       </Modal>

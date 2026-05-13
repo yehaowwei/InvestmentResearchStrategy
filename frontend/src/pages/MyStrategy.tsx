@@ -32,7 +32,7 @@ import {
   type StrategyChartSnapshot,
   type StrategyRecord
 } from '../utils/strategies';
-import { buildChartRuntimeCards, type ChartRuntimeCard } from '../utils/chartLibrary';
+import { buildChartRuntimeCards, loadComponentPreview, type ChartRuntimeCard } from '../utils/chartLibrary';
 import {
   normalizeSearchKeyword,
   reorderItemsPreview,
@@ -524,6 +524,10 @@ function isVisualStrategyChart(chart: StrategyChartSnapshot) {
   return chart.templateCode !== 'table';
 }
 
+function canRenderStrategyPreview(chart: StrategyChartSnapshot, preview?: ChartPreview) {
+  return Boolean(preview) || chart.templateCode === 'table';
+}
+
 function getDefaultStrategyChartId(charts: StrategyChartSnapshot[]) {
   return charts.find(isVisualStrategyChart)?.chartId ?? charts[0]?.chartId ?? '';
 }
@@ -644,10 +648,7 @@ function MyStrategyOverview() {
     Promise.all(
       filteredStrategies.flatMap(strategy => strategy.charts.map(async chart => [
         chart.chartId,
-        await api.previewComponent({
-          modelCode: chart.modelCode,
-          dslConfig: chart.dslConfig
-        })
+        await loadComponentPreview(buildComponent(chart))
       ] as const))
     )
       .then(entries => {
@@ -941,7 +942,7 @@ function MyStrategyOverview() {
                     <div className="favorites-board-thumb">
                       <div className="library-chart-preview strategy-preview-frame">
                         <div className="library-chart-preview-body">
-                          {activeChart && preview ? (
+                          {activeChart && canRenderStrategyPreview(activeChart, preview) ? (
                             <ChartRendererCore
                               key={activeChart.chartId}
                               component={buildComponent(activeChart)}
@@ -1151,10 +1152,7 @@ function MyStrategyDetail() {
     Promise.all(
       strategy.charts.map(async chart => [
         chart.chartId,
-        await api.previewComponent({
-          modelCode: chart.modelCode,
-          dslConfig: chart.dslConfig
-        })
+        await loadComponentPreview(buildComponent(chart))
       ] as const)
     )
       .then(entries => {
@@ -1541,7 +1539,7 @@ function MyStrategyDetail() {
                   <div className="favorites-board-thumb">
                     <div className="library-chart-preview">
                       <div className="library-chart-preview-body">
-                        {previewMap[chart.chartId] ? (
+                        {canRenderStrategyPreview(chart, previewMap[chart.chartId]) ? (
                           <ChartRendererCore
                             component={buildComponent(chart)}
                             preview={previewMap[chart.chartId]}

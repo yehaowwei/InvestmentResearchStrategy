@@ -17,6 +17,82 @@ import { normalizeDisplayText } from '../utils/dashboard';
 import { formatNumberMax3 } from '../utils/numberFormat';
 import InteractiveTableDesigner from './InteractiveTableDesigner';
 
+const CYCLE_RULE_COLUMNS = [
+  { fieldCode: 'state_code', title: '状态分类' },
+  { fieldCode: 'm1_yoy_trend', title: 'M1同比趋势' },
+  { fieldCode: 'nanhua_industrial_index_trend', title: '南华工业品指数趋势' },
+  { fieldCode: 'china_10y_bond_yield_trend', title: '10Y国债收益率趋势' }
+] as const;
+
+const CYCLE_RULE_ROWS = [
+  ['状态1', 1, 1, 1],
+  ['状态2', -1, 1, 1],
+  ['状态3', 1, -1, 1],
+  ['状态4', 1, 1, -1],
+  ['状态5', -1, -1, 1],
+  ['状态6', -1, 1, -1],
+  ['状态7', 1, -1, -1],
+  ['状态8', -1, -1, -1]
+] as const;
+
+const CYCLE_RULE_DISPLAY_COLUMNS = [
+  { fieldCode: 'state_code', title: '状态分类' },
+  { fieldCode: 'm1_yoy_trend', title: 'M1同比趋势' },
+  { fieldCode: 'nanhua_industrial_index_trend', title: '南华工业品指数趋势' },
+  { fieldCode: 'china_10y_bond_yield_trend', title: '10Y国债收益率趋势' }
+] as const;
+
+const CYCLE_RULE_DISPLAY_ROWS = [
+  ['状态1', 1, 1, 1],
+  ['状态2', -1, 1, 1],
+  ['状态3', 1, -1, 1],
+  ['状态4', 1, 1, -1],
+  ['状态5', -1, -1, 1],
+  ['状态6', -1, 1, -1],
+  ['状态7', 1, -1, -1],
+  ['状态8', -1, -1, -1]
+] as const;
+
+function isCycleRuleConfig(config?: ChartPreview['dslConfig'], component?: DashboardComponent) {
+  return config?.queryDsl.modelCode === 'macro_state_trend_matrix'
+    || component?.modelCode === 'macro_state_trend_matrix'
+    || Boolean(config?.visualDsl.title.includes('三因素风格周期定位'))
+    || Boolean(component?.title.includes('三因素风格周期定位'));
+}
+
+function renderCycleRuleTable(thumbnail = false) {
+  const rows = thumbnail ? CYCLE_RULE_DISPLAY_ROWS.slice(0, 7) : CYCLE_RULE_DISPLAY_ROWS;
+  return (
+    <div className={`chart-renderer-shell chart-renderer-table cycle-rule-table${thumbnail ? ' chart-renderer-thumbnail' : ''}`}>
+      <div className="table-designer-preview">
+        <table className="designer-grid-table">
+          <tbody>
+            <tr>
+              {CYCLE_RULE_DISPLAY_COLUMNS.map(column => (
+                <td key={column.fieldCode} className="designer-cell cycle-rule-header-cell">
+                  {column.title}
+                </td>
+              ))}
+            </tr>
+            {rows.map(row => (
+              <tr key={row[0]}>
+                {row.map((cell, index) => (
+                  <td
+                    key={`${row[0]}-${index}`}
+                    className={`designer-cell${index > 0 ? Number(cell) > 0 ? ' cycle-rule-up-cell' : ' cycle-rule-down-cell' : ''}`}
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function readZoomRange(chart: echarts.EChartsType) {
   const option = chart.getOption();
   const dataZoom = Array.isArray(option.dataZoom) ? option.dataZoom[0] : undefined;
@@ -162,12 +238,40 @@ function buildThumbnailLegendItems(preview: ChartPreview, activeLayerId?: string
 }
 
 function renderStaticTable(preview: ChartPreview, thumbnail = false) {
+  if (isCycleRuleConfig(preview.dslConfig)) {
+    return renderCycleRuleTable(thumbnail);
+  }
   const tableDsl = preview.dslConfig.tableDsl;
   if (!tableDsl) {
     return <Empty description="暂无表格配置" />;
   }
 
-  const bodyCells: GridCell[] = (tableDsl.bodyCells ?? []).map((cell: TableBodyCellDsl) => ({
+  const isCycleRuleTable = preview.dslConfig.queryDsl.modelCode === 'macro_state_trend_matrix'
+    || preview.dslConfig.visualDsl.title.includes('三因素风格周期定位');
+  const cycleRuleBodyCells: GridCell[] = isCycleRuleTable
+    ? [
+      ...CYCLE_RULE_COLUMNS.map((column, colIndex) => ({
+        key: `cycle-header-${column.fieldCode}`,
+        region: 'body' as const,
+        rowIndex: 0,
+        colIndex,
+        text: column.title,
+        value: column.title,
+        fieldCode: column.fieldCode
+      })),
+      ...CYCLE_RULE_ROWS.flatMap((row, rowIndex) => CYCLE_RULE_COLUMNS.map((column, colIndex) => ({
+        key: `cycle-row-${rowIndex}-${column.fieldCode}`,
+        region: 'body' as const,
+        rowIndex: rowIndex + 1,
+        colIndex,
+        text: String(row[colIndex]),
+        value: row[colIndex],
+        fieldCode: column.fieldCode
+      })))
+    ]
+    : [];
+
+  const configuredBodyCells: GridCell[] = (tableDsl.bodyCells ?? []).map((cell: TableBodyCellDsl) => ({
     key: cell.key,
     region: 'body',
     rowIndex: cell.rowIndex,
@@ -176,6 +280,37 @@ function renderStaticTable(preview: ChartPreview, thumbnail = false) {
     value: cell.value,
     fieldCode: cell.fieldCode
   }));
+  const visibleColumns = (tableDsl.columns ?? []).filter(column => column.visible !== false);
+  const fallbackRows = preview.rows.length > 0
+    ? preview.rows
+    : Array.from({ length: thumbnail ? 5 : 8 }, () => ({} as Record<string, unknown>));
+  const bodyCells: GridCell[] = cycleRuleBodyCells.length > 0
+    ? cycleRuleBodyCells
+    : configuredBodyCells.length > 0
+      ? configuredBodyCells
+      : [
+        ...visibleColumns.map((column, colIndex) => ({
+          key: `header-${column.id || column.fieldCode || colIndex}`,
+          region: 'body' as const,
+          rowIndex: 0,
+          colIndex,
+          text: normalizeDisplayText(column.title, column.fieldCode),
+          value: normalizeDisplayText(column.title, column.fieldCode),
+          fieldCode: column.fieldCode
+        })),
+        ...fallbackRows.flatMap((row, rowIndex) => visibleColumns.map((column, colIndex) => {
+          const value = row[column.fieldCode];
+          return {
+            key: `row-${rowIndex}-${column.fieldCode || colIndex}`,
+            region: 'body' as const,
+            rowIndex: rowIndex + 1,
+            colIndex,
+            text: value == null || value === '' ? '-' : String(formatNumberMax3(value)),
+            value,
+            fieldCode: column.fieldCode
+          };
+        }))
+      ];
   const fullRowCount = Math.max(1, ...bodyCells.map(cell => cell.rowIndex + 1), 1);
   const rowCount = thumbnail ? Math.min(fullRowCount, 8) : fullRowCount;
   const colCount = Math.max(1, ...bodyCells.map(cell => cell.colIndex + 1), 1);
@@ -348,9 +483,11 @@ export default function ChartRendererCore(props: {
     };
 
     window.requestAnimationFrame(runResize);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(runResize));
     window.setTimeout(runResize, 60);
     window.setTimeout(runResize, 180);
     window.setTimeout(runResize, 360);
+    window.setTimeout(runResize, 720);
   }, [option]);
 
   const updateZoomRange = useCallback((next: { start: number; end: number }) => {
@@ -463,7 +600,9 @@ export default function ChartRendererCore(props: {
     const handleViewportResize = () => resizeChart(true);
     window.addEventListener('resize', handleViewportResize);
     window.addEventListener('orientationchange', handleViewportResize);
+    window.addEventListener('focus', handleViewportResize);
     window.visualViewport?.addEventListener('resize', handleViewportResize);
+    window.visualViewport?.addEventListener('scroll', handleViewportResize);
 
     return () => {
       chart.off('datazoom', syncZoom);
@@ -471,7 +610,9 @@ export default function ChartRendererCore(props: {
       observerRef.current = null;
       window.removeEventListener('resize', handleViewportResize);
       window.removeEventListener('orientationchange', handleViewportResize);
+      window.removeEventListener('focus', handleViewportResize);
       window.visualViewport?.removeEventListener('resize', handleViewportResize);
+      window.visualViewport?.removeEventListener('scroll', handleViewportResize);
     };
   }, [shouldRenderChart, resizeChart]);
 
@@ -542,6 +683,24 @@ export default function ChartRendererCore(props: {
   }
 
   if (!props.preview) {
+    if (isCycleRuleConfig(props.component?.dslConfig, props.component)) {
+      return renderCycleRuleTable(thumbnailMode);
+    }
+    if (
+      props.component
+      && (
+        props.templateCode === 'table'
+        || props.component.templateCode === 'table'
+        || props.component.componentType === 'table'
+      )
+    ) {
+      return renderStaticTable({
+        modelCode: props.component.modelCode,
+        queryDsl: props.component.dslConfig.queryDsl,
+        rows: [],
+        dslConfig: props.component.dslConfig
+      }, thumbnailMode);
+    }
     return <Empty description="等待预览数据" />;
   }
 

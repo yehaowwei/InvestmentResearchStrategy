@@ -1030,7 +1030,7 @@ export default function IndicatorConfigPage() {
                   preview={draftPreview}
                   templateCode={selectedChart.templateCode}
                   viewMode="chart"
-                  editable={false}
+                  editable={selectedChart.templateCode === 'table' || selectedChart.componentType === 'table'}
                   selected={false}
                   dataPools={dataPools}
                   onComponentChange={applyDraftComponent}
